@@ -131,7 +131,7 @@ pub fn table(input: TokenStream) -> TokenStream {
 
                     type Item = #name;
 
-                    fn insert<'a, 'b, 'c>(&self, mut conn: ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError> {
+                    fn insert<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError> {
                         let sql = format!(#format, #table_name, #build_fields,#build_values);
                         println!("insert :{}", sql);
                         let last_insert_id = match conn {
@@ -144,7 +144,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(last_insert_id)
                     }
 
-                    fn list<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, mut conn: ConnMut<'a, 'b, 'c>) -> Result<Vec<Self::Item>, AkitaError> where Self::Item: Clone {
+                    fn list<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Vec<Self::Item>, AkitaError> where Self::Item: Clone {
                         let table_name = self.get_table_name()?;
                         let table_fields = self.get_table_fields()?;
                         let select_fields = wrapper.get_select_sql();
@@ -165,7 +165,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(datas)
                     }
 
-                    fn page<'a, 'b, 'c, W: Wrapper>(&self, page: usize, size: usize, wrapper: &mut W, mut conn: ConnMut<'a, 'b, 'c>) -> Result<IPage<Self::Item>, AkitaError>{
+                    fn page<'a, 'b, 'c, W: Wrapper>(&self, page: usize, size: usize, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<IPage<Self::Item>, AkitaError>{
                         let table_name = self.get_table_name()?;
                         let table_fields = self.get_table_fields()?;
                         let select_fields = wrapper.get_select_sql();
@@ -215,7 +215,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(page)
                     }
 
-                    fn find_one<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, mut conn: ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError> {
+                    fn find_one<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let table_fields = self.get_table_fields()?;
                         let select_fields = wrapper.get_select_sql();
@@ -236,7 +236,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(data)
                     }
   
-                    fn find_by_id<'a, 'b, 'c>(&self, mut conn: ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError> {
+                    fn find_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let table_fields = self.get_table_fields()?;
                         let id_fields = self.get_table_idents()?;
@@ -252,7 +252,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(data)
                     }
 
-                    fn update<'a, 'b, 'c>(&self, wrapper: &mut UpdateWrapper, mut conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
+                    fn update<'a, 'b, 'c>(&self, wrapper: &mut UpdateWrapper, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let update_fields = self.get_update_fields(wrapper.get_set_sql())?;
                         let sql = format!("update {} set {} where {}", &table_name, &update_fields, wrapper.get_sql_segment());
@@ -267,7 +267,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(affected_rows > 0)
                     }
                 
-                    fn update_by_id<'a, 'b, 'c>(&self, mut conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
+                    fn update_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let update_fields = self.get_update_fields(None)?;
                         let id_fields = self.get_table_idents()?;
@@ -283,7 +283,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(affected_rows > 0)
                     }
 
-                    fn delete<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, mut conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
+                    fn delete<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let sql = format!("delete from {} where {}", &table_name, wrapper.get_sql_segment());
                         println!("delete: {}", sql);
@@ -297,7 +297,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         Ok(affected_rows > 0)
                     }
                 
-                    fn delete_by_id<'a, 'b, 'c>(&self, mut conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
+                    fn delete_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let id_fields = self.get_table_idents()?;
                         let sql = format!("delete from {} where {}", &table_name, &id_fields);

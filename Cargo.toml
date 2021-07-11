@@ -1,12 +1,12 @@
 [package]
 name = "akita"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
 description = "Akita.Mini Database Helper For MySQL."
 readme = "README.md"
-keywords = ["akita", "mysql helper", "sql"]
-categories = ["sql", "orm"]
+keywords = ["akita", "mysql", "sql"]
+categories = ["data-structures", "database-implementations"]
 homepage = "https://github.com/wslongchen/akita"
 repository = "https://github.com/wslongchen/akita"
 license = "MIT"

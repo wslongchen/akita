@@ -67,19 +67,20 @@
 //!     mobile: "mobile".to_string(),
 //!     password: "password".to_string()
 //! };
-//! let conn = conn;
+//! 
 //! // Transaction
 //! conn.start_transaction(TxOpts::default()).map(|mut transaction| {
-//!     match user.update( & mut wrapper, conn) {
+//!     match user.update( & mut wrapper, &mut ConnMut::TxMut(&mut transaction)) {
 //!         Ok(res) => {}
 //!         Err(err) => {
 //!             println!("error : {:?}", err);
 //!         }
 //!     }
 //! });
-//! 
+//!
+//! let mut pool = ConnMut::R2d2Polled(conn);
 //! /// update by identify
-//! match user.update_by_id(conn) {
+//! match user.update_by_id(&mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -87,7 +88,7 @@
 //! }
 //! 
 //! /// delete by identify
-//! match user.delete_by_id(conn) {
+//! match user.delete_by_id(&mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -95,7 +96,7 @@
 //! }
 //! 
 //! /// delete by condition
-//! match user.delete:: < UpdateWrapper > ( & mut wrapper, conn) {
+//! match user.delete:: < UpdateWrapper > ( & mut wrapper, &mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -103,7 +104,7 @@
 //! }
 //! 
 //! /// insert data
-//! match user.insert(conn) {
+//! match user.insert(&mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -111,7 +112,7 @@
 //! }
 //! 
 //! /// find by identify
-//! match user.find_by_id(conn) {
+//! match user.find_by_id(&mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -120,7 +121,7 @@
 //! 
 //! 
 //! /// find one by condition
-//! match user.find_one::<UpdateWrapper>(&mut wrapper, conn) {
+//! match user.find_one::<UpdateWrapper>(&mut wrapper, &mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -128,7 +129,7 @@
 //! }
 //! 
 //! /// find page by condition
-//! match user.page::<UpdateWrapper>(1, 10,&mut wrapper, conn) {
+//! match user.page::<UpdateWrapper>(1, 10,&mut wrapper, &mut conn) {
 //!     Ok(res) => {}
 //!     Err(err) => {
 //!         println!("error : {:?}", err);
@@ -160,7 +161,7 @@
 //! 
 use std::{convert::{TryFrom}, usize};
 use mysql::{Conn, Row, Transaction};
-use prelude::{PooledConn};
+use prelude::{PooledConn, r2d2Pool};
 use wrapper::{UpdateWrapper, Wrapper};
 use errors::AkitaError;
 pub mod prelude;
@@ -216,6 +217,12 @@ impl From<mysql::PooledConn> for ConnMut<'static, 'static, 'static> {
     }
 }
 
+impl From<PooledConn> for ConnMut<'static, 'static, 'static> {
+    fn from(conn: PooledConn) -> Self {
+        ConnMut::R2d2Polled(conn)
+    }
+}
+
 impl<'a> From<&'a mut Conn> for ConnMut<'a, 'static, 'static> {
     fn from(conn: &'a mut Conn) -> Self {
         ConnMut::Mut(conn)
@@ -243,32 +250,42 @@ impl TryFrom<&mysql::Pool> for ConnMut<'static, 'static, 'static> {
     }
 }
 
+impl TryFrom<&r2d2Pool> for ConnMut<'static, 'static, 'static> {
+    type Error = r2d2::Error;
+
+    fn try_from(pool: &r2d2Pool) -> Result<Self, Self::Error> {
+        pool.get().map(From::from)
+    }
+}
+
+
+
 pub trait BaseMapper{
     type Item;
     /// Insert Data.
-    fn insert<'a, 'b, 'c>(&self, conn: ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError>;
+    fn insert<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError>;
 
     /// Update Data With Wrapper.
-    fn update<'a, 'b, 'c>(&self, wrapper: &mut UpdateWrapper, conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
+    fn update<'a, 'b, 'c>(&self, wrapper: &mut UpdateWrapper, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
 
-    fn list<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: ConnMut<'a, 'b, 'c>) -> Result<Vec<Self::Item>, AkitaError> where Self::Item: Clone;
+    fn list<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Vec<Self::Item>, AkitaError> where Self::Item: Clone;
 
-    fn page<'a, 'b, 'c, W: Wrapper>(&self, page: usize, size: usize, wrapper: &mut W, conn: ConnMut<'a, 'b, 'c>) -> Result<IPage<Self::Item>, AkitaError> where Self::Item: Clone;
+    fn page<'a, 'b, 'c, W: Wrapper>(&self, page: usize, size: usize, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<IPage<Self::Item>, AkitaError> where Self::Item: Clone;
 
     /// Find One With Wrapper.
-    fn find_one<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError>;
+    fn find_one<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError>;
 
     /// Find Data With Table's Ident.
-    fn find_by_id<'a, 'b, 'c>(&self, conn: ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError>;
+    fn find_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<Self::Item>, AkitaError>;
 
     /// Update Data With Table's Ident.
-    fn update_by_id<'a, 'b, 'c>(&self, conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
+    fn update_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
 
     /// Delete Data With Wrapper.
-    fn delete<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
+    fn delete<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
 
     /// Delete Data With Table's Ident.
-    fn delete_by_id<'a, 'b, 'c>(&self, conn: ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
+    fn delete_by_id<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError>;
 
     /// Get the Table Fields.
     fn get_table_fields(&self) -> Result<String, AkitaError>;

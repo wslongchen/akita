@@ -1,8 +1,9 @@
 //! 
 //! Common Use.
 //! 
-use r2d2::PooledConnection;
+use r2d2::{Pool, PooledConnection};
 pub type PooledConn = PooledConnection<MysqlConnectionManager>;
+pub type r2d2Pool = Pool<MysqlConnectionManager>;
 pub use crate::{FromRowExt, from_long_row, wrapper::{QueryWrapper, UpdateWrapper, Wrapper}, BaseMapper, IPage, segment::SqlSegment, errors::AkitaError, ConnMut};
 pub use mysql::{params, prelude::*};
 pub use mysql::prelude::Queryable;

@@ -52,53 +52,53 @@ fn basic_test() {
         user_type: "name".to_string(),
     };
     conn.start_transaction(TxOpts::default()).map(|mut transaction| {
-        match user.update( & mut wrapper, ConnMut::TxMut(&mut transaction)) {
+        match user.update( & mut wrapper, &mut ConnMut::TxMut(&mut transaction)) {
             Ok(res) => {}
             Err(err) => {
                 println!("error : {:?}", err);
             }
         }
     });
-    
-    match user.update_by_id(ConnMut::Pooled(&mut conn)) {
+    let mut pool = ConnMut::R2d2Polled(conn);
+    match user.update_by_id(&mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
         }
     }
-    match user.delete_by_id(ConnMut::Pooled(&mut conn)) {
+    match user.delete_by_id(&mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
         }
     }
-    match user.delete:: < UpdateWrapper > ( & mut wrapper, ConnMut::Pooled(&mut conn)) {
+    match user.delete:: < UpdateWrapper > ( & mut wrapper, &mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
         }
     }
-    match user.insert(ConnMut::Pooled(&mut conn)) {
-        Ok(res) => {}
-        Err(err) => {
-            println!("error : {:?}", err);
-        }
-    }
-
-    match user.find_by_id(ConnMut::Pooled(&mut conn)) {
+    match user.insert(&mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
         }
     }
 
-    match user.find_one::<UpdateWrapper>(&mut wrapper, ConnMut::Pooled(&mut conn)) {
+    match user.find_by_id(&mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
         }
     }
-    match user.page::<UpdateWrapper>(1, 10,&mut wrapper, ConnMut::Pooled(&mut conn)) {
+
+    match user.find_one::<UpdateWrapper>(&mut wrapper, &mut pool) {
+        Ok(res) => {}
+        Err(err) => {
+            println!("error : {:?}", err);
+        }
+    }
+    match user.page::<UpdateWrapper>(1, 10,&mut wrapper, &mut pool) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);

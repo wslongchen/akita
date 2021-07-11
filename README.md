@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.1.0?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.1.2?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -42,7 +42,9 @@ akita = { version = "1.0", features = ["derive"] }
 <p></p>
 
 ```rust
-use serde::{Serialize, Deserialize};
+use akita::prelude::*;
+use mysql::{Opts, OptsBuilder, Transaction, TxOpts};
+use r2d2::Pool;
 
 /// Annotion Support: Table、Id、column
 #[derive(Table, Clone)]
@@ -82,10 +84,10 @@ fn main() {
         mobile: "mobile".to_string(),
         password: "password".to_string()
     };
-    let conn = ConnMut::Pooled(&mut conn);
+    let mut conn = ConnMut::Pooled(&mut conn);
     // Transaction
     conn.start_transaction(TxOpts::default()).map(|mut transaction| {
-        match user.update( & mut wrapper, conn) {
+        match user.update( & mut wrapper, &mut ConnMut::TxMut(&mut transaction)) {
             Ok(res) => {}
             Err(err) => {
                 println!("error : {:?}", err);
@@ -94,7 +96,7 @@ fn main() {
     });
     
     /// update by identify
-    match user.update_by_id(conn) {
+    match user.update_by_id(&mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -102,7 +104,7 @@ fn main() {
     }
     
     /// delete by identify
-    match user.delete_by_id(conn) {
+    match user.delete_by_id(&mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -110,7 +112,7 @@ fn main() {
     }
     
     /// delete by condition
-    match user.delete:: < UpdateWrapper > ( & mut wrapper, conn) {
+    match user.delete:: < UpdateWrapper > ( & mut wrapper, &mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -118,7 +120,7 @@ fn main() {
     }
     
     /// insert data
-    match user.insert(conn) {
+    match user.insert(&mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -126,7 +128,7 @@ fn main() {
     }
     
     /// find by identify
-    match user.find_by_id(conn) {
+    match user.find_by_id(&mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -135,7 +137,7 @@ fn main() {
     
     
     /// find one by condition
-    match user.find_one::<UpdateWrapper>(&mut wrapper, conn) {
+    match user.find_one::<UpdateWrapper>(&mut wrapper, &mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
@@ -143,7 +145,7 @@ fn main() {
     }
     
     /// find page by condition
-    match user.page::<UpdateWrapper>(1, 10,&mut wrapper, conn) {
+    match user.page::<UpdateWrapper>(1, 10,&mut wrapper, &mut conn) {
         Ok(res) => {}
         Err(err) => {
             println!("error : {:?}", err);
