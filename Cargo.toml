@@ -36,6 +36,9 @@ default = ["derive"]
 # Provide derive(Table) macros.
 derive = ["akita_derive"]
 
+# Provide r2d2 pool.
+r2d2_pool = []
+
 # Provide impls for HashMap<K, V>.
 # Requires a dependency on the Rust standard library.
 std = []

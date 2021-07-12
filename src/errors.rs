@@ -11,6 +11,7 @@ pub enum AkitaError {
     MissingTable(String),
     MissingField(String),
     MySQLError(String),
+    R2D2Error(String),
     RedundantField(String),
     Unknown,
 }
@@ -26,6 +27,7 @@ impl fmt::Display for AkitaError {
             AkitaError::MissingField(ref err) => err.fmt(f),
             AkitaError::RedundantField(ref err) => err.fmt(f),
             AkitaError::MySQLError(ref err) => err.fmt(f),
+            AkitaError::R2D2Error(ref err) => err.fmt(f),
         }
     }
 }
@@ -42,6 +44,7 @@ impl std::error::Error for AkitaError {
             AkitaError::MissingField(ref err) => err,
             AkitaError::RedundantField(ref err) => err,
             AkitaError::MySQLError(ref err) => err,
+            AkitaError::R2D2Error(ref err) => err,
         }
     }
 }
@@ -49,6 +52,12 @@ impl std::error::Error for AkitaError {
 
 impl From<mysql::Error> for AkitaError {
     fn from(err: mysql::Error) -> Self {
+        AkitaError::MySQLError(err.to_string())
+    }
+}
+
+impl From<r2d2::Error> for AkitaError {
+    fn from(err: r2d2::Error) -> Self {
         AkitaError::MySQLError(err.to_string())
     }
 }
