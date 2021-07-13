@@ -213,6 +213,7 @@
 //! 
 //! 
 //! 
+#[allow(unused)]
 mod comm;
 mod wrapper;
 mod segment;
@@ -231,7 +232,7 @@ pub use errors::AkitaError;
 #[doc(inline)]
 pub use crate::mysql::{FromRowExt, from_long_row, new_pool};
 #[cfg(feature = "r2d2_pool")]
-pub use crate::mysql::{r2d2Pool, PooledConn};
+pub use crate::mysql::{R2d2Pool, PooledConn};
 
 pub use chrono;
 

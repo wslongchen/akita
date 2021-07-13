@@ -170,7 +170,7 @@ impl Into<Segment> for SqlKeyword {
     }
 }
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, unused)]
 pub enum MatchSegment {
     GROUP_BY,
     ORDER_BY,

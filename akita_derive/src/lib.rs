@@ -96,7 +96,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                 get_type_set_value(ty, ident, &name)
             });
             let build_fields_format = field_idents.iter().map(|_| "'{}'".to_string()).collect::<Vec<_>>().join(",");
-            let build_values_field = map_fields(&fields, |(ident, _ty, _)|  quote!(#ident,));
+            let _build_values_field = map_fields(&fields, |(ident, _ty, _)|  quote!(#ident,));
             let sql_format = format!("insert into {{}}({{}}) values({})", build_fields_format);
             let result = quote!(
                 

@@ -6,7 +6,7 @@ use r2d2::{Pool, PooledConnection};
 use std::result::Result;
 
 pub type PooledConn = PooledConnection<MysqlConnectionManager>;
-pub type r2d2Pool = Pool<MysqlConnectionManager>;
+pub type R2d2Pool = Pool<MysqlConnectionManager>;
 
 pub trait FromRowExt {
     fn from_long_row(row: mysql::Row) -> Self where
@@ -57,7 +57,7 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
 /// database_url 连接地址
 /// max_size 最大连接数量
 /// 
-pub fn new_pool<S: Into<String>>(database_url: S, max_size: u32) -> Result<r2d2Pool, r2d2::Error> {
+pub fn new_pool<S: Into<String>>(database_url: S, max_size: u32) -> Result<R2d2Pool, r2d2::Error> {
     let opts = Opts::from_url(&database_url.into()).expect("database url is empty.");
     let builder = OptsBuilder::from_opts(opts);
     let manager = MysqlConnectionManager::new(builder);

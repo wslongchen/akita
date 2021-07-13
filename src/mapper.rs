@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use mysql::{Conn, Transaction};
 
-use crate::{AkitaError, UpdateWrapper, Wrapper, mysql::{PooledConn, r2d2Pool}};
+use crate::{AkitaError, UpdateWrapper, Wrapper, mysql::{PooledConn, R2d2Pool}};
 
 
 pub enum ConnMut<'c, 't, 'tc> {
@@ -58,10 +58,10 @@ impl TryFrom<&mysql::Pool> for ConnMut<'static, 'static, 'static> {
     }
 }
 
-impl TryFrom<&r2d2Pool> for ConnMut<'static, 'static, 'static> {
+impl TryFrom<&R2d2Pool> for ConnMut<'static, 'static, 'static> {
     type Error = r2d2::Error;
 
-    fn try_from(pool: &r2d2Pool) -> Result<Self, Self::Error> {
+    fn try_from(pool: &R2d2Pool) -> Result<Self, Self::Error> {
         pool.get().map(From::from)
     }
 }
