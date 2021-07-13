@@ -13,7 +13,7 @@ struct FieldAttribute {
     pub value: String
 }
 
-#[proc_macro_derive(Table, attributes(column, table, id))]
+#[proc_macro_derive(Table, attributes(column, table, id, exist))]
 pub fn table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
     let name = &derive_input.ident;
@@ -21,34 +21,40 @@ pub fn table(input: TokenStream) -> TokenStream {
     if let Data::Struct(r#struct) = derive_input.data {
         let fields = r#struct.fields;
         if matches!(&fields, Fields::Named(_)) {
-            let mut fields_info: HashMap<&Ident, (&Type, String, bool)> = HashMap::new();
+            let mut fields_info: HashMap<&Ident, (&Type, String, bool, bool)> = HashMap::new();
             let mut field_ids: Vec<(&Ident, &Type, String)> = Vec::new();
             for field in fields.iter() {
                 let name = field.ident.as_ref().unwrap();
                 let identify = has_contract_meta(&field.attrs, "id");
                 let name_value = get_contract_meta_item_value(&field.attrs, if identify { "id" } else { "column" }, "name");
+                let exist_value = get_contract_meta_item_value(&field.attrs, "column", "exist");
+                println!("name: {:?}, exist_value: {:?}", name, exist_value);
+                let exist_value = exist_value.unwrap_or_default().ne("false");
                 let value = name_value.to_owned().unwrap_or(name.to_string());
-                let v = value.to_owned();
-                fields_info.insert(name, (&field.ty, v, identify));
+                fields_info.insert(name, (&field.ty, value.to_owned(), identify, exist_value));
                 if identify {
                     field_ids.push((name, &field.ty, value));
                 }
             }
-            let field_idents = fields_info.keys().map(|ident| {
-                if let Some((_ty, name, _identify)) = fields_info.get(ident) {
-                    name.to_owned()
+            let mut field_idents: Vec<String> = Vec::new();
+            for ident in fields_info.keys() {
+                if let Some((_ty, name, _identify, exist)) = fields_info.get(ident) {
+                    if !exist {
+                        continue;
+                    }
+                    field_idents.push(name.to_owned());
                 } else {
-                    ident.to_string()
+                    field_idents.push(ident.to_string());
                 }
-            }).collect::<Vec<String>>();
+            }
             let builder_set_fields = map_fields(&fields, |(ident, ty, _)| {
-                get_type_default_value(ty, ident)
+                if let Some((_, _, _, exist)) = fields_info.get(ident) { get_type_default_value(ty, ident, *exist) } else { get_type_default_value(ty, ident, true) }
             });
             let build_fields = field_idents.join(",");
             if let Some(table) = get_contract_meta_item_value(&derive_input.attrs, "table", "name") {
                 table_name = table;
             }
-
+            println!("build_fields: {}", build_fields);
             let update_id_fields = TokenStream2::from_iter(field_ids.iter().map(|(id, ty, name)| {
                 let mut ft = String::from("");
                 if let Type::Path(r#path) = ty {
@@ -74,22 +80,20 @@ pub fn table(input: TokenStream) -> TokenStream {
             }));
 
             let build_values = map_fields(&fields, |(ident, ty, _)| {
+                if let Some((_, _, _, exist)) = fields_info.get(ident) { if !exist { return quote!() } } 
                 get_type_value(ty, ident)
             });
 
             let update_fields = map_fields(&fields, |(ident, ty, attrs)| {
+                if let Some((_, _, _, exist)) = fields_info.get(ident) { if !exist { return quote!() } }
                 let name = ident.to_string();
-                let mut ft = String::from("");
-                if let Type::Path(r#path) = ty {
-                    ft = r#path.path.segments[0].ident.to_string();
-                }
                 let name_value = get_contract_meta_item_value(attrs, "column", "name");
                 let name = name_value.to_owned().unwrap_or(name.to_string());
                 get_type_set_value(ty, ident, &name)
             });
             let build_fields_format = field_idents.iter().map(|_| "'{}'".to_string()).collect::<Vec<_>>().join(",");
             let build_values_field = map_fields(&fields, |(ident, _ty, _)|  quote!(#ident,));
-            let format = format!("insert into {{}}({{}}) values({})", build_fields_format);
+            let sql_format = format!("insert into {{}}({{}}) values({})", build_fields_format);
             let result = quote!(
                 
                 impl BaseMapper for #name {
@@ -97,14 +101,14 @@ pub fn table(input: TokenStream) -> TokenStream {
                     type Item = #name;
 
                     fn insert<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError> {
-                        let sql = format!(#format, #table_name, #build_fields,#build_values);
+                        let sql = format!(#sql_format, #table_name, #build_fields,#build_values);
                         println!("insert :{}", sql);
                         let last_insert_id = match conn {
-                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.last_insert_id().into()},
-                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.last_insert_id()},
-                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.last_insert_id().into()},
-                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.last_insert_id().into()},
-                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.last_insert_id().into()},
+                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id().into()},
+                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id()},
+                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id().into()},
+                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id().into()},
+                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id().into()},
                         };
                         Ok(last_insert_id)
                     }
@@ -144,7 +148,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let count = 0usize;
                         let mut page = IPage::new(page, size ,count, vec![]);
 
-                        let mut id_fields = Vec::new();
+                        let mut id_fields: Vec<String> = Vec::new();
                         #page_id_fields
                         let sql = if id_fields.is_empty() {
                             format!("select {} from {} where {} limit {}, {}", &fields, &table_name, wrapper.get_sql_segment(),page.offset(),  page.size)
@@ -223,11 +227,11 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let sql = format!("update {} set {} where {}", &table_name, &update_fields, wrapper.get_sql_segment());
                         println!("update: {}", sql);
                         let affected_rows = match conn {
-                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
+                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                         };
                         Ok(affected_rows > 0)
                     }
@@ -239,11 +243,11 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let sql = format!("update {} set {} where {}", &table_name, &update_fields, &id_fields);
                         println!("update_by_id: {}", sql);
                         let affected_rows = match conn {
-                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
+                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                         };
                         Ok(affected_rows > 0)
                     }
@@ -253,11 +257,11 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let sql = format!("delete from {} where {}", &table_name, wrapper.get_sql_segment());
                         println!("delete: {}", sql);
                         let affected_rows = match conn {
-                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
+                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                         };
                         Ok(affected_rows > 0)
                     }
@@ -268,11 +272,11 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let sql = format!("delete from {} where {}", &table_name, &id_fields);
                         println!("delete_by_id: {}", sql);
                         let affected_rows = match conn {
-                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
-                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop("", ())?; conn.affected_rows()},
+                            ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Owned(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::Pooled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
+                            ConnMut::R2d2Polled(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                         };
                         Ok(affected_rows > 0)
                     }
@@ -286,7 +290,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                     }
 
                     fn get_table_idents(&self) -> Result<String, AkitaError> {
-                        let mut id_fields = Vec::new();
+                        let mut id_fields: Vec<String>= Vec::new();
                         #update_id_fields
                         if id_fields.is_empty() {
                             return Err(AkitaError::MissingIdent("Missing Id Fields !".to_string()))
@@ -295,7 +299,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                     }
 
                     fn get_update_fields(&self, set_sql: Option<String>) -> Result<String, AkitaError> {
-                        let mut update_fields = Vec::new();
+                        let mut update_fields: Vec<String> = Vec::new();
                         #update_fields
                         if update_fields.is_empty() && set_sql.is_none() {
                             return Err(AkitaError::MissingField("Missing Update Fields !".to_string()))
@@ -463,7 +467,7 @@ fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
     attrs.iter().find(|attr| attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter).is_some()
 }
 
-fn get_type_default_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2 {
     let ident_name = ident.to_string();
     let ori_ty = get_field_type(ty).unwrap_or_default();
     let mut ft = String::default();
@@ -471,37 +475,51 @@ fn get_type_default_value(ty: &Type, ident: &Ident) -> TokenStream2 {
         ft = r#path.path.segments[0].ident.to_string();
     }
     if ft.eq("Option") {
-        quote!(let #ident: #ty= row.get(#ident_name).unwrap_or(None);)
+        if !exist { quote!(let #ident: #ty= None;) } else { 
+            match ori_ty.as_str() {
+                "bool" => {
+                    quote!(
+                        let #ident: Option<u8>= row.get(#ident_name).unwrap_or(None);
+                        let #ident = Some(if #ident.unwrap_or(0) == 1);
+                    )
+                }
+                _ => {
+                    quote!(let #ident: #ty= row.get(#ident_name).unwrap_or(None);)
+                }
+            }
+            
+        }
     } else {
         match ori_ty.as_str() {
-            "f64" | "f32" => quote!(
+            "f64" | "f32" => if !exist { quote!(let #ident: #ty= 0.0;) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or(0.0).to_owned();
-            ),
-            "u64" | "u32" | "i32" | "i64" | "usize" => quote!(
+            )},
+            "u64" | "u32" | "i32" | "i64" | "usize" => if !exist { quote!(let #ident: #ty= 0;) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or(0).to_owned();
-            ),
-            "str" => quote!(
+            )},
+            "bool" => if !exist { quote!(let #ident: #ty= false;) } else { quote!(
+                let #ident: Option<u8>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or(0) == 1;
+            )},
+            "str" => if !exist { quote!(let #ident: #ty= "";) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or("").to_owned();
-            ),
-            "String" => quote!(
+            )},
+            "String" => if !exist { quote!(let #ident: #ty= String::default();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or("".to_string()).to_owned();
-            ),
-            "NaiveDate"  => quote!(
+            )},
+            "NaiveDate"  => if !exist { quote!(let #ident: #ty= Local::now().naive_local().date();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or(Local::now().naive_local().date());
-            ),
-            "NaiveDateTime" => quote!(
+            )},
+            "NaiveDateTime" => if !exist { quote!(let #ident: #ty= Local::now().naive_local();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
                 let #ident = #ident.unwrap_or(Local::now().naive_local()).to_owned();
-            ),
-            _ => quote!(
-                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or_default().to_owned();
-            )
+            )},
+            _ => quote!()
         }
     }
 }
@@ -516,6 +534,7 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
         match ori_ty.as_str() {
             "f64" | "f32" => quote!(&self.#ident.to_owned().unwrap_or(0.0),),
             "u64" | "u32" | "i32" | "i64" | "usize" => quote!(&self.#ident.to_owned().unwrap_or(0),),
+            "bool" => quote!(if self.#ident.to_owned().unwrap_or(false) { 1 } else { 0 },),
             "str" => quote!(&self.#ident.to_owned().unwrap_or(""),),
             "String" => quote!(&self.#ident.to_owned().unwrap_or("".to_string()),),
             "NaiveDate"  => quote!(&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string(),),
@@ -526,6 +545,7 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
         match ori_ty.as_str() {
             "NaiveDate"  => quote!(&self.#ident.format("%Y-%m-%d").to_string(),),
             "NaiveDateTime" => quote!(&self.#ident.format("%Y-%m-%d %H:%M:%S").to_string(),),
+            "bool" => quote!(if self.#ident { 1 } else { 0 },),
             _ => quote!(&self.#ident,)
         }
     }
@@ -549,6 +569,11 @@ fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
                     update_fields.push(format!("{} = '{}'", #name, value.format("%Y-%m-%d %H:%M:%S").to_string()));
                 }
             ),
+            "bool" => quote!(
+                if let Some(value) = &self.#ident {
+                    update_fields.push(format!("{} = '{}'", #name, if *value { 1 } else { 0 }));
+                }
+            ),
             _ =>  quote!(
                 if let Some(value) = &self.#ident {
                     update_fields.push(format!("{} = '{}'", #name, value));
@@ -562,6 +587,9 @@ fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
             ),
             "NaiveDateTime" => quote!(
                 update_fields.push(format!("{} = '{}'", #name, &self.#ident.format("%Y-%m-%d %H:%M:%S").to_string()));
+            ),
+            "bool" => quote!(
+                update_fields.push(format!("{} = '{}'", #name, if self.#ident { 1 } else { 0 }));
             ),
             _ => quote!(
                 update_fields.push(format!("{} = '{}'", #name, &self.#ident));

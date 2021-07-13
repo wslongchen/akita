@@ -33,7 +33,7 @@ Click to show Cargo.toml.
 
 # The core APIs, including the Table traits. Always
 # required when using Akita. using #[derive(Table)] 
-# to make Akita work with structs and enums defined in your crate.
+# to make Akita work with structs defined in your crate.
 akita = { version = "1.0", features = ["derive"] }
 
 ```
@@ -46,7 +46,7 @@ use akita::prelude::*;
 use mysql::{Opts, OptsBuilder, Transaction, TxOpts};
 use r2d2::Pool;
 
-/// Annotion Support: Table、Id、column
+/// Annotion Support: Table、id、column (name, exist)
 #[derive(Table, Clone)]
 #[table(name = "t_system_user")]
 pub struct User {
@@ -58,7 +58,7 @@ pub struct User {
     pub avatar_url: String,
     pub gender: i32,
     pub is_org: bool, 
-    #[column(name="token")]
+    #[column(name="token",exist="false")]
     pub url_token: String,
     pub user_type: String,
 }
@@ -154,12 +154,21 @@ fn main() {
 }
 ```
 
+
+## Annotions.
+
+* ```Table``` - to make Akita work with structs
+* ```column``` - to make struct field with own database.
+* ```name``` - work with column, make the table's field name. default struct' field name.
+* ```exist``` - ignore struct's field with table. default true.
+
 ## Support Field Types.
  
 * ```Option<T>```
 * ```u8, u32, u64```
 * ```i32, i64```
 * ```usize```
+* ```bool```
 * ```f32, f64```
 * ```str, String```
 * ```NaiveDate, NaiveDateTime```

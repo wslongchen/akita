@@ -25,6 +25,13 @@
 //! [dependencies]
 //! akita = "*"
 //! ```
+//!
+//! ## Annotions.
+//! * Table - to make Akita work with structs
+//! * column - to make struct field with own database.
+//! * name - work with column, make the table's field name. default struct' field name.
+//! * exist - ignore struct's field with table. default true.
+//!
 //! ## Support Field Types.
 //! 
 //! * ```Option<T>```
@@ -32,6 +39,7 @@
 //! * ```i32, i64```
 //! * ```usize```
 //! * ```f32, f64```
+//! * ```bool```
 //! * ```str, String```
 //! * ```NaiveDate, NaiveDateTime```
 //! 
@@ -191,11 +199,7 @@ pub use chrono;
 
 pub mod prelude {
     #[doc(inline)]
-    pub use mysql::{params, prelude::*};
-    #[doc(inline)]
-    pub use mysql::prelude::Queryable;
-    #[doc(inline)]
-    pub use mysql::error::Error;
+    pub use mysql::{params, prelude::Queryable};
     pub use chrono::{Local, NaiveDate, NaiveDateTime};
     #[doc(inline)]
     pub use mysql::{Conn, Opts, OptsBuilder};
