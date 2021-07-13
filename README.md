@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.1.2?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.1.4?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -42,31 +42,74 @@ akita = { version = "1.0", features = ["derive"] }
 <p></p>
 
 ```rust
+use akita::*;
 use akita::prelude::*;
-use mysql::{Opts, OptsBuilder, Transaction, TxOpts};
-use r2d2::Pool;
 
 /// Annotion Support: Table、id、column (name, exist)
-#[derive(Table, Clone)]
-#[table(name = "t_system_user")]
 pub struct User {
-    #[id(name="id")]
+    #[id(name = "id")]
     pub pk: i64,
     pub id: String,
     pub name: String,
-    pub headline: String,
-    pub avatar_url: String,
-    pub gender: i32,
-    pub is_org: bool, 
-    #[column(name="token",exist="false")]
+    pub headline: NaiveDateTime,
+    pub avatar_url: Option<String>,
+    /// 状态
+    pub status: u8,
+    /// 用户等级 0.普通会员 1.VIP会员
+    pub level: u8,
+    /// 生日
+    pub birthday: Option<NaiveDate>,
+    /// 性别
+    pub gender: u8,
+    #[column(exist = "false")]
+    pub is_org: bool,
+    #[column(name = "token")]
     pub url_token: String,
+    pub data: Vec<String>,
     pub user_type: String,
+    pub inner_struct: TestInnerStruct,
+    pub inner_tuple: (String),
+    pub inner_enum: TestInnerEnum,
+}
+
+impl Default for User {
+    fn default() -> Self {
+        Self {
+            id: "".to_string(),
+            pk: 0,
+            name: "".to_string(),
+            headline: mysql::chrono::Local::now().naive_local(),
+            avatar_url: "".to_string().into(),
+            gender: 0,
+            birthday: mysql::chrono::Local::now().naive_local().date().into(),
+            is_org: false,
+            url_token: "".to_string(),
+            user_type: "".to_string(),
+            status: 0,
+            level: 1,
+            data: vec![],
+            inner_struct: TestInnerStruct {
+                id: "".to_string(),
+            },
+            inner_tuple: ("".to_string()),
+            inner_enum: TestInnerEnum::Field,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TestInnerStruct {
+    pub id: String,
+}
+
+#[derive(Clone)]
+pub enum TestInnerEnum {
+    Field,
 }
 
 fn main() {
     // use r2d2 pool
-    let opts = Opts::from_url("mysql://root:127.0.0.1:3306/test").expect("database url is empty.");
-    let pool = Pool::builder().max_size(4).build(MysqlConnectionManager::new(OptsBuilder::from_opts(opts))).unwrap();
+    let pool = new_pool("mysql://root:127.0.0.1:3306/test", 4).unwrap();
     let mut conn = pool.get().unwrap();
  
     /// build the wrapper.
@@ -78,12 +121,7 @@ fn main() {
         .not_between(true, "username", 2, 8);
         .set(true, "username", 4);
     
-    let user = User{
-        id: 2,
-        username: "username".to_string(),
-        mobile: "mobile".to_string(),
-        password: "password".to_string()
-    };
+    let user = User::default();
     let mut conn = ConnMut::Pooled(&mut conn);
     // Transaction
     conn.start_transaction(TxOpts::default()).map(|mut transaction| {

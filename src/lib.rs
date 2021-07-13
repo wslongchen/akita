@@ -50,24 +50,67 @@
 //! 
 //! 
 //! /// Annotion Support: Table、Id、column
-//! #[table(name="t_system_user")]
-//! #[derive(Table, Clone)]
-//! struct User{
-//!     #[Id(name="id")]
-//!     pub id: i32,
-//!     #[column(name="username")]
-//!     pub username: String,
-//!     #[column]
-//!     pub mobile: String,
-//!     #[column]
-//!     pub password: String,
+//! /// Annotion Support: Table、id、column (name, exist)
+//! pub struct User {
+//!     #[id(name = "id")]
+//!     pub pk: i64,
+//!     pub id: String,
+//!     pub name: String,
+//!     pub headline: NaiveDateTime,
+//!     pub avatar_url: Option<String>,
+//!     /// 状态
+//!     pub status: u8,
+//!     /// 用户等级 0.普通会员 1.VIP会员
+//!     pub level: u8,
+//!     /// 生日
+//!     pub birthday: Option<NaiveDate>,
+//!     /// 性别
+//!     pub gender: u8,
+//!     #[column(exist = "false")]
+//!     pub is_org: bool,
+//!     #[column(name = "token")]
+//!     pub url_token: String,
+//!     pub data: Vec<String>,
+//!     pub user_type: String,
+//!     pub inner_struct: TestInnerStruct,
+//!     pub inner_tuple: (String),
+//!     pub inner_enum: TestInnerEnum,
 //! }
 //! 
-//! // use r2d2 pool
-//! let opts = Opts::from_url("mysql://root:127.0.0.1:3306/test").expect("database url is empty.");
-//! let pool = Pool::builder().max_size(4).build(MysqlConnectionManager::new(OptsBuilder::from_opts(opts))).unwrap();
-//! let mut conn = pool.get().unwrap();
+//! impl Default for User {
+//!     fn default() -> Self {
+//!         Self {
+//!             id: "".to_string(),
+//!             pk: 0,
+//!             name: "".to_string(),
+//!             headline: mysql::chrono::Local::now().naive_local(),
+//!             avatar_url: "".to_string().into(),
+//!             gender: 0,
+//!             birthday: mysql::chrono::Local::now().naive_local().date().into(),
+//!             is_org: false,
+//!             url_token: "".to_string(),
+//!             user_type: "".to_string(),
+//!             status: 0,
+//!             level: 1,
+//!             data: vec![],
+//!             inner_struct: TestInnerStruct {
+//!                 id: "".to_string(),
+//!             },
+//!             inner_tuple: ("".to_string()),
+//!             inner_enum: TestInnerEnum::Field,
+//!         }
+//!     }
+//! }
 //! 
+//! #[derive(Clone)]
+//! pub struct TestInnerStruct {
+//!     pub id: String,
+//! }
+//! 
+//! #[derive(Clone)]
+//! pub enum TestInnerEnum {
+//!     Field,
+//! }
 //! /// build the wrapper.
 //! let mut wrapper = UpdateWrapper::new()
 //!     .like(true, "username", "ffff");
@@ -77,12 +120,7 @@
 //!     .not_between(true, "username", 2, 8);
 //!     .set(true, "username", 4);
 //! 
-//! let user = User{
-//!     id: 2,
-//!     username: "username".to_string(),
-//!     mobile: "mobile".to_string(),
-//!     password: "password".to_string()
-//! };
+//! let user = User::default();
 //! 
 //! // Transaction
 //! conn.start_transaction(TxOpts::default()).map(|mut transaction| {

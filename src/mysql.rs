@@ -9,15 +9,16 @@ pub type PooledConn = PooledConnection<MysqlConnectionManager>;
 pub type r2d2Pool = Pool<MysqlConnectionManager>;
 
 pub trait FromRowExt {
-    fn from_long_row(row: mysql::Row) -> Self;
+    fn from_long_row(row: mysql::Row) -> Self where
+    Self: Sized + Default;
     fn from_long_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
     where
-        Self: Sized;
+        Self: Sized + Default;
 }
 
 #[inline]
 #[allow(unused)]
-pub fn from_long_row<T: FromRowExt>(row: Row) -> T {
+pub fn from_long_row<T: FromRowExt + Default>(row: Row) -> T {
     FromRowExt::from_long_row(row)
 }
 

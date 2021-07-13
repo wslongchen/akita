@@ -30,6 +30,10 @@ pub fn table(input: TokenStream) -> TokenStream {
                 let exist_value = get_contract_meta_item_value(&field.attrs, "column", "exist");
                 let exist_value = exist_value.unwrap_or_default().ne("false");
                 let value = name_value.to_owned().unwrap_or(name.to_string());
+                // filter the unsuport type.
+                if !valid_type(&field.ty) {
+                    continue;
+                }
                 fields_info.insert(name, (&field.ty, value.to_owned(), identify, exist_value));
                 if identify {
                     field_ids.push((name, &field.ty, value));
@@ -78,11 +82,13 @@ pub fn table(input: TokenStream) -> TokenStream {
             }));
 
             let build_values = map_fields(&fields, |(ident, ty, _)| {
+                if !valid_type(ty) { return quote!() }
                 if let Some((_, _, _, exist)) = fields_info.get(ident) { if !exist { return quote!() } } 
                 get_type_value(ty, ident)
             });
 
             let update_fields = map_fields(&fields, |(ident, ty, attrs)| {
+                if !valid_type(ty) { return quote!() }
                 if let Some((_, _, _, exist)) = fields_info.get(ident) { if !exist { return quote!() } }
                 let name = ident.to_string();
                 let name_value = get_contract_meta_item_value(attrs, "column", "name");
@@ -327,10 +333,12 @@ pub fn table(input: TokenStream) -> TokenStream {
                         if row.len() < 1 {
                             return Err(mysql::FromRowError(row));
                         }
+                        let mut value = #name::default();
                         #builder_set_fields
-                        Ok(
-                            #name { #build_values_field }
-                        )
+                        // Ok(
+                        //     #name { #build_values_field }
+                        // )
+                        Ok(value)
                     }
                 }
                 
@@ -462,52 +470,64 @@ fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2
         ft = r#path.path.segments[0].ident.to_string();
     }
     if ft.eq("Option") {
-        if !exist { quote!(let #ident: #ty= None;) } else { 
+        if !exist { quote!(value.#ident = None;) } else { 
             match ori_ty.as_str() {
                 "bool" => {
                     quote!(
                         let #ident: Option<u8>= row.get(#ident_name).unwrap_or(None);
-                        let #ident = Some(if #ident.unwrap_or(0) == 1);
+                        value.#ident = Some(#ident.unwrap_or(0) == 1);
                     )
                 }
-                _ => {
-                    quote!(let #ident: #ty= row.get(#ident_name).unwrap_or(None);)
-                }
+                "Vec" => quote!(value.#ident = vec![];),
+                "f64" | "f32" | "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" 
+                | "usize" | "isize" | "str" | "String" | "NaiveDate" | "NaiveDateTime" => quote!(value.#ident = row.get(#ident_name).unwrap_or(None);),
+                _ => quote!()
             }
             
         }
     } else {
         match ori_ty.as_str() {
-            "f64" | "f32" => if !exist { quote!(let #ident: #ty= 0.0;) } else { quote!(
+            "f64" | "f32" => if !exist { quote!(value.#ident = 0.0;) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or(0.0).to_owned();
+                value.#ident = #ident.unwrap_or(0.0).to_owned();
             )},
-            "u64" | "u32" | "i32" | "i64" | "usize" => if !exist { quote!(let #ident: #ty= 0;) } else { quote!(
+            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => if !exist { quote!(value.#ident = 0;) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or(0).to_owned();
+                value.#ident = #ident.unwrap_or(0).to_owned();
             )},
-            "bool" => if !exist { quote!(let #ident: #ty= false;) } else { quote!(
+            "bool" => if !exist { quote!(value.#ident = false;) } else { quote!(
                 let #ident: Option<u8>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or(0) == 1;
+                value.#ident = #ident.unwrap_or(0) == 1;
             )},
-            "str" => if !exist { quote!(let #ident: #ty= "";) } else { quote!(
+            "str" => if !exist { quote!(value.#ident = "";) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or("").to_owned();
+                value.#ident = #ident.unwrap_or("").to_owned();
             )},
-            "String" => if !exist { quote!(let #ident: #ty= String::default();) } else { quote!(
+            "String" => if !exist { quote!(value.#ident = String::default();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or("".to_string()).to_owned();
+                value.#ident = #ident.unwrap_or("".to_string()).to_owned();
             )},
-            "NaiveDate"  => if !exist { quote!(let #ident: #ty= Local::now().naive_local().date();) } else { quote!(
+            "NaiveDate"  => if !exist { quote!(value.#ident = Local::now().naive_local().date();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or(Local::now().naive_local().date());
+                value.#ident = #ident.unwrap_or(Local::now().naive_local().date());
             )},
-            "NaiveDateTime" => if !exist { quote!(let #ident: #ty= Local::now().naive_local();) } else { quote!(
+            "NaiveDateTime" => if !exist { quote!(value.#ident = Local::now().naive_local();) } else { quote!(
                 let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                let #ident = #ident.unwrap_or(Local::now().naive_local()).to_owned();
+                value.#ident = #ident.unwrap_or(Local::now().naive_local()).to_owned();
             )},
-            _ => quote!()
+            "Vec" => quote!(value.#ident = vec![];),
+            _ => quote!(
+            )
         }
+    }
+}
+
+fn valid_type(ty: &Type) -> bool {
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    match ori_ty.as_str() {
+        "f64" | "f32" | "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" 
+        | "usize" | "isize" | "bool" | "str" | "String" | "NaiveDate" | "NaiveDateTime" => true,
+        _ => false
     }
 }
 
@@ -520,9 +540,10 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
     if ft.eq("Option") {
         match ori_ty.as_str() {
             "f64" | "f32" => quote!(&self.#ident.to_owned().unwrap_or(0.0),),
-            "u64" | "u32" | "i32" | "i64" | "usize" => quote!(&self.#ident.to_owned().unwrap_or(0),),
+            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => quote!(&self.#ident.to_owned().unwrap_or(0),),
             "bool" => quote!(if self.#ident.to_owned().unwrap_or(false) { 1 } else { 0 },),
             "str" => quote!(&self.#ident.to_owned().unwrap_or(""),),
+            "Vec" => quote!(&self.#ident.to_owned().unwrap_or(vec![]),),
             "String" => quote!(&self.#ident.to_owned().unwrap_or("".to_string()),),
             "NaiveDate"  => quote!(&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string(),),
             "NaiveDateTime" => quote!(&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string(),),
