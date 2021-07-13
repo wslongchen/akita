@@ -28,7 +28,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                 let identify = has_contract_meta(&field.attrs, "id");
                 let name_value = get_contract_meta_item_value(&field.attrs, if identify { "id" } else { "column" }, "name");
                 let exist_value = get_contract_meta_item_value(&field.attrs, "column", "exist");
-                println!("name: {:?}, exist_value: {:?}", name, exist_value);
                 let exist_value = exist_value.unwrap_or_default().ne("false");
                 let value = name_value.to_owned().unwrap_or(name.to_string());
                 fields_info.insert(name, (&field.ty, value.to_owned(), identify, exist_value));
@@ -54,7 +53,6 @@ pub fn table(input: TokenStream) -> TokenStream {
             if let Some(table) = get_contract_meta_item_value(&derive_input.attrs, "table", "name") {
                 table_name = table;
             }
-            println!("build_fields: {}", build_fields);
             let update_id_fields = TokenStream2::from_iter(field_ids.iter().map(|(id, ty, name)| {
                 let mut ft = String::from("");
                 if let Type::Path(r#path) = ty {
@@ -102,7 +100,6 @@ pub fn table(input: TokenStream) -> TokenStream {
 
                     fn insert<'a, 'b, 'c>(&self, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<Option<u64>, AkitaError> {
                         let sql = format!(#sql_format, #table_name, #build_fields,#build_values);
-                        println!("insert :{}", sql);
                         let last_insert_id = match conn {
                             ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id().into()},
                             ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.last_insert_id()},
@@ -123,7 +120,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                             select_fields
                         };
                         let sql = format!("select {} from {} where {}", &fields, &table_name, wrapper.get_sql_segment());
-                        println!("find_one: {}", sql);
                         let datas = match conn {
                             ConnMut::Mut(ref mut conn) => if let Ok(result) = conn.query_iter(sql) { result.map(|row| { row.map(|row| { from_long_row::<#name>(row) }).ok().unwrap() }).collect::<Vec<_>>() }else { Vec::new() },
                             ConnMut::TxMut(ref mut conn) => if let Ok(result) = conn.query_iter(sql) { result.map(|row| { row.map(|row| { from_long_row::<#name>(row) }).ok().unwrap() }).collect::<Vec<_>>() }else { Vec::new() },
@@ -157,8 +153,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                         };
 
                         // let sql = format!("select {} from {} a join (select {} from {} where {} limit {}, {}) b on a.id = b.id", &fields, &table_name, &fields, &table_name, wrapper.get_sql_segment(),page.offset(),  page.size);
-                        println!("find_one: {}", sql);
-                        
                         match conn {
                             ConnMut::Mut(ref mut conn) => {
                                 let count: Option<usize> = conn.query_first(&count_sql)?; page.total = count.unwrap_or(0);
@@ -194,7 +188,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                             select_fields
                         };
                         let sql = format!("select {} from {} where {} limit 1", &fields, &table_name, wrapper.get_sql_segment());
-                        println!("find_one: {}", sql);
                         let data = match conn {
                             ConnMut::Mut(ref mut conn) => if let Some(raw) = conn.exec_first(&sql, ())? { let data = from_long_row::<#name>(raw); data.into() }else { None },
                             ConnMut::TxMut(ref mut conn) => if let Some(raw) = conn.exec_first(&sql, ())? { let data = from_long_row::<#name>(raw); data.into() }else { None },
@@ -210,7 +203,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let table_fields = self.get_table_fields()?;
                         let id_fields = self.get_table_idents()?;
                         let sql = format!("select {} from {} where {} limit 1", &table_fields, &table_name, &id_fields);
-                        println!("find_by_id: {}", sql);
                         let data = match conn {
                             ConnMut::Mut(ref mut conn) => if let Some(raw) = conn.exec_first(&sql, ())? { let data = from_long_row::<#name>(raw); data.into() }else { None },
                             ConnMut::TxMut(ref mut conn) => if let Some(raw) = conn.exec_first(&sql, ())? { let data = from_long_row::<#name>(raw); data.into() }else { None },
@@ -225,7 +217,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let table_name = self.get_table_name()?;
                         let update_fields = self.get_update_fields(wrapper.get_set_sql())?;
                         let sql = format!("update {} set {} where {}", &table_name, &update_fields, wrapper.get_sql_segment());
-                        println!("update: {}", sql);
                         let affected_rows = match conn {
                             ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                             ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
@@ -241,7 +232,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let update_fields = self.get_update_fields(None)?;
                         let id_fields = self.get_table_idents()?;
                         let sql = format!("update {} set {} where {}", &table_name, &update_fields, &id_fields);
-                        println!("update_by_id: {}", sql);
                         let affected_rows = match conn {
                             ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                             ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
@@ -255,7 +245,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                     fn delete<'a, 'b, 'c, W: Wrapper>(&self, wrapper: &mut W, conn: &mut ConnMut<'a, 'b, 'c>) -> Result<bool, AkitaError> {
                         let table_name = self.get_table_name()?;
                         let sql = format!("delete from {} where {}", &table_name, wrapper.get_sql_segment());
-                        println!("delete: {}", sql);
                         let affected_rows = match conn {
                             ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                             ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
@@ -270,7 +259,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                         let table_name = self.get_table_name()?;
                         let id_fields = self.get_table_idents()?;
                         let sql = format!("delete from {} where {}", &table_name, &id_fields);
-                        println!("delete_by_id: {}", sql);
                         let affected_rows = match conn {
                             ConnMut::Mut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
                             ConnMut::TxMut(ref mut conn) => { let _ = conn.exec_drop(&sql, ())?; conn.affected_rows()},
@@ -348,7 +336,6 @@ pub fn table(input: TokenStream) -> TokenStream {
                 
             )
             .into();
-            eprintln!("{}", result); 
             // eprintln!("{}", result);
             return result;
         }
