@@ -25,7 +25,15 @@
 //! [dependencies]
 //! akita = "*"
 //! ```
-//!
+//! ## Support Field Types.
+//! 
+//! * ```Option<T>```
+//! * ```u8, u32, u64```
+//! * ```i32, i64```
+//! * ```usize```
+//! * ```f32, f64```
+//! * ```str, String```
+//! * ```NaiveDate, NaiveDateTime```
 //! 
 //! ## Example
 //! 
@@ -154,7 +162,7 @@
 //! }
 //! ```
 //! ```
-//! Update At 2021.07.09 13:21 
+//! Update At 2021.07.13 10:21 
 //! By Mr.Pan
 //! 
 //! 
@@ -175,9 +183,11 @@ pub use segment::SqlSegment;
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]
-pub use crate::mysql::{FromRowExt, from_long_row};
+pub use crate::mysql::{FromRowExt, from_long_row, new_pool};
 #[cfg(feature = "r2d2_pool")]
-pub use crate::mysql::{r2d2Pool, PooledConn, new_pool};
+pub use crate::mysql::{r2d2Pool, PooledConn};
+
+pub use chrono;
 
 pub mod prelude {
     #[doc(inline)]
@@ -186,6 +196,7 @@ pub mod prelude {
     pub use mysql::prelude::Queryable;
     #[doc(inline)]
     pub use mysql::error::Error;
+    pub use chrono::{Local, NaiveDate, NaiveDateTime};
     #[doc(inline)]
     pub use mysql::{Conn, Opts, OptsBuilder};
 }

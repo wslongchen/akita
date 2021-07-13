@@ -42,24 +42,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                 }
             }).collect::<Vec<String>>();
             let builder_set_fields = map_fields(&fields, |(ident, ty, _)| {
-                let ident_name = ident.to_string();
-                if let Type::Path(r#path) = ty {
-                    if r#path.path.segments[0].ident == "Option" {
-                        quote!(
-                            let #ident: #ty= row.get(#ident_name).unwrap_or(None);
-                        )
-                    } else {
-                        quote!(
-                            let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                            let #ident = #ident.unwrap_or_default().to_owned();
-                        )
-                    }
-                }  else {
-                    quote!(
-                        let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
-                        let #ident = #ident.unwrap_or_default().to_owned();
-                    )
-                }
+                get_type_default_value(ty, ident)
             });
             let build_fields = field_idents.join(",");
             if let Some(table) = get_contract_meta_item_value(&derive_input.attrs, "table", "name") {
@@ -91,15 +74,7 @@ pub fn table(input: TokenStream) -> TokenStream {
             }));
 
             let build_values = map_fields(&fields, |(ident, ty, _)| {
-                if let Type::Path(r#path) = ty {
-                    if r#path.path.segments[0].ident == "Option" {
-                        quote!(&self.#ident.to_owned().unwrap_or_default(),)
-                    } else {
-                        quote!(&self.#ident,)
-                    }
-                }  else {
-                    quote!(&self.#ident,)
-                }
+                get_type_value(ty, ident)
             });
 
             let update_fields = map_fields(&fields, |(ident, ty, attrs)| {
@@ -110,17 +85,7 @@ pub fn table(input: TokenStream) -> TokenStream {
                 }
                 let name_value = get_contract_meta_item_value(attrs, "column", "name");
                 let name = name_value.to_owned().unwrap_or(name.to_string());
-                if ft.eq("Option") {
-                    quote!(
-                        if let Some(value) = &self.#ident {
-                            update_fields.push(format!("{} = '{}'", #name, value));
-                        }
-                    )
-                } else {
-                    quote!(
-                        update_fields.push(format!("{} = '{}'", #name, &self.#ident));
-                    )
-                }
+                get_type_set_value(ty, ident, &name)
             });
             let build_fields_format = field_idents.iter().map(|_| "'{}'".to_string()).collect::<Vec<_>>().join(",");
             let build_values_field = map_fields(&fields, |(ident, _ty, _)|  quote!(#ident,));
@@ -425,7 +390,7 @@ where
 }
 
 /// get the field orignal type
-fn _get_field_type(ty: &Type) -> Option<String> {
+fn get_field_type(ty: &Type) -> Option<String> {
     match ty {
         Type::Path(r#path) => {
             let p = &r#path.path.segments[0];
@@ -496,4 +461,111 @@ fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&
 
 fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
     attrs.iter().find(|attr| attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter).is_some()
+}
+
+fn get_type_default_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+    let ident_name = ident.to_string();
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    if ft.eq("Option") {
+        quote!(let #ident: #ty= row.get(#ident_name).unwrap_or(None);)
+    } else {
+        match ori_ty.as_str() {
+            "f64" | "f32" => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or(0.0).to_owned();
+            ),
+            "u64" | "u32" | "i32" | "i64" | "usize" => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or(0).to_owned();
+            ),
+            "str" => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or("").to_owned();
+            ),
+            "String" => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or("".to_string()).to_owned();
+            ),
+            "NaiveDate"  => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or(Local::now().naive_local().date());
+            ),
+            "NaiveDateTime" => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or(Local::now().naive_local()).to_owned();
+            ),
+            _ => quote!(
+                let #ident: Option<#ty>= row.get(#ident_name).unwrap_or(None);
+                let #ident = #ident.unwrap_or_default().to_owned();
+            )
+        }
+    }
+}
+
+fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    if ft.eq("Option") {
+        match ori_ty.as_str() {
+            "f64" | "f32" => quote!(&self.#ident.to_owned().unwrap_or(0.0),),
+            "u64" | "u32" | "i32" | "i64" | "usize" => quote!(&self.#ident.to_owned().unwrap_or(0),),
+            "str" => quote!(&self.#ident.to_owned().unwrap_or(""),),
+            "String" => quote!(&self.#ident.to_owned().unwrap_or("".to_string()),),
+            "NaiveDate"  => quote!(&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string(),),
+            "NaiveDateTime" => quote!(&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string(),),
+            _ => quote!(&self.#ident.to_owned().unwrap_or_default(),)
+        }
+    } else {
+        match ori_ty.as_str() {
+            "NaiveDate"  => quote!(&self.#ident.format("%Y-%m-%d").to_string(),),
+            "NaiveDateTime" => quote!(&self.#ident.format("%Y-%m-%d %H:%M:%S").to_string(),),
+            _ => quote!(&self.#ident,)
+        }
+    }
+}
+
+fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    if ft.eq("Option") {
+        match ori_ty.as_str() {
+            "NaiveDate"  => quote!(
+                if let Some(value) = &self.#ident {
+                    update_fields.push(format!("{} = '{}'", #name, value.format("%Y-%m-%d").to_string()));
+                }
+            ),
+            "NaiveDateTime" => quote!(
+                if let Some(value) = &self.#ident {
+                    update_fields.push(format!("{} = '{}'", #name, value.format("%Y-%m-%d %H:%M:%S").to_string()));
+                }
+            ),
+            _ =>  quote!(
+                if let Some(value) = &self.#ident {
+                    update_fields.push(format!("{} = '{}'", #name, value));
+                }
+            )
+        }
+    } else {
+        match ori_ty.as_str() {
+            "NaiveDate"  => quote!(
+                update_fields.push(format!("{} = '{}'", #name, &self.#ident.#ident.format("%Y-%m-%d").to_string()));
+            ),
+            "NaiveDateTime" => quote!(
+                update_fields.push(format!("{} = '{}'", #name, &self.#ident.format("%Y-%m-%d %H:%M:%S").to_string()));
+            ),
+            _ => quote!(
+                update_fields.push(format!("{} = '{}'", #name, &self.#ident));
+            )
+        }
+    }
 }

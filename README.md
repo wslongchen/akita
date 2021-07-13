@@ -16,8 +16,8 @@
 You may be looking for:
 
 - [An overview of Akita (Coming Soon...)]()
-- [Examples](https://akita.rs/examples.html)
-- [API documentation](https://docs.rs/akita/0.1.2/akita/)
+- [Examples](https://github.com/wslongchen/akita/blob/master/tests/akita.rs)
+- [API documentation](https://docs.rs/akita/0.1.3/akita/)
 - [Release notes](https://github.com/wslongchen/akita/releases)
 
 ## Akita in action
@@ -153,6 +153,17 @@ fn main() {
     }
 }
 ```
+
+## Support Field Types.
+ 
+* ```Option<T>```
+* ```u8, u32, u64```
+* ```i32, i64```
+* ```usize```
+* ```f32, f64```
+* ```str, String```
+* ```NaiveDate, NaiveDateTime```
+ 
 ## Developing
 
 To setup the development envrionment run `cargo run`.

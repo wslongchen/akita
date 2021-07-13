@@ -1,13 +1,10 @@
 //! 
 //! Tests.
 //! 
+use akita::*;
 use akita::prelude:: * ;
-use mysql::{Opts, OptsBuilder, Transaction, TxOpts};
-use r2d2::Pool;
-
-#
-[macro_use]
-extern crate akita_derive;
+use mysql::TxOpts;
+use mysql::chrono::NaiveDateTime;
 
 #[derive(Table, Clone)]
 #[table(name = "t_system_user")]
@@ -16,9 +13,10 @@ pub struct User {
     pub pk: i64,
     pub id: String,
     pub name: String,
-    pub headline: String,
-    pub avatar_url: String,
+    pub headline: NaiveDateTime,
+    pub avatar_url: Option<String>,
     pub gender: i32,
+    pub birthday: Option<NaiveDate>,
     pub is_org: bool, 
     #[column(name="token")]
     pub url_token: String,
@@ -35,18 +33,17 @@ fn basic_test() {
     wrapper.not_between(true, "username", 2, 8);
     wrapper.set(true, "username", 4);
     let opts = Opts::from_url("mysql://root:MIMAlongchen520.@47.94.194.242:3306/dog_cloud").expect("database url is empty.");
-    let builder = OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder);
-    let pool = Pool::builder().max_size(4).build(manager).unwrap();
+    let pool = new_pool("mysql://root:MIMAlongchen520.@47.94.194.242:3306/dog_cloud", 4).unwrap();
     let mut conn = pool.get().unwrap();
     
     let user = User {
         id: "2".to_string(),
         pk: 0,
         name: "name".to_string(),
-        headline: "name".to_string(),
-        avatar_url: "name".to_string(),
+        headline: mysql::chrono::Local::now().naive_local(),
+        avatar_url: "name".to_string().into(),
         gender: 0,
+        birthday: mysql::chrono::Local::now().naive_local().date().into(),
         is_org: false,
         url_token: "name".to_string(),
         user_type: "name".to_string(),
