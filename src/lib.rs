@@ -49,8 +49,9 @@
 //! use akita::prelude::*;
 //! 
 //! 
-//! /// Annotion Support: Table、Id、column
 //! /// Annotion Support: Table、id、column (name, exist)
+//! #[derive(Table, Clone)]
+//! #[table(name = "t_system_user")]
 //! pub struct User {
 //!     #[id(name = "id")]
 //!     pub pk: i64,
