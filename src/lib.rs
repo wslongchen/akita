@@ -114,11 +114,11 @@
 //! }
 //! /// build the wrapper.
 //! let mut wrapper = UpdateWrapper::new()
-//!     .like(true, "username", "ffff");
-//!     .eq(true, "username", 12);
-//!     .eq(true, "username", "3333");
-//!     .in_(true, "username", vec![1,44,3]);
-//!     .not_between(true, "username", 2, 8);
+//!     .like(true, "username", "ffff")
+//!     .eq(true, "username", 12)
+//!     .eq(true, "username", "3333")
+//!     .in_(true, "username", vec![1,44,3])
+//!     .not_between(true, "username", 2, 8)
 //!     .set(true, "username", 4);
 //! 
 //! let user = User::default();
