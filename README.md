@@ -25,7 +25,7 @@ You may be looking for:
 <details>
 <summary>
 Click to show Cargo.toml.
-<a href="https://play.rust-lang.org/?edition=2018&gist=72755f28f99afc95e01d63174b28c1f5" target="_blank">Run this code in the playground.</a>
+<a href="https://play.rust-lang.org/?version=nightly&mode=debug&edition=2018&gist=bc95328e2b8691b4396222b080fdb1c3" target="_blank">Run this code in the playground.</a>
 </summary>
 
 ```toml
