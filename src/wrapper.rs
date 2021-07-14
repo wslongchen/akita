@@ -50,14 +50,15 @@ pub trait Wrapper {
     fn not(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![ SqlKeyword::NOT.into() ]) }
     fn and(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::AND.into()]) }
     fn or(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
+    fn apply<S: Into<String>>(&mut self, condition: bool, apply_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), apply_sql.into().into()]) }
     fn is_null<S: Into<String>>(&mut self, condition: bool, column: S) -> &mut Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
     fn is_not_null<S: Into<String>>(&mut self, condition: bool, column: S) -> &mut Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NOT_NULL.into() ]) }
     fn not_exists<S: Into<String>>(&mut self, condition: bool, not_exists_sql: S) -> &mut Self  { self.not(condition).exists(condition, not_exists_sql) }
     fn exists<S: Into<String>>(&mut self, condition: bool, exists_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::EXISTS.into(), Segment::Extenssion(format!("({})", exists_sql.into()))]) }
     fn in_sql<S: Into<String>, U: Into<String>>(&mut self, condition: bool, column: S, in_val: U) -> &mut Self { self.do_it(condition, vec![column.into().into() ,SqlKeyword::IN.into(), Segment::Extenssion(format!("({})", in_val.into()))]) }
-    fn group_by<S: Into<String> + Clone>(&mut self, condition: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { self.do_it(condition, vec![SqlKeyword::GROUP_BY.into(), cols.join(COMMA).into()]) } }
+    fn group_by<S: Into<String> + Clone>(&mut self, condition: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { self.do_it(condition, vec![SqlKeyword::GROUP_BY.into(), Segment::ColumnField(cols.join(COMMA))]) } }
     fn having<S: Into<String>>(&mut self, condition: bool, sql_having: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::HAVING.into(), sql_having.into().into()]) }
-    fn order_by<S: Into<String> + Clone>(&mut self, condition: bool, is_asc: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { let mode = if is_asc { SqlKeyword::ASC } else { SqlKeyword::DESC }; self.do_it(condition, vec![ SqlKeyword::ORDER_BY.into(), cols.join(COMMA).into(), mode.into() ]) } }
+    fn order_by<S: Into<String> + Clone>(&mut self, condition: bool, is_asc: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { let mode = if is_asc { SqlKeyword::ASC } else { SqlKeyword::DESC }; self.do_it(condition, vec![ SqlKeyword::ORDER_BY.into(), Segment::ColumnField(cols.join(COMMA)), mode.into() ]) } }
     fn comment<S: Into<String>>(&mut self, condition: bool, comment: S) -> &mut Self;
     fn get_select_sql(&mut self) -> String;
     fn select(&mut self, columns: Vec<String>) -> &mut Self;

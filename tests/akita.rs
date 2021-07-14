@@ -153,3 +153,19 @@ fn basic_test() {
         }
     }
 }
+
+#[test]
+fn basic_wrapper() {
+    let mut wrapper = UpdateWrapper::new();
+    wrapper.like(true, "username", "ffff");
+    wrapper.eq(true, "username", 12);
+    wrapper.eq(true, "username", "3333");
+    wrapper.in_(true, "username", vec![1, 44, 3]);
+    // wrapper.not_between(true, "username", 2, 8);
+    wrapper.set(true, "username", 4);
+    wrapper.apply(true, "FIND_IN_SET(1,category_ids)");
+    wrapper.order_by(true, true, vec!["name","age"]);
+    wrapper.group_by(true, vec!["name","age"]);
+    let sql = wrapper.get_target_sql("table_name").unwrap();
+    println!("format sql: {}", sql);
+}

@@ -51,6 +51,7 @@ pub enum SqlKeyword {
     IS_NOT_NULL,
     GROUP_BY,
     HAVING,
+    APPLY,
     ORDER_BY,
     EXISTS,
     BETWEEN,
@@ -187,7 +188,7 @@ impl MatchSegment {
     fn matches(&self, seg: &Segment) -> bool {
         match seg {
             Segment::Keyword(keyword) => {
-                let keyword = keyword.get_sql_segment().to_lowercase();
+                let keyword = keyword.format().to_lowercase();
                 match *self {
                     MatchSegment::GROUP_BY => keyword.eq("group by"),
                     MatchSegment::ORDER_BY => keyword.eq("order by"),
@@ -214,13 +215,13 @@ impl SegmentList {
         }
         match self.seg_type {
             SegmentType::GroupBy => {
-                SqlKeyword::GROUP_BY.get_sql_segment() + SPACE  + COMMA + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str()
+                SPACE.to_string() + SqlKeyword::GROUP_BY.get_sql_segment().as_str() + SPACE  + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str()
             },
             SegmentType::Having => {
                 SPACE.to_string() + SqlKeyword::HAVING.get_sql_segment().as_str() + SPACE + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
             },
             SegmentType::OrderBy => {
-                SPACE.to_string() + SqlKeyword::ORDER_BY.get_sql_segment().as_str() + SPACE + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str()
+                SPACE.to_string() + SqlKeyword::ORDER_BY.get_sql_segment().as_str() + SPACE + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
             },
             SegmentType::Normal => {
                 if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Nil)) {
@@ -239,14 +240,20 @@ impl SegmentList {
 
 impl SegmentList {
     pub fn add_all(&mut self, segs: Vec<Segment>) -> bool {
+        let seg_type = self.seg_type.to_owned();
         let first = segs.first();
         let last = segs.last();
-        let goon = self.transform_list(segs.to_vec(), first, last);
+       
+        let mut segments = segs.to_vec();
+        println!("before: {}", &segments.iter().map(|s| s.get_sql_segment()).collect::<Vec<_>>().join(","));
+        
+        let goon = self.transform_list(&seg_type, &mut segments, first, last);
+        println!("after : {}", &segments.iter().map(|s| s.get_sql_segment()).collect::<Vec<_>>().join(","));
         if goon {
             if self.flush_last_value {
                 self.remove_and_flush_last()
             }
-            self.segments.extend_from_slice(segs.as_slice());
+            self.segments.extend_from_slice(segments.as_slice());
             true
         } else { false }
     }
@@ -269,7 +276,7 @@ impl SegmentList {
     }
 
     fn new(seg_type: SegmentType) -> Self {
-        Self { seg_type, last_value: None, execute_not: false, flush_last_value: false, sql_segment: String::default(), segments: Vec::new() }
+        Self { seg_type, last_value: None, execute_not: true, flush_last_value: false, sql_segment: String::default(), segments: Vec::new() }
     }
 
     /**
@@ -281,61 +288,75 @@ impl SegmentList {
         self.last_value = self.segments.last().map(|seg| seg.to_owned());
     }
 
-    fn transform_list(&mut self, mut list: Vec<Segment>, first: Option<&Segment>, last: Option<&Segment>) -> bool {
-        let first = first.unwrap_or(&Segment::Nil);
-        let last = last.unwrap_or(&Segment::Nil);
-        if list.len() == 1 {
-            /* 只有 and() 以及 or() 以及 not() 会进入 */
-            if !MatchSegment::NOT.matches(first) {
-                //不是 not
-                if self.segments.is_empty() {
-                    //sqlSegment是 and 或者 or 并且在第一位,不继续执行
-                    return false;
-                }
-                let match_last_and = MatchSegment::AND.matches(last);
-                let match_last_or = MatchSegment::OR.matches(last);
-                if match_last_and || match_last_or {
-                    //上次最后一个值是 and 或者 or
-                    if match_last_and && MatchSegment::AND.matches(first) {
-                        return false;
-                    } else if match_last_or && MatchSegment::OR.matches(first) {
-                        return false;
+    fn transform_list(&mut self, seg_type: &SegmentType, list: &mut Vec<Segment>, first: Option<&Segment>, last: Option<&Segment>) -> bool {
+        match seg_type {
+            SegmentType::GroupBy => { list.remove(0); true },
+            SegmentType::Having => { if !list.is_empty() { list.push(SqlKeyword::AND.into()); } list.remove(0); true },
+            SegmentType::OrderBy => { 
+                list.remove(0); 
+                // let sql = list.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE);
+                // list.clear(); 
+                // list.push(Segment::Extenssion(sql));
+                true
+            },
+            SegmentType::Normal => {
+                let first = first.unwrap_or(&Segment::Nil);
+                let last = last.unwrap_or(&Segment::Nil);
+                if list.len() == 1 {
+                    /* 只有 and() 以及 or() 以及 not() 会进入 */
+                    if !MatchSegment::NOT.matches(first) {
+                        //不是 not
+                        if self.segments.is_empty() {
+                            //sqlSegment是 and 或者 or 并且在第一位,不继续执行
+                            return false;
+                        }
+                        let match_last_and = MatchSegment::AND.matches(last);
+                        let match_last_or = MatchSegment::OR.matches(last);
+                        if match_last_and || match_last_or {
+                            //上次最后一个值是 and 或者 or
+                            if match_last_and && MatchSegment::AND.matches(first) {
+                                return false;
+                            } else if match_last_or && MatchSegment::OR.matches(first) {
+                                return false;
+                            } else {
+                                //和上次的不一样
+                                self.remove_and_flush_last();
+                            }
+                        }
                     } else {
-                        //和上次的不一样
-                        self.remove_and_flush_last();
+                        self.execute_not = false;
+                        return false;
+                    }
+                } else {
+                    if MatchSegment::APPLY.matches(first) {
+                        list.remove(0);
+                    }
+                    if !MatchSegment::AND_OR.matches(last) && !self.segments.is_empty() {
+                        self.segments.push(SqlKeyword::AND.into());
+                    }
+                    if !self.execute_not {
+                        list.insert(0, SqlKeyword::NOT.into());
+                        self.execute_not = true;
                     }
                 }
-            } else {
-                self.execute_not = false;
-                return false;
-            }
-        } else {
-            if MatchSegment::APPLY.matches(first) {
-                list.remove(0);
-            }
-            if !MatchSegment::AND_OR.matches(last) && !self.segments.is_empty() {
-                self.segments.push(SqlKeyword::AND.into());
-            }
-            if !self.execute_not {
-                list.insert(0, SqlKeyword::NOT.into());
-                self.execute_not = true;
-            }
+                true
+            },
         }
-        true
+        
     }
 }
 
 
 
 impl MergeSegments {
-    pub fn add(&mut self, segments: Vec<Segment>) {
+    pub fn add(&mut self, mut segments: Vec<Segment>) {
         if !segments.is_empty() {
             let segment = &segments[0];
-            if MatchSegment::ORDER_BY.matches(segment) {
+            if MatchSegment::ORDER_BY.matches(&segment) {
                 self.order_by.add_all(segments);
-            } else if MatchSegment::GROUP_BY.matches(segment) {
+            } else if MatchSegment::GROUP_BY.matches(&segment) {
                 self.group_by.add_all(segments);
-            } else if MatchSegment::HAVING.matches(segment) {
+            } else if MatchSegment::HAVING.matches(&segment) {
                 self.having.add_all(segments);
             } else {
                 self.normal.add_all(segments);
@@ -406,6 +427,7 @@ impl SqlSegment for SqlKeyword  {
             Self::BETWEEN => "between",
             Self::ASC => "asc",
             Self::DESC => "desc",
+            Self::APPLY => "apply",
         }.to_string()
     }
 }
@@ -435,6 +457,7 @@ impl SqlKeyword {
             Self::BETWEEN => "between",
             Self::ASC => "asc",
             Self::DESC => "desc",
+            Self::APPLY => "apply",
         }
     }
 }
