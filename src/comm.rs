@@ -1,6 +1,9 @@
 //! 
 //! Common Params
 //! 
+use log::*;
+use crate::Capacity;
+
 pub static AMPERSAND: &str = "&";
 pub static AND: &str = "and";
 pub static AT: &str = "@";
@@ -69,3 +72,70 @@ pub static HTML_QUOTE: &str = "&quot;";
 pub static HTML_LT: &str = "&lt;";
 pub static HTML_GT: &str = "&gt;";
 pub static WRAPPER_PARAM: &str = "MPGENVAL";
+
+
+fn is_keyword(s: &str) -> bool {
+    let keywords = ["user", "role"];
+    keywords.contains(&s)
+}
+
+pub fn keywords_safe(s: &str) -> String {
+    if is_keyword(s) {
+        format!("\"{}\"", s)
+    } else {
+        s.to_string()
+    }
+}
+
+pub fn extract_datatype_with_capacity(data_type: &str) -> (String, Option<Capacity>) {
+    let start = data_type.find('(');
+    let end = data_type.find(')');
+    if let Some(start) = start {
+        if let Some(end) = end {
+            let dtype = &data_type[0..start];
+            let range = &data_type[start + 1..end];
+            let capacity = if range.contains(',') {
+                let splinters = range.split(',').collect::<Vec<&str>>();
+                assert!(splinters.len() == 2, "There should only be 2 parts");
+                let range1: Result<i32, _> = splinters[0].parse();
+                let range2: Result<i32, _> = splinters[1].parse();
+                match range1 {
+                    Ok(r1) => match range2 {
+                        Ok(r2) => Some(Capacity::Range(r1, r2)),
+                        Err(e) => {
+                            info!(
+                                "error: {} when parsing range2 for data_type: {:?}",
+                                e, data_type
+                            );
+                            None
+                        }
+                    },
+                    Err(e) => {
+                        info!(
+                            "error: {} when parsing range1 for data_type: {:?}",
+                            e, data_type
+                        );
+                        None
+                    }
+                }
+            } else {
+                let limit: Result<i32, _> = range.parse();
+                match limit {
+                    Ok(limit) => Some(Capacity::Limit(limit)),
+                    Err(e) => {
+                        info!(
+                            "error: {} when parsing limit for data_type: {:?}",
+                            e, data_type
+                        );
+                        None
+                    }
+                }
+            };
+            (dtype.to_owned(), capacity)
+        } else {
+            (data_type.to_owned(), None)
+        }
+    } else {
+        (data_type.to_owned(), None)
+    }
+}

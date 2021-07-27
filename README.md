@@ -191,6 +191,10 @@ fn main() {
             println!("error : {:?}", err);
         }
     }
+
+    let conn = Database::from_mysql("");
+    let data = User::find_by_id(10).execute(conn)?;
+    let data = User::insert(user).execute(conn)?;
 }
 ```
 
