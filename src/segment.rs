@@ -245,10 +245,7 @@ impl SegmentList {
         let last = segs.last();
        
         let mut segments = segs.to_vec();
-        println!("before: {}", &segments.iter().map(|s| s.get_sql_segment()).collect::<Vec<_>>().join(","));
-        
         let goon = self.transform_list(&seg_type, &mut segments, first, last);
-        println!("after : {}", &segments.iter().map(|s| s.get_sql_segment()).collect::<Vec<_>>().join(","));
         if goon {
             if self.flush_last_value {
                 self.remove_and_flush_last()
@@ -349,7 +346,7 @@ impl SegmentList {
 
 
 impl MergeSegments {
-    pub fn add(&mut self, mut segments: Vec<Segment>) {
+    pub fn add(&mut self, segments: Vec<Segment>) {
         if !segments.is_empty() {
             let segment = &segments[0];
             if MatchSegment::ORDER_BY.matches(&segment) {

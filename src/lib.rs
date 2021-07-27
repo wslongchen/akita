@@ -221,28 +221,33 @@ mod segment;
 mod errors;
 mod mapper;
 mod mysql;
+mod pool;
+mod information;
+mod value;
+mod types;
+mod database;
+mod data;
+mod manager;
 
 #[doc(inline)]
 pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
 #[doc(inline)]
-pub use mapper::{BaseMapper, IPage, ConnMut};
+pub use mapper::{BaseMapper, IPage};
 #[doc(inline)]
 pub use segment::SqlSegment;
 #[doc(inline)]
 pub use errors::AkitaError;
+pub use information::*;
 #[doc(inline)]
-pub use crate::mysql::{FromRowExt, from_long_row, new_pool};
-#[cfg(feature = "r2d2_pool")]
-pub use crate::mysql::{R2d2Pool, PooledConn};
+pub use crate::mysql::*;
 
 pub use chrono;
 
 pub mod prelude {
     #[doc(inline)]
-    pub use mysql::{params, prelude::Queryable};
     pub use chrono::{Local, NaiveDate, NaiveDateTime};
     #[doc(inline)]
-    pub use mysql::{Conn, Opts, OptsBuilder};
+    pub use crate::value::{Value};
 }
 
 // Re-export #[derive(Table)].
@@ -250,10 +255,12 @@ pub mod prelude {
 // The reason re-exporting is not enabled by default is that disabling it would
 // be annoying for crates that provide handwritten impls or data formats. They
 // would need to disable default features and then explicitly re-enable std.
-#[cfg(feature = "akita_derive")]
 #[allow(unused_imports)]
 #[macro_use]
 extern crate akita_derive;
-#[cfg(feature = "akita_derive")]
 #[doc(hidden)]
 pub use akita_derive::*;
+
+
+#[macro_use]
+extern crate log;
