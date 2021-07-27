@@ -11,14 +11,22 @@ use crate::comm::keywords_safe;
 use crate::types::SqlType;
 
 
-pub trait ToTableName {
+pub trait GetTableName {
     /// extract the table name from a struct
-    fn to_table_name() -> TableName;
+    fn table_name() -> TableName;
 }
 
-pub trait ToColumnNames {
+pub trait GetColumnNames {
     /// extract the columns from struct
-    fn to_column_names() -> Vec<ColumnName>;
+    fn column_names() -> Vec<ColumnName>;
+}
+
+pub trait Table {
+    /// extract the table name from a struct
+    fn table_name() -> TableName;
+
+     /// extract the columns from struct
+     fn column_names() -> Vec<ColumnName>;
 }
 
 
@@ -275,4 +283,35 @@ pub struct SchemaContent {
 pub struct DatabaseName {
     pub(crate) name: String,
     pub(crate) description: Option<String>,
+}
+
+
+#[cfg(test)]
+mod test {
+
+    use crate::data::*;
+    use super::{GetTableName, TableName, Table, ColumnName, GetColumnNames};
+
+    #[derive(Debug, FromAkita, ToAkita, Table)]
+    #[table(name="t_system_user")]
+    struct SystemUser {
+        id: i32,
+        username: String,
+    }
+
+    #[test]
+    fn test_table_name() {
+        
+
+        let user = SystemUser {
+            id: 1,
+            username: "ivanceras".to_string(),
+        };
+        println!("user: {:#?}", user);
+        let dao = user.to_data();
+        println!("dao: {:#?}", dao);
+        let table = SystemUser::table_name();
+        println!("table name: {}", table.name);
+        println!("table: {:#?}", table);
+    }
 }

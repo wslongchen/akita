@@ -1,4 +1,4 @@
-use crate::{AkitaError, ColumnName, DatabaseName, TableDef, TableName, ToColumnNames, ToTableName, Wrapper, database::{Database, DatabasePlatform}, value::{ToValue, Value}};
+use crate::{AkitaError, ColumnName, DatabaseName, TableDef, TableName, GetColumnNames, GetTableName, Wrapper, database::{Database, DatabasePlatform}, value::{ToValue, Value}};
 use crate::data::{FromAkita, Rows, AkitaData, ToAkita};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
@@ -99,11 +99,11 @@ impl AkitaEntityManager {
     /// Get all the table of records
     pub fn list<T, W>(&mut self, wrapper: &mut W) -> Result<Vec<T>, AkitaError>
     where
-        T: ToTableName + ToColumnNames + FromAkita,
+        T: GetTableName + GetColumnNames + FromAkita,
         W: Wrapper
     {
-        let table = T::to_table_name();
-        let columns = T::to_column_names();
+        let table = T::table_name();
+        let columns = T::column_names();
         let enumerated_columns = columns
             .iter()
             .map(|c| c.name.to_owned())
@@ -128,13 +128,13 @@ impl AkitaEntityManager {
     /// Get the total count of records
     pub fn count<T, W>(&mut self, wrapper: &mut W) -> Result<usize, AkitaError> 
     where
-        T: ToTableName + ToColumnNames,
+        T: GetTableName + GetColumnNames,
         W: Wrapper {
         #[derive(FromAkita)]
         struct Count {
             count: i64,
         }
-        let table = T::to_table_name();
+        let table = T::table_name();
         let sql = format!(
             "SELECT COUNT(1) AS count FROM {} WHERE {}",
             table.complete_name(),
@@ -147,9 +147,9 @@ impl AkitaEntityManager {
     /// Remove the records by wrapper.
     pub fn remove<T, W>(&mut self, wrapper: &mut W) -> Result<(), AkitaError> 
     where
-        T: ToTableName + ToColumnNames,
+        T: GetTableName + GetColumnNames,
         W: Wrapper {
-        let table = T::to_table_name();
+        let table = T::table_name();
         let sql = format!("delete from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
         let _ = self.0.execute_result(&sql, &[])?;
         Ok(())
@@ -158,8 +158,8 @@ impl AkitaEntityManager {
     #[allow(unused_variables)]
     pub fn save_batch<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
     where
-        T: ToTableName + ToColumnNames + ToAkita,
-        R: FromAkita + ToColumnNames,
+        T: GetTableName + GetColumnNames + ToAkita,
+        R: FromAkita + GetColumnNames,
     {
         match self.0 {
             DatabasePlatform::Mysql(_) => self.save_batch_inner(entities),
@@ -169,9 +169,9 @@ impl AkitaEntityManager {
     /// called multiple times when using database platform that doesn;t support multiple value
     pub fn save<T>(&mut self, entity: &T) -> Result<(), AkitaError>
     where
-        T: ToTableName + ToColumnNames + ToAkita,
+        T: GetTableName + GetColumnNames + ToAkita,
     {
-        let columns = T::to_column_names();
+        let columns = T::column_names();
         let sql = self.build_insert_clause(&[entity]);
         let dao = entity.to_data();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
@@ -190,7 +190,7 @@ impl AkitaEntityManager {
     
 
     /// get the table from database based on this column name
-    pub fn get_table<T>(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
+    pub fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
         self.0.get_table(table_name)
     }
 
@@ -223,17 +223,17 @@ impl AkitaEntityManager {
     /// this is soly for use with sqlite since sqlite doesn't support bulk insert
     fn save_batch_inner<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
     where
-        T: ToTableName + ToColumnNames + ToAkita,
-        R: FromAkita + ToColumnNames,
+        T: GetTableName + GetColumnNames + ToAkita,
+        R: FromAkita + GetColumnNames,
     {
-        let return_columns = R::to_column_names();
+        let return_columns = R::column_names();
         let return_column_names = return_columns
             .iter()
             .map(|rc| rc.name.to_owned())
             .collect::<Vec<_>>()
             .join(", ");
 
-        let table = T::to_table_name();
+        let table = T::table_name();
         //TODO: move this specific query to sqlite
         let last_insert_sql = format!(
             "\
@@ -270,10 +270,10 @@ impl AkitaEntityManager {
     /// build an insert clause
     fn build_insert_clause<T>(&self, entities: &[&T]) -> String
     where
-        T: ToTableName + ToColumnNames + ToAkita,
+        T: GetTableName + GetColumnNames + ToAkita,
     {
-        let table = T::to_table_name();
-        let columns = T::to_column_names();
+        let table = T::table_name();
+        let columns = T::column_names();
         let columns_len = columns.len();
         let mut sql = String::new();
         sql += &format!("INSERT INTO {} ", table.complete_name());

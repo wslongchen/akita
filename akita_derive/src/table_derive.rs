@@ -577,7 +577,123 @@ fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
     }
 }
 
+pub fn impl_get_table_name(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
 
+    quote!(
+        impl #generics GetTableName for #name #generics {
+            fn table_name() -> TableName {
+                TableName{
+                    name: stringify!(#name).to_lowercase().into(),
+                    schema: None,
+                    alias: None,
+                }
+            }
+        }
+    ).into()
+}
+
+pub fn impl_get_table(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
+    let table_name = get_contract_meta_item_value(&derive_input.attrs, "table", "name").unwrap_or("".to_string());;
+    let fields: Vec<(&syn::Ident, &Type, &Vec<Attribute>)> = match derive_input.data {
+        Data::Struct(ref rstruct) => {
+            let fields = &rstruct.fields;
+            fields
+                .iter()
+                .map(|f| {
+                    let ident = f.ident.as_ref().unwrap();
+                    let ty = &f.ty;
+                    let attrs = &f.attrs;
+                    (ident, ty, attrs)
+                })
+                .collect::<Vec<_>>()
+        }
+        Data::Enum(_) => panic!("#[derive(Table)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(Table)] can only be used with structs"),
+    };
+    let from_fields: Vec<proc_macro2::TokenStream> = fields
+        .iter()
+        .map(|&(field, _ty, attrs)| {
+            let field_name = get_contract_meta_item_value(attrs, "field", "name").unwrap_or(field.to_string());
+            quote!(
+                ColumnName {
+                    name: stringify!(#field).into(),
+                    table: Some(stringify!(#name).to_lowercase().into()),
+                    alias: #field_name.to_string().into(),
+                },
+            )
+        })
+        .collect();
+    quote!(
+        impl #generics GetTableName for #name #generics {
+            fn table_name() -> TableName {
+                TableName{
+                    name: stringify!(#name).to_lowercase().into(),
+                    schema: None,
+                    alias: #table_name.to_string().into(),
+                }
+            }
+        }
+
+        impl #generics GetColumnNames for #name #generics {
+            fn column_names() -> Vec<ColumnName> {
+                vec![
+                    #(#from_fields)*
+                ]
+            }
+        }
+    ).into()
+}
+
+
+pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
+
+    let fields: Vec<(&syn::Ident, &Type)> = match derive_input.data {
+        Data::Struct(ref rstruct) => {
+            let fields = &rstruct.fields;
+            fields
+                .iter()
+                .map(|f| {
+                    let ident = f.ident.as_ref().unwrap();
+                    let ty = &f.ty;
+                    (ident, ty)
+                })
+                .collect::<Vec<_>>()
+        }
+        Data::Enum(_) => panic!("#[derive(ToColumnNames)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(ToColumnNames)] can only be used with structs"),
+    };
+    let from_fields: Vec<proc_macro2::TokenStream> = fields
+        .iter()
+        .map(|&(field, _ty)| {
+            quote!(
+                ColumnName {
+                    name: stringify!(#field).into(),
+                    table: Some(stringify!(#name).to_lowercase().into()),
+                    alias: None,
+                },
+            )
+        })
+        .collect();
+
+    quote! (
+        impl #generics GetColumnNames for #name #generics {
+            fn column_names() -> Vec<ColumnName> {
+                vec![
+                    #(#from_fields)*
+                ]
+            }
+        }
+    ).into()
+}
 
 // impl FromRowExt for #name
 //                 {
