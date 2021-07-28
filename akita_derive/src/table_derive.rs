@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::{collections::HashMap, iter::FromIterator};
+use std::{borrow::BorrowMut, collections::HashMap, iter::FromIterator, ops::Deref};
 use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 
 #[derive(Debug)]
@@ -403,19 +403,31 @@ fn get_field_type(ty: &Type) -> Option<String> {
 fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&str) -> Option<String> {
     let res = attrs.iter().filter_map(|attr| {
         if attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter {
+            println!("{:?}", attr.parse_meta());
             match attr.parse_meta() {
                 Ok(syn::Meta::List(ref meta)) => {
                     let mut res = None;
                     for meta_item in meta.nested.iter() {
+                        
                         match meta_item {
                             syn::NestedMeta::Meta(syn::Meta::NameValue(ref m)) if m.path.is_ident(key) => {
                                 if let syn::Lit::Str(ref lit) = m.lit {
                                     res = lit.value().into()
                                 } else {}
                             }
+                            syn::NestedMeta::Lit(syn::Lit::Str(ref lit)) => {
+                                res = lit.value().into()
+                            },
                             _ => {}
                         }
                     }
+                    res
+                },
+                Ok(syn::Meta::NameValue(ref meta)) => {
+                    let mut res = None;
+                    if let syn::Lit::Str(ref lit) = meta.lit {
+                        res = lit.value().into()
+                    } 
                     res
                 },
                 _ => {
@@ -599,7 +611,7 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
     let name = &derive_input.ident;
     let generics = &derive_input.generics;
-    let table_name = get_contract_meta_item_value(&derive_input.attrs, "table", "name").unwrap_or("".to_string());;
+    let table_name = get_contract_meta_item_value(&derive_input.attrs, "table", "name").unwrap_or("".to_string());
     let fields: Vec<(&syn::Ident, &Type, &Vec<Attribute>)> = match derive_input.data {
         Data::Struct(ref rstruct) => {
             let fields = &rstruct.fields;
@@ -619,35 +631,45 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|&(field, _ty, attrs)| {
-            let field_name = get_contract_meta_item_value(attrs, "field", "name").unwrap_or(field.to_string());
+            let identify = has_contract_meta(attrs, "table_id");
+            let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
+            let field_type = if identify {
+                let field_type = get_contract_meta_item_value(attrs, "table_id", "type").unwrap_or("none".to_string()).to_lowercase();
+                quote!(FieldType::TableId(#field_type.to_string()))
+            } else {
+                quote!(FieldType::TableField)
+            };
             quote!(
-                ColumnName {
-                    name: stringify!(#field).into(),
+                FieldName {
+                    name: #field_name.to_string().into(),
                     table: Some(stringify!(#name).to_lowercase().into()),
-                    alias: #field_name.to_string().into(),
+                    alias: stringify!(#field).to_string().into(),
+                    field_type: #field_type,
                 },
             )
         })
         .collect();
-    quote!(
+    let result = quote!(
         impl #generics GetTableName for #name #generics {
             fn table_name() -> TableName {
                 TableName{
-                    name: stringify!(#name).to_lowercase().into(),
+                    name: #table_name.to_string(),
                     schema: None,
-                    alias: #table_name.to_string().into(),
+                    alias: stringify!(#name).to_lowercase().into(),
                 }
             }
         }
 
-        impl #generics GetColumnNames for #name #generics {
-            fn column_names() -> Vec<ColumnName> {
+        impl #generics GetFields for #name #generics {
+            fn fields() -> Vec<FieldName> {
                 vec![
                     #(#from_fields)*
                 ]
             }
         }
-    ).into()
+    ).into();
+    eprintln!("{}", result);
+    result
 }
 
 
@@ -675,7 +697,7 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
         .iter()
         .map(|&(field, _ty)| {
             quote!(
-                ColumnName {
+                FieldName {
                     name: stringify!(#field).into(),
                     table: Some(stringify!(#name).to_lowercase().into()),
                     alias: None,
@@ -685,8 +707,8 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
         .collect();
 
     quote! (
-        impl #generics GetColumnNames for #name #generics {
-            fn column_names() -> Vec<ColumnName> {
+        impl #generics GetFields for #name #generics {
+            fn fields() -> Vec<FieldName> {
                 vec![
                     #(#from_fields)*
                 ]
@@ -722,3 +744,48 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
 //                         Ok(value)
 //                     }
 //                 }
+
+fn camel_to_snack<S: Into<String>>(field: S) -> String {
+    let mut field_value: String = field.into();
+    while let Some(poi) = field_value.chars().position(|c| c.is_uppercase()) {
+        //let poi_char = hello.chars()[poi];
+        //hello.replace_range(range, replace_with)
+        let mut replace_with = String::default();
+        let rng = field_value
+            .char_indices()
+            .nth(poi)
+            .map(|(pos, ch)| {
+                if pos == 0 { replace_with = format!("{}", ch.to_lowercase()); } else {replace_with = format!("_{}", ch.to_lowercase());}
+                pos..pos + ch.len_utf8()
+            })
+            .unwrap();
+            field_value.replace_range(rng, &replace_with,);
+    }
+    field_value
+}
+
+fn snack_to_camel<S: Into<String>>(field: S) -> String {
+    let field_value: String = field.into();
+    field_value.split("_").map(|s| {
+        let mut snack = s.to_string();
+        make_ascii_titlecase(&mut snack);
+        snack
+    }).collect::<Vec<_>>().join("")
+
+}
+
+fn make_ascii_titlecase(s: &mut str) -> String {
+    if let Some(r) = s.get_mut(0..1) {
+        r.make_ascii_uppercase();
+        r.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+#[test]
+fn test_name() {
+    let camel = camel_to_snack("CamelCase");
+    let snack = snack_to_camel("snack_case");
+    println!("snack: {}, camel: {}", snack, camel);
+}

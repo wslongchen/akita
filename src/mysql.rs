@@ -10,7 +10,7 @@ use std::result::Result;
 use crate::database::Database;
 use crate::types::SqlType;
 use crate::value::{ToValue, Value};
-use crate::{AkitaError, ColumnDef, ColumnName, ColumnSpecification, DatabaseName, TableDef, TableName, comm};
+use crate::{AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, comm};
 use crate::data::{FromAkita, Rows, AkitaData};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
@@ -37,14 +37,14 @@ impl Database for MysqlDatabase {
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
 
-            let column_names = rows
+            let fields = rows
                 .columns().as_ref()
                 .iter()
                 .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
                 .collect::<Result<Vec<String>, _>>()
                 .map_err(|e| AkitaError::from(e))?;
 
-            let mut records = Rows::new(column_names);
+            let mut records = Rows::new(fields);
             // while rows.next().is_some() {
             //     for r in rows.by_ref() {
             //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
@@ -197,7 +197,7 @@ impl Database for MysqlDatabase {
 
                 ColumnDef {
                     table: TableName::from(&format!("{}.{}", spec.schema, spec.table_name)),
-                    name: ColumnName::from(&spec.name),
+                    name: FieldName::from(&spec.name),
                     comment: Some(spec.comment),
                     specification: ColumnSpecification {
                         capacity,

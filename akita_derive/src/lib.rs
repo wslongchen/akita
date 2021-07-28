@@ -26,7 +26,7 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
     convert_derive::impl_to_akita(input)
 }
 
-#[proc_macro_derive(Table, attributes(field, table))]
+#[proc_macro_derive(Table, attributes(field, table, table_id))]
 pub fn to_table(input: TokenStream) -> TokenStream {
     table_derive::impl_get_table(input)
 }
@@ -36,7 +36,7 @@ pub fn to_table_name(input: TokenStream) -> TokenStream {
     table_derive::impl_get_table_name(input)
 }
 
-#[proc_macro_derive(GetColumnNames)]
+#[proc_macro_derive(GetFields)]
 pub fn to_column_names(input: TokenStream) -> TokenStream {
     table_derive::impl_get_column_names(input)
 }

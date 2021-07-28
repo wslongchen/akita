@@ -16,9 +16,9 @@ pub trait GetTableName {
     fn table_name() -> TableName;
 }
 
-pub trait GetColumnNames {
+pub trait GetFields {
     /// extract the columns from struct
-    fn column_names() -> Vec<ColumnName>;
+    fn fields() -> Vec<FieldName>;
 }
 
 pub trait Table {
@@ -26,7 +26,7 @@ pub trait Table {
     fn table_name() -> TableName;
 
      /// extract the columns from struct
-     fn column_names() -> Vec<ColumnName>;
+     fn fields() -> Vec<FieldName>;
 }
 
 
@@ -88,13 +88,20 @@ impl TableName {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ColumnName {
+pub struct FieldName {
     pub name: String,
     pub table: Option<String>,
     pub alias: Option<String>,
+    pub field_type: FieldType,
 }
 
-impl ColumnName {
+#[derive(Debug, PartialEq, Clone)]
+pub enum FieldType {
+    TableId(String),
+    TableField
+}
+
+impl FieldName {
     /// create table with name
     pub fn from(arg: &str) -> Self {
         if arg.contains('.') {
@@ -106,16 +113,18 @@ impl ColumnName {
             );
             let table = splinters[0].to_owned();
             let name = splinters[1].to_owned();
-            ColumnName {
+            FieldName {
                 name,
                 table: Some(table),
                 alias: None,
+                field_type: FieldType::TableField,
             }
         } else {
-            ColumnName {
+            FieldName {
                 name: arg.to_owned(),
                 table: None,
                 alias: None,
+                field_type: FieldType::TableField,
             }
         }
     }
@@ -156,7 +165,7 @@ pub struct TableDef {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnDef {
     pub table: TableName,
-    pub name: ColumnName,
+    pub name: FieldName,
     pub comment: Option<String>,
     pub specification: ColumnSpecification,
     pub stat: Option<ColumnStat>,
@@ -249,19 +258,19 @@ impl ColumnSpecification {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Key {
     pub name: Option<String>,
-    pub columns: Vec<ColumnName>,
+    pub columns: Vec<FieldName>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForeignKey {
     pub name: Option<String>,
     // the local columns of this table local column = foreign_column
-    pub columns: Vec<ColumnName>,
+    pub columns: Vec<FieldName>,
     // referred foreign table
     pub foreign_table: TableName,
     // referred column of the foreign table
     // this is most likely the primary key of the table in context
-    pub referred_columns: Vec<ColumnName>,
+    pub referred_columns: Vec<FieldName>,
 }
 
 
@@ -290,12 +299,14 @@ pub struct DatabaseName {
 mod test {
 
     use crate::data::*;
-    use super::{GetTableName, TableName, Table, ColumnName, GetColumnNames};
+    use super::{GetTableName, TableName, Table, FieldName, GetFields, FieldType};
 
     #[derive(Debug, FromAkita, ToAkita, Table)]
     #[table(name="t_system_user")]
     struct SystemUser {
+        #[field = "name"]
         id: i32,
+        #[table_id]
         username: String,
     }
 
@@ -313,5 +324,7 @@ mod test {
         let table = SystemUser::table_name();
         println!("table name: {}", table.name);
         println!("table: {:#?}", table);
+        let cols = SystemUser::fields();
+        println!("cols name: {:#?}", cols);
     }
 }
