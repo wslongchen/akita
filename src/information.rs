@@ -305,7 +305,7 @@ mod test {
     #[table(name="t_system_user")]
     struct SystemUser {
         #[field = "name"]
-        id: i32,
+        id: Option<i32>,
         #[table_id]
         username: String,
     }

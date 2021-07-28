@@ -155,6 +155,16 @@ impl AkitaEntityManager {
         Ok(())
     }
 
+    /// Remove the records by id.
+    pub fn remove_by_id<T>(&mut self, id: T) -> Result<(), AkitaError> 
+    where
+        T: ToValue {
+        let table = T::table_name();
+        let sql = format!("delete from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
+        let _ = self.0.execute_result(&sql, &[])?;
+        Ok(())
+    }
+
     #[allow(unused_variables)]
     pub fn save_batch<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
     where
