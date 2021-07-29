@@ -311,11 +311,11 @@ mod test {
     }
 
     #[test]
-    fn test_table_name() {
+    fn test_table_info() {
         
 
         let user = SystemUser {
-            id: 1,
+            id: 1.into(),
             username: "ivanceras".to_string(),
         };
         println!("user: {:#?}", user);

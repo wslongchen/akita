@@ -641,8 +641,8 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
             };
             quote!(
                 FieldName {
-                    name: #field_name.to_string().into(),
-                    table: Some(stringify!(#name).to_lowercase().into()),
+                    name: #field_name.to_string(),
+                    table: #table_name.to_string().into(),
                     alias: stringify!(#field).to_string().into(),
                     field_type: #field_type,
                 },

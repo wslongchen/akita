@@ -1,12 +1,12 @@
-use crate::{AkitaError, FieldName, DatabaseName, TableDef, TableName, GetFields, GetTableName, Wrapper, database::{Database, DatabasePlatform}, value::{ToValue, Value}};
+use crate::{AkitaError, DatabaseName, FieldName, FieldType, GetFields, GetTableName, TableDef, TableName, Wrapper, database::{Database, DatabasePlatform}, pool::AkitaConfig, value::{ToValue, Value}};
 use crate::data::{FromAkita, Rows, AkitaData, ToAkita};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
-pub struct AkitaManager(pub DatabasePlatform);
+pub struct AkitaManager<'a>(pub DatabasePlatform, pub &'a AkitaConfig);
 
-pub struct AkitaEntityManager(pub DatabasePlatform);
+pub struct AkitaEntityManager<'c>(pub DatabasePlatform, pub &'c AkitaConfig);
 
-impl AkitaManager {
+impl <'a> AkitaManager <'a> {
     pub fn start_transaction(&mut self) -> Result<(), AkitaError> {
         self.0.start_transaction()
     }
@@ -73,7 +73,7 @@ impl AkitaManager {
 
 
 
-impl AkitaEntityManager {
+impl <'c> AkitaEntityManager <'c> {
     pub fn start_transaction(&mut self) -> Result<(), AkitaError> {
         self.0.start_transaction()
     }
@@ -156,13 +156,27 @@ impl AkitaEntityManager {
     }
 
     /// Remove the records by id.
-    pub fn remove_by_id<T>(&mut self, id: T) -> Result<(), AkitaError> 
+    pub fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
     where
-        T: ToValue {
+        I: ToValue,
+        T: GetTableName + GetFields {
         let table = T::table_name();
-        let sql = format!("delete from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
-        let _ = self.0.execute_result(&sql, &[])?;
-        Ok(())
+        if let Some(field) = T::fields().iter().find(| field| match field.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }) {
+            let sql = format!("delete from {} where {} = {}", &table.name, &field.name, &id.to_value());
+            match self.1.log_level.as_ref().unwrap_or(&crate::pool::LogLevel::Debug) {
+                crate::pool::LogLevel::Debug => debug!("[remove_by_id]: {}", &sql),
+                crate::pool::LogLevel::Info => info!("[remove_by_id]: {}", &sql),
+                crate::pool::LogLevel::Error => error!("[remove_by_id]: {}", &sql),
+            }
+            let _ = self.0.execute_result(&sql, &[])?;
+            Ok(())
+        } else {
+            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
+        }
+        
     }
 
     #[allow(unused_variables)]
@@ -378,16 +392,45 @@ impl AkitaEntityManager {
 
 #[cfg(test)]
 mod test {
-    use crate::{TableName, pool::Pool};
+    use crate::pool::{AkitaConfig, LogLevel};
+    use crate::{pool::Pool, data::*};
+    use crate::manager::{GetTableName, TableName, FieldName, GetFields, FieldType};
+
+    #[derive(Debug, FromAkita, ToAkita, Table)]
+    #[table(name="t_system_user")]
+    struct SystemUser {
+        #[field = "name"]
+        id: Option<i32>,
+        #[table_id]
+        username: String,
+    }
 
     #[test]
-    fn film_table_info() {
-        let db_url = "mysql://root:shbyd101@localhost:3306/akita";
-        let mut pool = Pool::new(db_url).unwrap();
+    fn get_table_info() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let table = em
             .get_table(&TableName::from("public.film"))
             .expect("must have a table");
         println!("table: {:#?}", table);
     }
+
+
+    #[test]
+    fn remove_by_id() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        match em.remove_by_id::<SystemUser, i32>(1) {
+            Ok(res) => {
+                println!("success removed data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
 }
+
+
