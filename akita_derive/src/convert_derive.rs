@@ -1,6 +1,6 @@
-use proc_macro::TokenStream;
+use proc_macro::{Ident, TokenStream};
 use quote::quote;
-use syn::{self, Data, DeriveInput, Type};
+use syn::{self, Data, DeriveInput, Field, Fields, Type};
 
 pub fn impl_from_akita(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
@@ -27,15 +27,13 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
             quote!( #field: data.get(stringify!(#field)).unwrap(),)
         })
         .collect();
-
     quote!(
         impl FromAkita for #name {
-
+            
             fn from_data(data: &AkitaData) -> Self {
                 #name {
                     #(#from_fields)*
                 }
-
             }
         }
     ).into()
@@ -62,7 +60,7 @@ pub fn impl_to_akita(input: TokenStream) -> TokenStream {
         Data::Enum(_) => panic!("#[derive(ToAkita)] can only be used with structs"),
         Data::Union(_) => panic!("#[derive(ToAkita)] can only be used with structs"),
     };
-
+    
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|&(field, _ty)| {
@@ -81,3 +79,4 @@ pub fn impl_to_akita(input: TokenStream) -> TokenStream {
         }
     ).into()
 }
+

@@ -1,4 +1,4 @@
-use crate::{AkitaError, DatabaseName, FieldName, FieldType, GetFields, GetTableName, TableDef, TableName, Wrapper, database::{Database, DatabasePlatform}, pool::AkitaConfig, value::{ToValue, Value}};
+use crate::{AkitaError, DatabaseName, FieldName, FieldType, GetFields, GetTableName, IPage, TableDef, TableName, UpdateWrapper, Wrapper, database::{Database, DatabasePlatform}, pool::AkitaConfig, value::{ToValue, Value}};
 use crate::data::{FromAkita, Rows, AkitaData, ToAkita};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
@@ -125,6 +125,93 @@ impl <'c> AkitaEntityManager <'c> {
         Ok(entities)
     }
 
+    /// Get one the table of records
+    pub fn select_one<T, W>(&mut self, wrapper: &mut W) -> Result<Option<T>, AkitaError>
+    where
+        T: GetTableName + GetFields + FromAkita,
+        W: Wrapper
+    {
+        let table = T::table_name();
+        let columns = T::fields();
+        let enumerated_columns = columns
+            .iter()
+            .map(|c| c.name.to_owned())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_fields = wrapper.get_select_sql();
+        let enumerated_columns = if select_fields.eq("*") {
+            enumerated_columns
+        } else { 
+            select_fields
+        };
+        let sql = format!("SELECT {} FROM {} WHERE {} limit 1", &enumerated_columns, &table.complete_name(), wrapper.get_sql_segment());
+        let rows = self.0.execute_result(&sql, &[])?;
+        Ok(rows.iter().next().map(|data| T::from_data(&data)))
+    }
+
+    /// Get one the table of records by id
+    pub fn select_by_id<T, I>(&mut self, id: I) -> Result<Option<T>, AkitaError>
+    where
+        T: GetTableName + GetFields + FromAkita,
+        I: ToValue
+    {
+        let table = T::table_name();
+        let columns = T::fields();
+        let enumerated_columns = columns
+            .iter()
+            .map(|c| c.name.to_owned())
+            .collect::<Vec<_>>()
+            .join(", ");
+        
+        if let Some(field) = columns.iter().find(| field| match field.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }) {
+            let sql = format!("SELECT {} FROM {} WHERE {} = {} limit 1", &enumerated_columns, &table.complete_name(), &field.name, &id.to_value());
+            let rows = self.0.execute_result(&sql, &[])?;
+            Ok(rows.iter().next().map(|data| T::from_data(&data)))
+        } else {
+            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
+        }
+    }
+
+    /// Get table of records with page
+    pub fn page<T, W>(&mut self, page: usize, size: usize, wrapper: &mut W) -> Result<IPage<T>, AkitaError>
+    where
+        T: GetTableName + GetFields + FromAkita,
+        W: Wrapper
+    {
+        #[derive(FromAkita)]
+        struct Count {
+            count: i64,
+        }
+        let table = T::table_name();
+        let columns = T::fields();
+        let enumerated_columns = columns
+            .iter()
+            .map(|c| c.name.to_owned())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_fields = wrapper.get_select_sql();
+        let enumerated_columns = if select_fields.eq("*") {
+            enumerated_columns
+        } else { 
+            select_fields
+        };
+        let count_sql = format!("select count(1) from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
+        let count: Count = self.execute_first(&count_sql, &[])?;
+        let mut page = IPage::new(page, size ,count.count as usize, vec![]);
+        let sql = format!("SELECT {} FROM {} WHERE {} limit {}, {}", &enumerated_columns, &table.complete_name(), wrapper.get_sql_segment(),page.offset(),  page.size);
+        let rows = self.0.execute_result(&sql, &[])?;
+        let mut entities = vec![];
+        for dao in rows.iter() {
+            let entity = T::from_data(&dao);
+            entities.push(entity)
+        }
+        page.records = entities;
+        Ok(page)
+    }
+
     /// Get the total count of records
     pub fn count<T, W>(&mut self, wrapper: &mut W) -> Result<usize, AkitaError> 
     where
@@ -166,12 +253,92 @@ impl <'c> AkitaEntityManager <'c> {
             FieldType::TableField => false,
         }) {
             let sql = format!("delete from {} where {} = {}", &table.name, &field.name, &id.to_value());
-            match self.1.log_level.as_ref().unwrap_or(&crate::pool::LogLevel::Debug) {
-                crate::pool::LogLevel::Debug => debug!("[remove_by_id]: {}", &sql),
-                crate::pool::LogLevel::Info => info!("[remove_by_id]: {}", &sql),
-                crate::pool::LogLevel::Error => error!("[remove_by_id]: {}", &sql),
+            if let Some(log) = &self.1.log_level {
+                let _ = self.0.execute_result_log(&sql, &[], log)?;
+            } else {
+                let _ = self.0.execute_result(&sql, &[])?;
             }
-            let _ = self.0.execute_result(&sql, &[])?;
+            
+            Ok(())
+        } else {
+            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
+        }
+        
+    }
+    
+
+    /// Update the records by wrapper.
+    pub fn update<T>(&mut self, entity: &T, wrapper: &mut UpdateWrapper) -> Result<(), AkitaError> 
+    where
+        T: GetTableName + GetFields + ToAkita {
+        let table = T::table_name();
+        let columns = T::fields();
+        let sql = self.build_update_clause(entity, wrapper);
+        let update_fields = &wrapper.sql_set;
+        let data = entity.to_data();
+        let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+        for col in columns.iter() {
+            if !col.exist | (!update_fields.contains(&col.name) && !update_fields.is_empty()) {
+                continue;
+            }
+            let col_name = &col.name;
+            let value = data.get_value(&col.alias.to_owned().unwrap_or(col_name.to_owned()));
+            match value {
+                Some(value) => values.push(value.clone()),
+                None => values.push(Value::Nil),
+            }
+        }
+        let bvalues: Vec<&Value> = values.iter().collect();
+        self.0.execute_result(&sql, &bvalues)?;
+        Ok(())
+    }
+
+    /// Update the records by id.
+    pub fn update_by_id<T, I>(&mut self, entity: &T, id: I) -> Result<(), AkitaError> 
+    where
+        I: ToValue,
+        T: GetTableName + GetFields + ToAkita {
+        let table = T::table_name();
+        let data = entity.to_data();
+        let columns = T::fields();
+        if let Some(field) = T::fields().iter().find(| field| match field.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }) {
+            let set_fields = columns
+            .iter().filter(|col| col.exist)
+            .enumerate()
+            .map(|(x, col)| {
+                #[allow(unreachable_patterns)]
+                match self.0 {
+                    // #[cfg(feature = "with-mysql")]
+                    DatabasePlatform::Mysql(_) => format!("{} = ?", &col.name),
+                    _ => format!("${}", x + 1),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+            let sql = format!("update {} set {} where {} = ?", &table.name, &set_fields, &field.name);
+            let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+            for col in columns.iter() {
+                if !col.exist {
+                    continue;
+                }
+                let col_name = &col.name;
+                let value = data.get_value(&col.alias.to_owned().unwrap_or(col_name.to_owned()));
+                match value {
+                    Some(value) => values.push(value.clone()),
+                    None => values.push(Value::Nil),
+                }
+            }
+            values.push(id.to_value());
+            let bvalues: Vec<&Value> = values.iter().collect();
+            if let Some(log) = &self.1.log_level {
+                let _ = self.0.execute_result_log(&sql, &bvalues, log)?;
+            } else {
+                let _ = self.0.execute_result(&sql, &bvalues)?;
+            }
+            
             Ok(())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
@@ -180,10 +347,9 @@ impl <'c> AkitaEntityManager <'c> {
     }
 
     #[allow(unused_variables)]
-    pub fn save_batch<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
+    pub fn save_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
     where
         T: GetTableName + GetFields + ToAkita,
-        R: FromAkita + GetFields,
     {
         match self.0 {
             DatabasePlatform::Mysql(_) => self.save_batch_inner(entities),
@@ -197,10 +363,10 @@ impl <'c> AkitaEntityManager <'c> {
     {
         let columns = T::fields();
         let sql = self.build_insert_clause(&[entity]);
-        let dao = entity.to_data();
+        let data = entity.to_data();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter() {
-            let value = dao.get_value(&col.name);
+            let value = data.get_value(&col.name);
             match value {
                 Some(value) => values.push(value.clone()),
                 None => values.push(Value::Nil),
@@ -245,7 +411,7 @@ impl <'c> AkitaEntityManager <'c> {
    
 
     /// this is soly for use with sqlite since sqlite doesn't support bulk insert
-    fn save_batch_inner<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
+    fn save_batch_result<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
     where
         T: GetTableName + GetFields + ToAkita,
         R: FromAkita + GetFields,
@@ -270,13 +436,24 @@ impl <'c> AkitaEntityManager <'c> {
             table.complete_name()
         );
         let mut retrieved_entities = vec![];
-        println!("sql: {}", last_insert_sql);
         for entity in entities {
             self.save(*entity)?;
             let retrieved = self.execute_result(&last_insert_sql, &[])?;
             retrieved_entities.extend(retrieved);
         }
         Ok(retrieved_entities)
+    }
+
+    fn save_batch_inner<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
+    where
+        T: GetTableName + GetFields + ToAkita,
+    {
+        let table = T::table_name();
+        
+        for entity in entities {
+            self.save(*entity)?;
+        }
+        Ok(())
     }
 
     /// build the returning clause
@@ -322,8 +499,8 @@ impl <'c> AkitaEntityManager <'c> {
                         .map(|(x, _)| {
                             #[allow(unreachable_patterns)]
                             match self.0 {
-                                #[cfg(feature = "with-mysql")]
-                                DBPlatform::Mysql(_) => "?".to_string(),
+                                // #[cfg(feature = "with-mysql")]
+                                DatabasePlatform::Mysql(_) => "?".to_string(),
                                 _ => format!("${}", y * columns_len + x + 1),
                             }
                         })
@@ -333,6 +510,36 @@ impl <'c> AkitaEntityManager <'c> {
             })
             .collect::<Vec<_>>()
             .join(", ");
+        sql
+    }
+
+    /// build an update clause
+    fn build_update_clause<T>(&self, entity: &T, wrapper: &mut UpdateWrapper) -> String
+    where
+        T: GetTableName + GetFields + ToAkita 
+    {
+        let table = T::table_name();
+        let columns = T::fields();
+        let set_fields = &wrapper.sql_set;
+        let mut sql = String::new();
+        sql += &format!("update {} ", table.complete_name());
+        sql += &format!(
+            "set {}",
+            columns
+                .iter().filter(|col| col.exist || (!set_fields.is_empty() && set_fields.contains(&col.name)))
+                .enumerate()
+                .map(|(x, col)| {
+                    #[allow(unreachable_patterns)]
+                    match self.0 {
+                        // #[cfg(feature = "with-mysql")]
+                        DatabasePlatform::Mysql(_) => format!("{} = ?", &col.name),
+                        _ => format!("${}", x + 1),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        sql += &format!(" where {} ", wrapper.get_sql_segment());
         sql
     }
 
@@ -392,17 +599,20 @@ impl <'c> AkitaEntityManager <'c> {
 
 #[cfg(test)]
 mod test {
+    use crate::{UpdateWrapper, Wrapper, wrapper, BaseMapper, AkitaError, value::*};
     use crate::pool::{AkitaConfig, LogLevel};
-    use crate::{pool::Pool, data::*};
-    use crate::manager::{GetTableName, TableName, FieldName, GetFields, FieldType};
+    use crate::{pool::Pool, data::*, IPage};
+    use crate::manager::{GetTableName, TableName, FieldName, GetFields, FieldType, AkitaEntityManager};
 
-    #[derive(Debug, FromAkita, ToAkita, Table)]
+    #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
     #[table(name="t_system_user")]
     struct SystemUser {
         #[field = "name"]
         id: Option<i32>,
         #[table_id]
         username: String,
+        #[field(name="ages", exist = "false")]
+        age: i32,
     }
 
     #[test]
@@ -416,15 +626,235 @@ mod test {
         println!("table: {:#?}", table);
     }
 
+    #[test]
+    fn remove() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrap = UpdateWrapper::new();
+        wrap.eq(true, "username", "'ussd'");
+        match em.remove::<SystemUser, UpdateWrapper>(&mut wrap) {
+            Ok(res) => {
+                println!("success removed data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn count() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrap = UpdateWrapper::new();
+        wrap.eq(true, "username", "'ussd'");
+        match em.count::<SystemUser, UpdateWrapper>(&mut wrap) {
+            Ok(res) => {
+                println!("success count data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
 
     #[test]
     fn remove_by_id() {
         let db_url = "mysql://root:longchen@localhost:3306/akita";
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        match em.remove_by_id::<SystemUser, i32>(1) {
+        match em.remove_by_id::<SystemUser, String>("'fffsd'".to_string()) {
             Ok(res) => {
                 println!("success removed data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn update() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
+        let mut wrap = UpdateWrapper::new();
+        wrap.eq(true, "username", "'ussd'");
+        match em.update(&user, &mut wrap) {
+            Ok(res) => {
+                println!("success update data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn update_by_id() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
+        match em.update_by_id(&user, "id") {
+            Ok(res) => {
+                println!("success update data by id!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+
+    #[test]
+    fn save() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
+        match em.save(&user) {
+            Ok(res) => {
+                println!("success update data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn save_batch() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
+        match em.save_batch::<_>(&vec![&user]) {
+            Ok(res) => {
+                println!("success update data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn self_insert() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
+        match user.insert(&mut em) {
+            Ok(res) => {
+                println!("success insert data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn select_by_id() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match em.select_by_id::<SystemUser, i32>(1) {
+            Ok(res) => {
+                println!("success insert data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn select_one() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match em.select_one::<SystemUser, UpdateWrapper>(&mut wrapper) {
+            Ok(res) => {
+                println!("success select data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn list() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match em.list::<SystemUser, UpdateWrapper>(&mut wrapper) {
+            Ok(res) => {
+                println!("success insert data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn self_list() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match SystemUser::list(&mut wrapper, &mut em) {
+            Ok(res) => {
+                println!("success insert data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+
+    #[test]
+    fn page() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match em.page::<SystemUser, UpdateWrapper>(1, 10,&mut wrapper) {
+            Ok(res) => {
+                println!("success insert data!");
+            }
+            Err(err) => {
+                println!("error:{:?}",err);
+            }
+        }
+    }
+
+    #[test]
+    fn self_page() {
+        let db_url = "mysql://root:longchen@localhost:3306/akita";
+        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        let mut em = pool.entity_manager().expect("must be ok");
+        let mut wrapper = UpdateWrapper::new();
+        wrapper.eq(true, "username", "'ussd'");
+        match SystemUser::page(1, 10, &mut wrapper, &mut em) {
+            Ok(res) => {
+                println!("success insert data!");
             }
             Err(err) => {
                 println!("error:{:?}",err);

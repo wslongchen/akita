@@ -92,6 +92,7 @@ pub struct FieldName {
     pub name: String,
     pub table: Option<String>,
     pub alias: Option<String>,
+    pub exist: bool,
     pub field_type: FieldType,
 }
 
@@ -118,6 +119,7 @@ impl FieldName {
                 table: Some(table),
                 alias: None,
                 field_type: FieldType::TableField,
+                exist: true,
             }
         } else {
             FieldName {
@@ -125,6 +127,7 @@ impl FieldName {
                 table: None,
                 alias: None,
                 field_type: FieldType::TableField,
+                exist: true,
             }
         }
     }
@@ -299,32 +302,34 @@ pub struct DatabaseName {
 mod test {
 
     use crate::data::*;
+    use crate::manager::*;
+    use crate::{BaseMapper, AkitaError};
     use super::{GetTableName, TableName, Table, FieldName, GetFields, FieldType};
 
-    #[derive(Debug, FromAkita, ToAkita, Table)]
-    #[table(name="t_system_user")]
-    struct SystemUser {
-        #[field = "name"]
-        id: Option<i32>,
-        #[table_id]
-        username: String,
-    }
+    // #[derive(Debug, FromAkita, ToAkita)]
+    // #[table(name="t_system_user")]
+    // struct SystemUser {
+    //     #[field = "name"]
+    //     id: Option<i32>,
+    //     #[table_id]
+    //     username: String,
+    // }
 
-    #[test]
-    fn test_table_info() {
+    // #[test]
+    // fn test_table_info() {
         
 
-        let user = SystemUser {
-            id: 1.into(),
-            username: "ivanceras".to_string(),
-        };
-        println!("user: {:#?}", user);
-        let dao = user.to_data();
-        println!("dao: {:#?}", dao);
-        let table = SystemUser::table_name();
-        println!("table name: {}", table.name);
-        println!("table: {:#?}", table);
-        let cols = SystemUser::fields();
-        println!("cols name: {:#?}", cols);
-    }
+    //     let user = SystemUser {
+    //         id: 1.into(),
+    //         username: "ivanceras".to_string(),
+    //     };
+    //     println!("user: {:#?}", user);
+    //     let dao = user.to_data();
+    //     println!("dao: {:#?}", dao);
+    //     let table = SystemUser::table_name();
+    //     println!("table name: {}", table.name);
+    //     println!("table: {:#?}", table);
+    //     let cols = SystemUser::fields();
+    //     println!("cols name: {:#?}", cols);
+    // }
 }

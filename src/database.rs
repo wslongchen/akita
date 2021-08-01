@@ -2,7 +2,7 @@ use std::{convert::TryFrom, ops::Deref, string::ParseError};
 
 use url::Url;
 
-use crate::{AkitaError, DatabaseName, MysqlDatabase, TableDef, TableName, data::Rows, value::Value};
+use crate::{AkitaError, DatabaseName, MysqlDatabase, TableDef, TableName, data::Rows, pool::LogLevel, value::Value};
 
 
 pub trait Database {
@@ -13,6 +13,8 @@ pub trait Database {
     fn rollback_transaction(&mut self) -> Result<(), AkitaError>;
 
     fn execute_result(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, AkitaError>;
+
+    fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError>;
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError>;
 

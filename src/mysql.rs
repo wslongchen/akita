@@ -8,6 +8,7 @@ use r2d2::{ManageConnection, Pool};
 use std::result::Result;
 
 use crate::database::Database;
+use crate::pool::LogLevel;
 use crate::types::SqlType;
 use crate::value::{ToValue, Value};
 use crate::{AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, comm};
@@ -32,8 +33,61 @@ impl Database for MysqlDatabase {
         self.execute_result("ROLLBACK TRANSACTION", &[])?;
         Ok(())
     }
+    fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError> {
+        println!("sql:{}", &sql);
+        match log_level {
+            LogLevel::Debug => debug!("[sql]: {}", &sql),
+            LogLevel::Info => info!("[sql]: {}", &sql),
+            LogLevel::Error => error!("[sql]: {}", &sql),
+        }
+        fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
+            let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
+
+            let fields = rows
+                .columns().as_ref()
+                .iter()
+                .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
+                .collect::<Result<Vec<String>, _>>()
+                .map_err(|e| AkitaError::from(e))?;
+
+            let mut records = Rows::new(fields);
+            // while rows.next().is_some() {
+            //     for r in rows.by_ref() {
+            //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
+            //     }
+            // }
+            for r in rows.by_ref() {
+                records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
+            }
+            Ok(records)
+        }
+
+        if param.is_empty() {
+            let rows = self
+                .0
+                .query_iter(&sql)
+                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+
+            collect(rows)
+        } else {
+            let stmt = self
+                .0
+                .prep(&sql)
+                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+            let params: mysql::Params = param
+                .iter()
+                .map(|v| MyValue(v))
+                .map(|v| mysql::prelude::ToValue::to_value(&v))
+                .collect::<Vec<_>>()
+                .into();
+            let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+            
+            collect(rows)
+        }
+    }
 
     fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
+        println!("sql:{}, params: {:?}", &sql, param);
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
 

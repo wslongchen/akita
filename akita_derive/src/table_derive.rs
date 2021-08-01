@@ -360,7 +360,7 @@ where
 }
 
 /// get the field orignal type
-fn get_field_type(ty: &Type) -> Option<String> {
+pub fn get_field_type(ty: &Type) -> Option<String> {
     match ty {
         Type::Path(r#path) => {
             let p = &r#path.path.segments[0];
@@ -505,7 +505,39 @@ fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2
     }
 }
 
-fn valid_type(ty: &Type) -> bool {
+pub fn get_field_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    // quote!( data.insert(stringify!(#field), &self.#field);)
+    if ft.eq("Option") {
+        match ori_ty.as_str() {
+            "f64" | "f32" => quote!( data.insert(stringify!(#ident), &self.#ident.to_owned().unwrap_or(0.0));),
+            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => quote!(data.insert(stringify!(#ident), &self.#ident.to_owned().unwrap_or(0));),
+            "bool" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(false));),
+            "str" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(""));),
+            "Vec" => quote!(data.insert(stringify!(#ident),&&self.#ident.to_owned().unwrap_or(vec![]));),
+            "String" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or("".to_string()));),
+            // "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string());),
+            // "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string());),
+            "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string());),
+            "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string());),
+            _ => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or_default());),
+        }
+    } else {
+        match ori_ty.as_str() {
+            "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.format("%Y-%m-%d").to_string());),
+            "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.format("%Y-%m-%d %H:%M:%S").to_string());),
+            "bool" => quote!(data.insert(stringify!(#ident),&self.#ident);),
+            _ => quote!(data.insert(stringify!(#ident),&self.#ident);),
+        }
+    }
+}
+
+
+pub fn valid_type(ty: &Type) -> bool {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     match ori_ty.as_str() {
         "f64" | "f32" | "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" 
@@ -540,6 +572,25 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
             _ => quote!(&self.#ident,)
         }
     }
+}
+
+
+pub fn get_table_fields(fields: &Fields) -> HashMap<&Ident, (&Ident,&Type, String, bool, bool)> {
+    let mut fields_info: HashMap<&Ident, (&Ident, &Type, String, bool, bool)> = HashMap::new();
+    for field in fields.iter() {
+        let name = field.ident.as_ref().unwrap();
+        let identify = has_contract_meta(&field.attrs, "table_id");
+        let name_value = get_contract_meta_item_value(&field.attrs, if identify { "table_id" } else { "field" }, "name");
+        let exist_value = get_contract_meta_item_value(&field.attrs, "field", "exist");
+        let exist_value = exist_value.unwrap_or_default().ne("false");
+        let value = name_value.to_owned().unwrap_or(name.to_string());
+        // filter the unsuport type.
+        if !valid_type(&field.ty) {
+            continue;
+        }
+        fields_info.insert(name, (name ,&field.ty, value.to_owned(), identify, exist_value));
+    }
+    fields_info
 }
 
 fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
@@ -633,6 +684,7 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
         .map(|&(field, _ty, attrs)| {
             let identify = has_contract_meta(attrs, "table_id");
             let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
+            let exist = if identify { "true".to_string() } else { let exist = get_contract_meta_item_value(&attrs, "field", "exist").unwrap_or("false".to_string()); if exist.eq("false") { exist } else { "true".to_string() }  };
             let field_type = if identify {
                 let field_type = get_contract_meta_item_value(attrs, "table_id", "type").unwrap_or("none".to_string()).to_lowercase();
                 quote!(FieldType::TableId(#field_type.to_string()))
@@ -645,6 +697,7 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
                     table: #table_name.to_string().into(),
                     alias: stringify!(#field).to_string().into(),
                     field_type: #field_type,
+                    exist: #exist.eq("true"),
                 },
             )
         })
@@ -667,6 +720,59 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
                 ]
             }
         }
+
+        impl BaseMapper for #name {
+
+            type Item = #name;
+
+            fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.save(&data)
+            }
+
+            fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields {
+                entity_manager.save_batch::<Self::Item>(datas)
+            }
+
+            fn update<W: Wrapper>(&self, wrapper: &mut UpdateWrapper, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.update(&data, wrapper)
+            }
+
+            fn list<W: Wrapper>(wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.list(wrapper)
+            }
+
+            fn update_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.update_by_id::<Self::Item, I>(&data, id)
+            }
+
+            fn delete<W: Wrapper>(&self, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                entity_manager.remove::<Self::Item, W>(wrapper)
+            }
+
+            fn delete_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                entity_manager.remove_by_id::<Self::Item, I>(id)
+            }
+
+            fn page<W: Wrapper>(page: usize, size: usize, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.page::<Self::Item, W>(page, size, wrapper)
+            }
+
+            fn count<T, W: Wrapper>(&mut self, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<usize, AkitaError> {
+                entity_manager.count::<Self::Item, W>(wrapper)
+            }
+
+            fn find_one<W: Wrapper>(wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.select_one(wrapper)
+            }
+
+            /// Find Data With Table's Ident.
+            fn find_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.select_by_id(id)
+            }
+        }
     ).into();
     eprintln!("{}", result);
     result
@@ -678,7 +784,7 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
     let name = &derive_input.ident;
     let generics = &derive_input.generics;
 
-    let fields: Vec<(&syn::Ident, &Type)> = match derive_input.data {
+    let fields: Vec<(&syn::Ident, &Type, bool)> = match derive_input.data {
         Data::Struct(ref rstruct) => {
             let fields = &rstruct.fields;
             fields
@@ -686,7 +792,8 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
                 .map(|f| {
                     let ident = f.ident.as_ref().unwrap();
                     let ty = &f.ty;
-                    (ident, ty)
+                    let exist = get_contract_meta_item_value(&f.attrs, "field", "exist").unwrap_or("true".to_string()).parse::<bool>().unwrap();
+                    (ident, ty, exist)
                 })
                 .collect::<Vec<_>>()
         }
@@ -695,12 +802,13 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
     };
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
-        .map(|&(field, _ty)| {
+        .map(|&(field, _ty, exist)| {
             quote!(
                 FieldName {
                     name: stringify!(#field).into(),
                     table: Some(stringify!(#name).to_lowercase().into()),
                     alias: None,
+                    exist: #exist,
                 },
             )
         })
