@@ -4,8 +4,12 @@ use log::*;
 
 use crate::{AkitaError, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
 use crate::mysql::{self, MysqlDatabase, MysqlConnectionManager};
+
+#[allow(unused)]
+#[derive(Clone)]
 pub struct Pool(PlatformPool, AkitaConfig);
 
+#[derive(Clone)]
 pub struct AkitaConfig {
     pub max_size: Option<usize>,
     pub url: &'static str,
@@ -37,20 +41,25 @@ impl AkitaConfig {
     }
 }
 
+#[derive(Clone)]
 pub enum LogLevel {
     Debug,
     Info,
     Error
 }
 
+#[allow(unused)]
+#[derive(Clone)]
 pub enum PlatformPool {
     MysqlPool(r2d2::Pool<MysqlConnectionManager>),
 }
 
+#[allow(unused)]
 pub enum PooledConnection {
     PooledMysql(Box<r2d2::PooledConnection<MysqlConnectionManager>>),
 }
 
+#[allow(unused)]
 impl Pool {
     pub fn new(cfg: AkitaConfig) -> Result<Self, AkitaError>  {
         let database_url = cfg.url;
@@ -91,7 +100,8 @@ impl Pool {
     /// Data, Rows and Value
     pub fn akita_manager(&mut self) -> Result<AkitaManager, AkitaError> {
         let db = self.database()?;
-        Ok(AkitaManager(db, &self.1))
+        let cfg = self.1.clone();
+        Ok(AkitaManager(db, cfg))
     }
 
     fn get_pool_mut(&mut self) -> Result<&PlatformPool, AkitaError> {
@@ -123,6 +133,7 @@ impl Pool {
     /// return an entity manager which provides a higher level api
     pub fn entity_manager(&mut self) -> Result<AkitaEntityManager, AkitaError> {
         let db = self.database()?;
-        Ok(AkitaEntityManager(db, &self.1))
+        let cfg = self.1.clone();
+        Ok(AkitaEntityManager(db, cfg))
     }
 }

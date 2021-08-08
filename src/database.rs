@@ -1,8 +1,8 @@
-use std::{convert::TryFrom, ops::Deref, string::ParseError};
+use std::{convert::TryFrom, ops::Deref};
 
 use url::Url;
 
-use crate::{AkitaError, DatabaseName, MysqlDatabase, TableDef, TableName, data::Rows, pool::LogLevel, value::Value};
+use crate::{AkitaError, data::Rows, information::{DatabaseName, TableDef, TableName,}, mysql::MysqlDatabase, pool::LogLevel, value::Value};
 
 
 pub trait Database {

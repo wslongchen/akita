@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::{borrow::BorrowMut, collections::HashMap, iter::FromIterator, ops::Deref};
+use std::{collections::HashMap, iter::FromIterator};
 use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 
 #[derive(Debug)]
@@ -10,6 +10,7 @@ struct FieldAttribute {
     pub value: String
 }
 
+#[allow(unused)]
 pub fn impl_to_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
     let name = &derive_input.ident;
@@ -346,7 +347,8 @@ fn _get_contract_meta_items(attr: &syn::Attribute, filter: &str) -> Option<Vec<s
     }
 }
 
-/// extra the fields info.
+/// extra the fields info..
+#[allow(unused)]
 fn map_fields<F>(fields: &Fields, mapper: F) -> TokenStream2
 where
     F: FnMut((&Ident, &Type, &Vec<Attribute>)) -> TokenStream2,
@@ -360,6 +362,7 @@ where
 }
 
 /// get the field orignal type
+#[allow(unused)]
 pub fn get_field_type(ty: &Type) -> Option<String> {
     match ty {
         Type::Path(r#path) => {
@@ -403,7 +406,6 @@ pub fn get_field_type(ty: &Type) -> Option<String> {
 fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&str) -> Option<String> {
     let res = attrs.iter().filter_map(|attr| {
         if attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter {
-            println!("{:?}", attr.parse_meta());
             match attr.parse_meta() {
                 Ok(syn::Meta::List(ref meta)) => {
                     let mut res = None;
@@ -441,10 +443,12 @@ fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&
     if res.len() > 0 { res[0].to_owned().into() } else { None }
 }
 
+#[allow(unused)]
 fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
     attrs.iter().find(|attr| attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter).is_some()
 }
 
+#[allow(unused)]
 fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2 {
     let ident_name = ident.to_string();
     let ori_ty = get_field_type(ty).unwrap_or_default();
@@ -505,6 +509,7 @@ fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2
     }
 }
 
+#[allow(unused)]
 pub fn get_field_value(ty: &Type, ident: &Ident) -> TokenStream2 {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     let mut ft = String::default();
@@ -536,7 +541,7 @@ pub fn get_field_value(ty: &Type, ident: &Ident) -> TokenStream2 {
     }
 }
 
-
+#[allow(unused)]
 pub fn valid_type(ty: &Type) -> bool {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     match ori_ty.as_str() {
@@ -574,7 +579,7 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
     }
 }
 
-
+#[allow(unused)]
 pub fn get_table_fields(fields: &Fields) -> HashMap<&Ident, (&Ident,&Type, String, bool, bool)> {
     let mut fields_info: HashMap<&Ident, (&Ident, &Type, String, bool, bool)> = HashMap::new();
     for field in fields.iter() {
@@ -593,6 +598,7 @@ pub fn get_table_fields(fields: &Fields) -> HashMap<&Ident, (&Ident,&Type, Strin
     fields_info
 }
 
+#[allow(unused)]
 fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     let mut ft = String::default();
@@ -774,7 +780,6 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
             }
         }
     ).into();
-    eprintln!("{}", result);
     result
 }
 
@@ -853,6 +858,7 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
 //                     }
 //                 }
 
+#[allow(unused)]
 fn camel_to_snack<S: Into<String>>(field: S) -> String {
     let mut field_value: String = field.into();
     while let Some(poi) = field_value.chars().position(|c| c.is_uppercase()) {
@@ -872,6 +878,7 @@ fn camel_to_snack<S: Into<String>>(field: S) -> String {
     field_value
 }
 
+#[allow(unused)]
 fn snack_to_camel<S: Into<String>>(field: S) -> String {
     let field_value: String = field.into();
     field_value.split("_").map(|s| {
@@ -882,6 +889,7 @@ fn snack_to_camel<S: Into<String>>(field: S) -> String {
 
 }
 
+#[allow(unused)]
 fn make_ascii_titlecase(s: &mut str) -> String {
     if let Some(r) = s.get_mut(0..1) {
         r.make_ascii_uppercase();
@@ -895,5 +903,4 @@ fn make_ascii_titlecase(s: &mut str) -> String {
 fn test_name() {
     let camel = camel_to_snack("CamelCase");
     let snack = snack_to_camel("snack_case");
-    println!("snack: {}, camel: {}", snack, camel);
 }

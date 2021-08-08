@@ -135,11 +135,11 @@ pub enum Array {
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Array::Text(texts) => {
+            Array::Text(_texts) => {
                 let json_arr = "";//serde_json::to_string(texts).expect("must serialize");
                 write!(f, "{}", json_arr)
             }
-            Array::Float(floats) => {
+            Array::Float(_floats) => {
                 let json_arr = "";//serde_json::to_string(floats).expect("must serialize");
                 write!(f, "{}", json_arr)
             }
@@ -164,10 +164,26 @@ macro_rules! impl_to_value {
     };
 }
 
+macro_rules! impl_usined_to_value {
+    ($ty:ty, $variant:ident, $target_variant:ident) => {
+        impl ToValue for $ty {
+            fn to_value(&self) -> Value {
+                Value::$variant(self.to_owned() as $target_variant)
+            }
+        }
+    };
+}
+
+impl_usined_to_value!(u8, Tinyint, i8);
+impl_usined_to_value!(u16, Smallint, i16);
+impl_usined_to_value!(u32, Int, i32);
+impl_usined_to_value!(u64, Bigint, i64);
+
 impl_to_value!(bool, Bool);
 impl_to_value!(i8, Tinyint);
 impl_to_value!(i16, Smallint);
 impl_to_value!(i32, Int);
+
 impl_to_value!(i64, Bigint);
 impl_to_value!(f32, Float);
 impl_to_value!(f64, Double);
@@ -267,6 +283,7 @@ impl_from_value!(char, "char", Char);
 impl_from_value!(Uuid, "Uuid", Uuid);
 impl_from_value!(NaiveDate, "NaiveDate", Date);
 impl_from_value_numeric!(i8, to_i8, "i8", Tinyint);
+impl_from_value_numeric!(u8, to_u8, "u8", Tinyint);
 impl_from_value_numeric!(i16, to_i16, "i16", Tinyint, Smallint);
 impl_from_value_numeric!(i32, to_i32, "i32", Tinyint, Smallint, Int, Bigint);
 impl_from_value_numeric!(i64, to_i64, "i64", Tinyint, Smallint, Int, Bigint);

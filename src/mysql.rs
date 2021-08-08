@@ -11,7 +11,7 @@ use crate::database::Database;
 use crate::pool::LogLevel;
 use crate::types::SqlType;
 use crate::value::{ToValue, Value};
-use crate::{AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, comm};
+use crate::{AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName}, comm};
 use crate::data::{FromAkita, Rows, AkitaData};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
@@ -134,7 +134,7 @@ impl Database for MysqlDatabase {
         }
     }
 
-    fn get_table(&mut self, table_name: &crate::TableName) -> Result<Option<crate::TableDef>, AkitaError> {
+    fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
         #[derive(Debug, FromAkita)]
         struct TableSpec {
             schema: String,
@@ -280,20 +280,20 @@ impl Database for MysqlDatabase {
 
     fn set_autoincrement_value(
         &mut self,
-        table_name: &crate::TableName,
-        sequence_value: i64,
+        _table_name: &TableName,
+        _sequence_value: i64,
     ) -> Result<Option<i64>, AkitaError> {
         todo!()
     }
 
     fn get_autoincrement_last_value(
         &mut self,
-        table_name: &crate::TableName,
+        _table_name: &TableName,
     ) -> Result<Option<i64>, AkitaError> {
         todo!()
     }
 
-    fn get_database_name(&mut self) -> Result<Option<crate::DatabaseName>, AkitaError> {
+    fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
             self.execute_result(&sql, &[]).map(|rows| {
@@ -317,7 +317,7 @@ impl Database for MysqlDatabase {
     }
 }
 
-
+#[allow(unused)]
 fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, AkitaError> {
     #[derive(Debug, FromAkita)]
     struct TableNameSimple {

@@ -1,5 +1,3 @@
-use std::slice;
-
 use uuid::Uuid;
 
 use std::hash::{
@@ -292,44 +290,8 @@ pub struct SchemaContent {
     pub views: Vec<TableName>,
 }
 
+#[allow(unused)]
 pub struct DatabaseName {
     pub(crate) name: String,
     pub(crate) description: Option<String>,
-}
-
-
-#[cfg(test)]
-mod test {
-
-    use crate::data::*;
-    use crate::manager::*;
-    use crate::{BaseMapper, AkitaError};
-    use super::{GetTableName, TableName, Table, FieldName, GetFields, FieldType};
-
-    // #[derive(Debug, FromAkita, ToAkita)]
-    // #[table(name="t_system_user")]
-    // struct SystemUser {
-    //     #[field = "name"]
-    //     id: Option<i32>,
-    //     #[table_id]
-    //     username: String,
-    // }
-
-    // #[test]
-    // fn test_table_info() {
-        
-
-    //     let user = SystemUser {
-    //         id: 1.into(),
-    //         username: "ivanceras".to_string(),
-    //     };
-    //     println!("user: {:#?}", user);
-    //     let dao = user.to_data();
-    //     println!("dao: {:#?}", dao);
-    //     let table = SystemUser::table_name();
-    //     println!("table name: {}", table.name);
-    //     println!("table: {:#?}", table);
-    //     let cols = SystemUser::fields();
-    //     println!("cols name: {:#?}", cols);
-    // }
 }

@@ -1,6 +1,4 @@
-use std::{collections::BTreeMap, convert::TryFrom};
-
-use crate::{AkitaError, GetFields, GetTableName, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, manager::AkitaEntityManager, value::ToValue};
+use crate::{AkitaError, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, manager::AkitaEntityManager, value::ToValue, information::{GetFields, GetTableName}};
 
 
 #[derive(Clone)]

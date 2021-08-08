@@ -1,6 +1,6 @@
-use proc_macro::{Ident, TokenStream};
+use proc_macro::{TokenStream};
 use quote::quote;
-use syn::{self, Data, DeriveInput, Field, Fields, Type};
+use syn::{self, Data, DeriveInput, Type};
 
 pub fn impl_from_akita(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();

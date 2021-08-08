@@ -47,7 +47,7 @@ impl std::error::Error for AkitaError {
             AkitaError::Unknown => "Unknown Error",
             AkitaError::UnknownDatabase(ref err) => err,
             AkitaError::InvalidSQL(ref err) => err,
-            AkitaError::ExcuteSqlError(ref err, ref sql) => err,
+            AkitaError::ExcuteSqlError(ref err, ref _sql) => err,
             AkitaError::InvalidField(ref err) => err,
             AkitaError::UrlParseError(ref err) => err,
             AkitaError::MissingIdent(ref err) => err,
