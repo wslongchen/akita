@@ -106,6 +106,9 @@ impl AkitaEntityManager{
         W: Wrapper
     {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
@@ -118,7 +121,9 @@ impl AkitaEntityManager{
         } else { 
             select_fields
         };
-        let sql = format!("SELECT {} FROM {} WHERE {}", &enumerated_columns, &table.complete_name(), wrapper.get_sql_segment());
+        let where_condition = wrapper.get_sql_segment();
+        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
+        let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(),where_condition);
         let rows = self.0.execute_result(&sql, &[])?;
         let mut entities = vec![];
         for dao in rows.iter() {
@@ -135,6 +140,9 @@ impl AkitaEntityManager{
         W: Wrapper
     {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
@@ -147,7 +155,9 @@ impl AkitaEntityManager{
         } else { 
             select_fields
         };
-        let sql = format!("SELECT {} FROM {} WHERE {} limit 1", &enumerated_columns, &table.complete_name(), wrapper.get_sql_segment());
+        let where_condition = wrapper.get_sql_segment();
+        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
+        let sql = format!("SELECT {} FROM {} {} limit 1", &enumerated_columns, &table.complete_name(), where_condition);
         let rows = self.0.execute_result(&sql, &[])?;
         Ok(rows.iter().next().map(|data| T::from_data(&data)))
     }
@@ -159,6 +169,9 @@ impl AkitaEntityManager{
         I: ToValue
     {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
@@ -189,6 +202,9 @@ impl AkitaEntityManager{
             count: i64,
         }
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
@@ -201,10 +217,12 @@ impl AkitaEntityManager{
         } else { 
             select_fields
         };
-        let count_sql = format!("select count(1) from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
+        let where_condition = wrapper.get_sql_segment();
+        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
+        let count_sql = format!("select count(1) as count from {} {}", &table.complete_name(), where_condition);
         let count: Count = self.execute_first(&count_sql, &[])?;
         let mut page = IPage::new(page, size ,count.count as usize, vec![]);
-        let sql = format!("SELECT {} FROM {} WHERE {} limit {}, {}", &enumerated_columns, &table.complete_name(), wrapper.get_sql_segment(),page.offset(),  page.size);
+        let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &table.complete_name(), where_condition,page.offset(),  page.size);
         let rows = self.0.execute_result(&sql, &[])?;
         let mut entities = vec![];
         for dao in rows.iter() {
@@ -225,10 +243,15 @@ impl AkitaEntityManager{
             count: i64,
         }
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
+        let where_condition = wrapper.get_sql_segment();
+        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!(
-            "SELECT COUNT(1) AS count FROM {} WHERE {}",
+            "SELECT COUNT(1) AS count FROM {} {}",
             table.complete_name(),
-            wrapper.get_sql_segment()
+            where_condition
         );
         let count: Result<Count, AkitaError> = self.execute_first(&sql, &[]);
         count.map(|c| c.count as usize)
@@ -240,7 +263,12 @@ impl AkitaEntityManager{
         T: GetTableName + GetFields,
         W: Wrapper {
         let table = T::table_name();
-        let sql = format!("delete from {} where {}", &table.complete_name(), wrapper.get_sql_segment());
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
+        let where_condition = wrapper.get_sql_segment();
+        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
+        let sql = format!("delete from {} {}", &table.complete_name(), where_condition);
         let _ = self.0.execute_result(&sql, &[])?;
         Ok(())
     }
@@ -251,6 +279,9 @@ impl AkitaEntityManager{
         I: ToValue,
         T: GetTableName + GetFields {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         if let Some(field) = T::fields().iter().find(| field| match field.field_type {
             FieldType::TableId(_) => true,
             FieldType::TableField => false,
@@ -275,6 +306,9 @@ impl AkitaEntityManager{
     where
         T: GetTableName + GetFields + ToAkita {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let columns = T::fields();
         let sql = self.build_update_clause(entity, wrapper);
         let update_fields = &wrapper.sql_set;
@@ -302,6 +336,9 @@ impl AkitaEntityManager{
         I: ToValue,
         T: GetTableName + GetFields + ToAkita {
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         let data = entity.to_data();
         let columns = T::fields();
         if let Some(field) = T::fields().iter().find(| field| match field.field_type {
@@ -427,6 +464,9 @@ impl AkitaEntityManager{
             .join(", ");
 
         let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         //TODO: move this specific query to sqlite
         let last_insert_sql = format!(
             "\
@@ -452,7 +492,9 @@ impl AkitaEntityManager{
         T: GetTableName + GetFields + ToAkita,
     {
         let table = T::table_name();
-        
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
         for entity in entities {
             self.save(*entity)?;
         }
@@ -542,7 +584,11 @@ impl AkitaEntityManager{
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        sql += &format!(" where {} ", wrapper.get_sql_segment());
+        let where_condition = wrapper.get_sql_segment();
+        if !where_condition.is_empty() {
+            sql += &format!(" where {} ", where_condition);
+        }
+        
         sql
     }
 
@@ -622,7 +668,7 @@ mod test {
 
     #[test]
     fn get_table_info() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let table = em
@@ -633,7 +679,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrap = UpdateWrapper::new();
@@ -650,7 +696,7 @@ mod test {
 
     #[test]
     fn count() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrap = UpdateWrapper::new();
@@ -668,7 +714,7 @@ mod test {
 
     #[test]
     fn remove_by_id() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         match em.remove_by_id::<SystemUser, String>("'fffsd'".to_string()) {
@@ -683,7 +729,7 @@ mod test {
 
     #[test]
     fn update() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -701,7 +747,7 @@ mod test {
 
     #[test]
     fn update_by_id() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -718,7 +764,7 @@ mod test {
 
     #[test]
     fn save() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -734,7 +780,7 @@ mod test {
 
     #[test]
     fn save_batch() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -750,7 +796,7 @@ mod test {
 
     #[test]
     fn self_insert() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -766,7 +812,7 @@ mod test {
 
     #[test]
     fn select_by_id() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
@@ -783,7 +829,7 @@ mod test {
 
     #[test]
     fn select_one() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
@@ -800,7 +846,7 @@ mod test {
 
     #[test]
     fn list() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
@@ -817,7 +863,7 @@ mod test {
 
     #[test]
     fn self_list() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
@@ -835,7 +881,7 @@ mod test {
 
     #[test]
     fn page() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
@@ -852,7 +898,7 @@ mod test {
 
     #[test]
     fn self_page() {
-        let db_url = "mysql://root:password@localhost:3306/akita";
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();

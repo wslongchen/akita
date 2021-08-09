@@ -283,7 +283,7 @@ impl_from_value!(char, "char", Char);
 impl_from_value!(Uuid, "Uuid", Uuid);
 impl_from_value!(NaiveDate, "NaiveDate", Date);
 impl_from_value_numeric!(i8, to_i8, "i8", Tinyint);
-impl_from_value_numeric!(u8, to_u8, "u8", Tinyint);
+impl_from_value_numeric!(u8, to_u8, "u8", Tinyint, Bigint);
 impl_from_value_numeric!(i16, to_i16, "i16", Tinyint, Smallint);
 impl_from_value_numeric!(i32, to_i32, "i32", Tinyint, Smallint, Int, Bigint);
 impl_from_value_numeric!(i64, to_i64, "i64", Tinyint, Smallint, Int, Bigint);

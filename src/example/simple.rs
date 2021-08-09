@@ -15,7 +15,7 @@ struct SystemUser {
 }
 
 fn get_table_info() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let table = em
@@ -25,7 +25,7 @@ fn get_table_info() {
 }
 
 fn remove() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrap = UpdateWrapper::new();
@@ -41,7 +41,7 @@ fn remove() {
 }
 
 fn count() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrap = UpdateWrapper::new();
@@ -58,7 +58,7 @@ fn count() {
 
 
 fn remove_by_id() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     match em.remove_by_id::<SystemUser, String>("'fffsd'".to_string()) {
@@ -72,7 +72,7 @@ fn remove_by_id() {
 }
 
 fn update() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -89,7 +89,7 @@ fn update() {
 }
 
 fn update_by_id() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -105,7 +105,7 @@ fn update_by_id() {
 
 
 fn save() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -120,7 +120,7 @@ fn save() {
 }
 
 fn save_batch() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -135,7 +135,7 @@ fn save_batch() {
 }
 
 fn list() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrapper = UpdateWrapper::new();
@@ -151,7 +151,7 @@ fn list() {
 }
 
 fn page() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrapper = UpdateWrapper::new();
@@ -167,7 +167,7 @@ fn page() {
 }
 
 fn select_by_id() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrapper = UpdateWrapper::new();
@@ -183,7 +183,7 @@ fn select_by_id() {
 }
 
 fn select_one() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrapper = UpdateWrapper::new();
