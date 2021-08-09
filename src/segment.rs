@@ -99,14 +99,14 @@ impl Segment {
             Segment::ColumnField(val) => format!("{}", val),
             Segment::Float(val) => format!("{}", val),
             Segment::Extenssion(val) => format!("{}", val),
-            Segment::Text(val) => format!("'{}'", val),
+            Segment::Text(val) => format!("{}", val),
             Segment::Int32(val) => format!("{}", val),
             Segment::Nil => String::default().to_string(),
             Segment::Int64(val) => format!("{}", val),
             Segment::Usize(val) => format!("{}", val),
             Segment::U32(val) => format!("{}", val),
             Segment::U64(val) => format!("{}", val),
-            Segment::Str(val) => format!("'{}'", val),
+            Segment::Str(val) => format!("{}", val),
         }
     }
 }

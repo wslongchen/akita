@@ -10,6 +10,7 @@ struct FieldAttribute {
     pub value: String
 }
 
+#[allow(unused)]
 pub fn impl_to_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
     let name = &derive_input.ident;
@@ -346,7 +347,8 @@ fn _get_contract_meta_items(attr: &syn::Attribute, filter: &str) -> Option<Vec<s
     }
 }
 
-/// extra the fields info.
+/// extra the fields info..
+#[allow(unused)]
 fn map_fields<F>(fields: &Fields, mapper: F) -> TokenStream2
 where
     F: FnMut((&Ident, &Type, &Vec<Attribute>)) -> TokenStream2,
@@ -360,7 +362,8 @@ where
 }
 
 /// get the field orignal type
-fn get_field_type(ty: &Type) -> Option<String> {
+#[allow(unused)]
+pub fn get_field_type(ty: &Type) -> Option<String> {
     match ty {
         Type::Path(r#path) => {
             let p = &r#path.path.segments[0];
@@ -407,15 +410,26 @@ fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&
                 Ok(syn::Meta::List(ref meta)) => {
                     let mut res = None;
                     for meta_item in meta.nested.iter() {
+                        
                         match meta_item {
                             syn::NestedMeta::Meta(syn::Meta::NameValue(ref m)) if m.path.is_ident(key) => {
                                 if let syn::Lit::Str(ref lit) = m.lit {
                                     res = lit.value().into()
                                 } else {}
                             }
+                            syn::NestedMeta::Lit(syn::Lit::Str(ref lit)) => {
+                                res = lit.value().into()
+                            },
                             _ => {}
                         }
                     }
+                    res
+                },
+                Ok(syn::Meta::NameValue(ref meta)) => {
+                    let mut res = None;
+                    if let syn::Lit::Str(ref lit) = meta.lit {
+                        res = lit.value().into()
+                    } 
                     res
                 },
                 _ => {
@@ -429,10 +443,12 @@ fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&
     if res.len() > 0 { res[0].to_owned().into() } else { None }
 }
 
+#[allow(unused)]
 fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
     attrs.iter().find(|attr| attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter).is_some()
 }
 
+#[allow(unused)]
 fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2 {
     let ident_name = ident.to_string();
     let ori_ty = get_field_type(ty).unwrap_or_default();
@@ -493,7 +509,40 @@ fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2
     }
 }
 
-fn valid_type(ty: &Type) -> bool {
+#[allow(unused)]
+pub fn get_field_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    // quote!( data.insert(stringify!(#field), &self.#field);)
+    if ft.eq("Option") {
+        match ori_ty.as_str() {
+            "f64" | "f32" => quote!( data.insert(stringify!(#ident), &self.#ident.to_owned().unwrap_or(0.0));),
+            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => quote!(data.insert(stringify!(#ident), &self.#ident.to_owned().unwrap_or(0));),
+            "bool" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(false));),
+            "str" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(""));),
+            "Vec" => quote!(data.insert(stringify!(#ident),&&self.#ident.to_owned().unwrap_or(vec![]));),
+            "String" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or("".to_string()));),
+            // "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string());),
+            // "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string());),
+            "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local().date()).format("%Y-%m-%d").to_string());),
+            "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or(Local::now().naive_local()).format("%Y-%m-%d %H:%M:%S").to_string());),
+            _ => quote!(data.insert(stringify!(#ident),&self.#ident.to_owned().unwrap_or_default());),
+        }
+    } else {
+        match ori_ty.as_str() {
+            "NaiveDate"  => quote!(data.insert(stringify!(#ident),&self.#ident.format("%Y-%m-%d").to_string());),
+            "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.format("%Y-%m-%d %H:%M:%S").to_string());),
+            "bool" => quote!(data.insert(stringify!(#ident),&self.#ident);),
+            _ => quote!(data.insert(stringify!(#ident),&self.#ident);),
+        }
+    }
+}
+
+#[allow(unused)]
+pub fn valid_type(ty: &Type) -> bool {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     match ori_ty.as_str() {
         "f64" | "f32" | "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" 
@@ -530,6 +579,26 @@ fn get_type_value(ty: &Type, ident: &Ident) -> TokenStream2 {
     }
 }
 
+#[allow(unused)]
+pub fn get_table_fields(fields: &Fields) -> HashMap<&Ident, (&Ident,&Type, String, bool, bool)> {
+    let mut fields_info: HashMap<&Ident, (&Ident, &Type, String, bool, bool)> = HashMap::new();
+    for field in fields.iter() {
+        let name = field.ident.as_ref().unwrap();
+        let identify = has_contract_meta(&field.attrs, "table_id");
+        let name_value = get_contract_meta_item_value(&field.attrs, if identify { "table_id" } else { "field" }, "name");
+        let exist_value = get_contract_meta_item_value(&field.attrs, "field", "exist");
+        let exist_value = exist_value.unwrap_or_default().ne("false");
+        let value = name_value.to_owned().unwrap_or(name.to_string());
+        // filter the unsuport type.
+        if !valid_type(&field.ty) {
+            continue;
+        }
+        fields_info.insert(name, (name ,&field.ty, value.to_owned(), identify, exist_value));
+    }
+    fields_info
+}
+
+#[allow(unused)]
 fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
     let ori_ty = get_field_type(ty).unwrap_or_default();
     let mut ft = String::default();
@@ -577,7 +646,189 @@ fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
     }
 }
 
+pub fn impl_get_table_name(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
 
+    quote!(
+        impl #generics GetTableName for #name #generics {
+            fn table_name() -> TableName {
+                TableName{
+                    name: stringify!(#name).to_lowercase().into(),
+                    schema: None,
+                    alias: None,
+                }
+            }
+        }
+    ).into()
+}
+
+pub fn impl_get_table(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
+    let table_name = get_contract_meta_item_value(&derive_input.attrs, "table", "name").unwrap_or("".to_string());
+    let fields: Vec<(&syn::Ident, &Type, &Vec<Attribute>)> = match derive_input.data {
+        Data::Struct(ref rstruct) => {
+            let fields = &rstruct.fields;
+            fields
+                .iter()
+                .map(|f| {
+                    let ident = f.ident.as_ref().unwrap();
+                    let ty = &f.ty;
+                    let attrs = &f.attrs;
+                    (ident, ty, attrs)
+                })
+                .collect::<Vec<_>>()
+        }
+        Data::Enum(_) => panic!("#[derive(Table)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(Table)] can only be used with structs"),
+    };
+    let from_fields: Vec<proc_macro2::TokenStream> = fields
+        .iter()
+        .map(|&(field, _ty, attrs)| {
+            let identify = has_contract_meta(attrs, "table_id");
+            let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
+            let exist = if identify { "true".to_string() } else { let exist = get_contract_meta_item_value(&attrs, "field", "exist").unwrap_or("false".to_string()); if exist.eq("false") { exist } else { "true".to_string() }  };
+            let field_type = if identify {
+                let field_type = get_contract_meta_item_value(attrs, "table_id", "type").unwrap_or("none".to_string()).to_lowercase();
+                quote!(FieldType::TableId(#field_type.to_string()))
+            } else {
+                quote!(FieldType::TableField)
+            };
+            quote!(
+                FieldName {
+                    name: #field_name.to_string(),
+                    table: #table_name.to_string().into(),
+                    alias: stringify!(#field).to_string().into(),
+                    field_type: #field_type,
+                    exist: #exist.eq("true"),
+                },
+            )
+        })
+        .collect();
+    let result = quote!(
+        impl #generics GetTableName for #name #generics {
+            fn table_name() -> TableName {
+                TableName{
+                    name: #table_name.to_string(),
+                    schema: None,
+                    alias: stringify!(#name).to_lowercase().into(),
+                }
+            }
+        }
+
+        impl #generics GetFields for #name #generics {
+            fn fields() -> Vec<FieldName> {
+                vec![
+                    #(#from_fields)*
+                ]
+            }
+        }
+
+        impl BaseMapper for #name {
+
+            type Item = #name;
+
+            fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.save(&data)
+            }
+
+            fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields {
+                entity_manager.save_batch::<Self::Item>(datas)
+            }
+
+            fn update<W: Wrapper>(&self, wrapper: &mut UpdateWrapper, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.update(&data, wrapper)
+            }
+
+            fn list<W: Wrapper>(wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.list(wrapper)
+            }
+
+            fn update_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                let data: Self::Item = self.clone();
+                entity_manager.update_by_id::<Self::Item, I>(&data, id)
+            }
+
+            fn delete<W: Wrapper>(&self, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                entity_manager.remove::<Self::Item, W>(wrapper)
+            }
+
+            fn delete_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+                entity_manager.remove_by_id::<Self::Item, I>(id)
+            }
+
+            fn page<W: Wrapper>(page: usize, size: usize, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.page::<Self::Item, W>(page, size, wrapper)
+            }
+
+            fn count<T, W: Wrapper>(&mut self, wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<usize, AkitaError> {
+                entity_manager.count::<Self::Item, W>(wrapper)
+            }
+
+            fn find_one<W: Wrapper>(wrapper: &mut W, entity_manager: &mut AkitaEntityManager) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.select_one(wrapper)
+            }
+
+            /// Find Data With Table's Ident.
+            fn find_by_id<I: ToValue>(&self, entity_manager: &mut AkitaEntityManager, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita {
+                entity_manager.select_by_id(id)
+            }
+        }
+    ).into();
+    result
+}
+
+
+pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
+    let derive_input = syn::parse::<DeriveInput>(input).unwrap();
+    let name = &derive_input.ident;
+    let generics = &derive_input.generics;
+
+    let fields: Vec<(&syn::Ident, &Type, bool)> = match derive_input.data {
+        Data::Struct(ref rstruct) => {
+            let fields = &rstruct.fields;
+            fields
+                .iter()
+                .map(|f| {
+                    let ident = f.ident.as_ref().unwrap();
+                    let ty = &f.ty;
+                    let exist = get_contract_meta_item_value(&f.attrs, "field", "exist").unwrap_or("true".to_string()).parse::<bool>().unwrap();
+                    (ident, ty, exist)
+                })
+                .collect::<Vec<_>>()
+        }
+        Data::Enum(_) => panic!("#[derive(ToColumnNames)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(ToColumnNames)] can only be used with structs"),
+    };
+    let from_fields: Vec<proc_macro2::TokenStream> = fields
+        .iter()
+        .map(|&(field, _ty, exist)| {
+            quote!(
+                FieldName {
+                    name: stringify!(#field).into(),
+                    table: Some(stringify!(#name).to_lowercase().into()),
+                    alias: None,
+                    exist: #exist,
+                },
+            )
+        })
+        .collect();
+
+    quote! (
+        impl #generics GetFields for #name #generics {
+            fn fields() -> Vec<FieldName> {
+                vec![
+                    #(#from_fields)*
+                ]
+            }
+        }
+    ).into()
+}
 
 // impl FromRowExt for #name
 //                 {
@@ -606,3 +857,50 @@ fn get_type_set_value(ty: &Type, ident: &Ident, name: &String) -> TokenStream2 {
 //                         Ok(value)
 //                     }
 //                 }
+
+#[allow(unused)]
+fn camel_to_snack<S: Into<String>>(field: S) -> String {
+    let mut field_value: String = field.into();
+    while let Some(poi) = field_value.chars().position(|c| c.is_uppercase()) {
+        //let poi_char = hello.chars()[poi];
+        //hello.replace_range(range, replace_with)
+        let mut replace_with = String::default();
+        let rng = field_value
+            .char_indices()
+            .nth(poi)
+            .map(|(pos, ch)| {
+                if pos == 0 { replace_with = format!("{}", ch.to_lowercase()); } else {replace_with = format!("_{}", ch.to_lowercase());}
+                pos..pos + ch.len_utf8()
+            })
+            .unwrap();
+            field_value.replace_range(rng, &replace_with,);
+    }
+    field_value
+}
+
+#[allow(unused)]
+fn snack_to_camel<S: Into<String>>(field: S) -> String {
+    let field_value: String = field.into();
+    field_value.split("_").map(|s| {
+        let mut snack = s.to_string();
+        make_ascii_titlecase(&mut snack);
+        snack
+    }).collect::<Vec<_>>().join("")
+
+}
+
+#[allow(unused)]
+fn make_ascii_titlecase(s: &mut str) -> String {
+    if let Some(r) = s.get_mut(0..1) {
+        r.make_ascii_uppercase();
+        r.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+#[test]
+fn test_name() {
+    let camel = camel_to_snack("CamelCase");
+    let snack = snack_to_camel("snack_case");
+}

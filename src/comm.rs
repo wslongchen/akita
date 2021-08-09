@@ -2,7 +2,8 @@
 //! Common Params
 //! 
 use log::*;
-use crate::Capacity;
+
+use crate::information::Capacity;
 
 pub static AMPERSAND: &str = "&";
 pub static AND: &str = "and";

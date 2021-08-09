@@ -46,148 +46,34 @@
 //! ## Example
 //! 
 //! ```rust
+//! use akita::*;
 //! use akita::prelude::*;
 //! 
-//! 
-//! /// Annotion Support: Table、id、column (name, exist)
-//! #[derive(Table, Clone)]
-//! #[table(name = "t_system_user")]
-//! pub struct User {
-//!     #[id(name = "id")]
-//!     pub pk: i64,
-//!     pub id: String,
-//!     pub name: String,
-//!     pub headline: NaiveDateTime,
-//!     pub avatar_url: Option<String>,
-//!     /// 状态
-//!     pub status: u8,
-//!     /// 用户等级 0.普通会员 1.VIP会员
-//!     pub level: u8,
-//!     /// 生日
-//!     pub birthday: Option<NaiveDate>,
-//!     /// 性别
-//!     pub gender: u8,
-//!     #[column(exist = "false")]
-//!     pub is_org: bool,
-//!     #[column(name = "token")]
-//!     pub url_token: String,
-//!     pub data: Vec<String>,
-//!     pub user_type: String,
-//!     pub inner_struct: TestInnerStruct,
-//!     pub inner_tuple: (String),
-//!     pub inner_enum: TestInnerEnum,
+//! /// Annotion Support: Table、table_id、field (name, exist)
+//! #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+//! #[table(name="t_system_user")]
+//! struct SystemUser {
+//!     #[field = "name"]
+//!     id: Option<i32>,
+//!     #[table_id]
+//!     username: String,
+//!     #[field(name="ages", exist = "false")]
+//!     age: i32,
 //! }
 //! 
-//! impl Default for User {
-//!     fn default() -> Self {
-//!         Self {
-//!             id: "".to_string(),
-//!             pk: 0,
-//!             name: "".to_string(),
-//!             headline: mysql::chrono::Local::now().naive_local(),
-//!             avatar_url: "".to_string().into(),
-//!             gender: 0,
-//!             birthday: mysql::chrono::Local::now().naive_local().date().into(),
-//!             is_org: false,
-//!             url_token: "".to_string(),
-//!             user_type: "".to_string(),
-//!             status: 0,
-//!             level: 1,
-//!             data: vec![],
-//!             inner_struct: TestInnerStruct {
-//!                 id: "".to_string(),
-//!             },
-//!             inner_tuple: ("".to_string()),
-//!             inner_enum: TestInnerEnum::Field,
+//! fn main() {
+//!     let db_url = "mysql://root:password@localhost:3306/akita";
+//!     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+//!     let mut em = pool.entity_manager().expect("must be ok");
+//!     let mut wrap = UpdateWrapper::new();
+//!     wrap.eq(true, "username", "'ussd'");
+//!     match em.count::<SystemUser, UpdateWrapper>(&mut wrap) {
+//!         Ok(res) => {
+//!             println!("success count data!");
 //!         }
-//!     }
-//! }
-//! 
-//! #[derive(Clone)]
-//! pub struct TestInnerStruct {
-//!     pub id: String,
-//! }
-//! 
-//! #[derive(Clone)]
-//! pub enum TestInnerEnum {
-//!     Field,
-//! }
-//! /// build the wrapper.
-//! let mut wrapper = UpdateWrapper::new()
-//!     .like(true, "username", "ffff")
-//!     .eq(true, "username", 12)
-//!     .eq(true, "username", "3333")
-//!     .in_(true, "username", vec![1,44,3])
-//!     .not_between(true, "username", 2, 8)
-//!     .set(true, "username", 4);
-//! 
-//! let user = User::default();
-//! 
-//! // Transaction
-//! conn.start_transaction(TxOpts::default()).map(|mut transaction| {
-//!     match user.update( & mut wrapper, &mut ConnMut::TxMut(&mut transaction)) {
-//!         Ok(res) => {}
 //!         Err(err) => {
-//!             println!("error : {:?}", err);
+//!             println!("error:{:?}",err);
 //!         }
-//!     }
-//! });
-//!
-//! let mut pool = ConnMut::R2d2Polled(conn);
-//! /// update by identify
-//! match user.update_by_id(&mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! /// delete by identify
-//! match user.delete_by_id(&mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! /// delete by condition
-//! match user.delete:: < UpdateWrapper > ( & mut wrapper, &mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! /// insert data
-//! match user.insert(&mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! /// find by identify
-//! match user.find_by_id(&mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! 
-//! /// find one by condition
-//! match user.find_one::<UpdateWrapper>(&mut wrapper, &mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
-//!     }
-//! }
-//! 
-//! /// find page by condition
-//! match user.page::<UpdateWrapper>(1, 10,&mut wrapper, &mut conn) {
-//!     Ok(res) => {}
-//!     Err(err) => {
-//!         println!("error : {:?}", err);
 //!     }
 //! }
 //! 
@@ -208,8 +94,7 @@
 //!     Err(err) => {println!("err:{}", err);}
 //! }
 //! ```
-//! ```
-//! Update At 2021.07.13 10:21 
+//! Update At 2021.08.04 10:21 
 //! By Mr.Pan
 //! 
 //! 
@@ -237,17 +122,20 @@ pub use mapper::{BaseMapper, IPage};
 pub use segment::SqlSegment;
 #[doc(inline)]
 pub use errors::AkitaError;
-pub use information::*;
 #[doc(inline)]
-pub use crate::mysql::*;
-
-pub use chrono;
+pub use value::*;
+#[doc(inline)]
+pub use pool::{AkitaConfig, LogLevel, Pool};
+#[doc(inline)]
+pub use data::*;
+#[doc(inline)]
+pub use information::{GetTableName, TableName, FieldName, GetFields, FieldType};
+#[doc(inline)]
+pub use manager::{AkitaEntityManager, AkitaManager};
 
 pub mod prelude {
     #[doc(inline)]
     pub use chrono::{Local, NaiveDate, NaiveDateTime};
-    #[doc(inline)]
-    pub use crate::value::{Value};
 }
 
 // Re-export #[derive(Table)].
@@ -260,7 +148,6 @@ pub mod prelude {
 extern crate akita_derive;
 #[doc(hidden)]
 pub use akita_derive::*;
-
 
 #[macro_use]
 extern crate log;

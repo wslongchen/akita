@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, slice};
 
-use crate::{AkitaError, value::{ConvertError, FromValue, ToValue, Value}};
+use crate::{value::{ConvertError, FromValue, ToValue, Value}};
 
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -144,3 +144,17 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 impl<'a> ExactSizeIterator for Iter<'a> {}
+
+impl ToAkita for u8 {
+    fn to_data(&self) -> AkitaData {
+        let mut data = AkitaData::new();
+        data.insert("0", *self);
+        data
+    }
+}
+impl FromAkita for u8 {
+    fn from_data(data: &AkitaData) -> Self {
+        let value = data.get("0").unwrap_or(0);
+        value
+    }
+}

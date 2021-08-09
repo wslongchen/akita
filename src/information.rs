@@ -1,5 +1,3 @@
-use std::slice;
-
 use uuid::Uuid;
 
 use std::hash::{
@@ -11,14 +9,22 @@ use crate::comm::keywords_safe;
 use crate::types::SqlType;
 
 
-pub trait ToTableName {
+pub trait GetTableName {
     /// extract the table name from a struct
-    fn to_table_name() -> TableName;
+    fn table_name() -> TableName;
 }
 
-pub trait ToColumnNames {
+pub trait GetFields {
     /// extract the columns from struct
-    fn to_column_names() -> Vec<ColumnName>;
+    fn fields() -> Vec<FieldName>;
+}
+
+pub trait Table {
+    /// extract the table name from a struct
+    fn table_name() -> TableName;
+
+     /// extract the columns from struct
+     fn fields() -> Vec<FieldName>;
 }
 
 
@@ -80,13 +86,21 @@ impl TableName {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ColumnName {
+pub struct FieldName {
     pub name: String,
     pub table: Option<String>,
     pub alias: Option<String>,
+    pub exist: bool,
+    pub field_type: FieldType,
 }
 
-impl ColumnName {
+#[derive(Debug, PartialEq, Clone)]
+pub enum FieldType {
+    TableId(String),
+    TableField
+}
+
+impl FieldName {
     /// create table with name
     pub fn from(arg: &str) -> Self {
         if arg.contains('.') {
@@ -98,16 +112,20 @@ impl ColumnName {
             );
             let table = splinters[0].to_owned();
             let name = splinters[1].to_owned();
-            ColumnName {
+            FieldName {
                 name,
                 table: Some(table),
                 alias: None,
+                field_type: FieldType::TableField,
+                exist: true,
             }
         } else {
-            ColumnName {
+            FieldName {
                 name: arg.to_owned(),
                 table: None,
                 alias: None,
+                field_type: FieldType::TableField,
+                exist: true,
             }
         }
     }
@@ -148,7 +166,7 @@ pub struct TableDef {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnDef {
     pub table: TableName,
-    pub name: ColumnName,
+    pub name: FieldName,
     pub comment: Option<String>,
     pub specification: ColumnSpecification,
     pub stat: Option<ColumnStat>,
@@ -241,19 +259,19 @@ impl ColumnSpecification {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Key {
     pub name: Option<String>,
-    pub columns: Vec<ColumnName>,
+    pub columns: Vec<FieldName>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForeignKey {
     pub name: Option<String>,
     // the local columns of this table local column = foreign_column
-    pub columns: Vec<ColumnName>,
+    pub columns: Vec<FieldName>,
     // referred foreign table
     pub foreign_table: TableName,
     // referred column of the foreign table
     // this is most likely the primary key of the table in context
-    pub referred_columns: Vec<ColumnName>,
+    pub referred_columns: Vec<FieldName>,
 }
 
 
@@ -272,6 +290,7 @@ pub struct SchemaContent {
     pub views: Vec<TableName>,
 }
 
+#[allow(unused)]
 pub struct DatabaseName {
     pub(crate) name: String,
     pub(crate) description: Option<String>,

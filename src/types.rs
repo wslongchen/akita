@@ -96,6 +96,7 @@ impl SqlType {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum ArrayType {
     Bool,
