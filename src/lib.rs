@@ -40,6 +40,7 @@
 //! * ```usize```
 //! * ```f32, f64```
 //! * ```bool```
+//! * ```serde_json::Value```
 //! * ```str, String```
 //! * ```NaiveDate, NaiveDateTime```
 //! 
