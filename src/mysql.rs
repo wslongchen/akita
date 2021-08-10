@@ -362,6 +362,7 @@ impl mysql::prelude::ToValue for MyValue<'_> {
             Value::Json(ref v) => v.into(),
             Value::Nil => mysql::Value::NULL,
             Value::Array(_) => unimplemented!("unsupported type"),
+            Value::SerdeJson(ref v) => v.into(),
             // Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
         }

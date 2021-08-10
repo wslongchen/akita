@@ -78,7 +78,8 @@ fn main() {
 ## Annotions.
 
 * ```Table``` - to make Akita work with structs
-* ```column``` - to make struct field with own database.
+* ```table_id``` - to make Table Ident
+* ```field``` - to make struct field with own database.
 * ```name``` - work with column, make the table's field name. default struct' field name.
 * ```exist``` - ignore struct's field with table. default true.
 

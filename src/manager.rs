@@ -604,7 +604,7 @@ impl AkitaEntityManager{
         let values: Vec<Value> = params.iter().map(|p| p.to_value()).collect();
         let bvalues: Vec<&Value> = values.iter().collect();
         let rows = self.0.execute_result(sql, &bvalues)?;
-        Ok(rows.iter().map(|dao| R::from_data(&dao)).collect::<Vec<R>>())
+        Ok(rows.iter().map(|data| R::from_data(&data)).collect::<Vec<R>>())
     }
 
     pub fn execute_first<'a, R, S: Into<String>>(
@@ -668,13 +668,15 @@ mod test {
 
     #[test]
     fn get_table_info() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
-        let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
-        let mut em = pool.entity_manager().expect("must be ok");
-        let table = em
-            .get_table(&TableName::from("public.film"))
-            .expect("must have a table");
-        println!("table: {:#?}", table);
+        // let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        // let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
+        // let mut em = pool.entity_manager().expect("must be ok");
+        // let table = em
+        //     .get_table(&TableName::from("public.film"))
+        //     .expect("must have a table");
+        // println!("table: {:#?}", table);
+        let s = mysql::serde_json::to_value("[123,3455,556]").unwrap();
+        println!("{}", s)
     }
 
     #[test]
