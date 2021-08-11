@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.1.6?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.2.2?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -16,7 +16,7 @@
 You may be looking for:
 
 - [An overview of Akita (Coming Soon...)]()
-- [Examples](https://github.com/wslongchen/akita/blob/master/tests/akita.rs)
+- [Examples](https://github.com/wslongchen/akita/blob/0.2.0/example/simple.rs)
 - [API documentation](https://docs.rs/akita/0.1.6/akita/)
 - [Release notes](https://github.com/wslongchen/akita/releases)
 
@@ -58,7 +58,7 @@ struct SystemUser {
 }
 
 fn main() {
-    let db_url = "mysql://root:password@localhost:3306/akita";
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
     let mut em = pool.entity_manager().expect("must be ok");
     let mut wrap = UpdateWrapper::new();
@@ -78,7 +78,8 @@ fn main() {
 ## Annotions.
 
 * ```Table``` - to make Akita work with structs
-* ```column``` - to make struct field with own database.
+* ```table_id``` - to make Table Ident
+* ```field``` - to make struct field with own database.
 * ```name``` - work with column, make the table's field name. default struct' field name.
 * ```exist``` - ignore struct's field with table. default true.
 
@@ -91,6 +92,7 @@ fn main() {
 * ```bool```
 * ```f32, f64```
 * ```str, String```
+* ```serde_json::Value```
 * ```NaiveDate, NaiveDateTime```
  
 ## Developing

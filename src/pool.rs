@@ -12,7 +12,7 @@ pub struct Pool(PlatformPool, AkitaConfig);
 #[derive(Clone)]
 pub struct AkitaConfig {
     pub max_size: Option<usize>,
-    pub url: &'static str,
+    pub url: String,
     pub log_level: Option<LogLevel>, 
 }
 
@@ -20,12 +20,12 @@ impl AkitaConfig {
     pub fn default() -> Self {
         AkitaConfig {
             max_size: None,
-            url: "",
+            url: String::default(),
             log_level: LogLevel::Info.into(),
         }
     }
 
-    pub fn url(&mut self, url: &'static str) -> &mut Self {
+    pub fn url(&mut self, url: String) -> &mut Self {
         self.url = url;
         self
     }
@@ -62,8 +62,8 @@ pub enum PooledConnection {
 #[allow(unused)]
 impl Pool {
     pub fn new(cfg: AkitaConfig) -> Result<Self, AkitaError>  {
-        let database_url = cfg.url;
-        let platform: Result<Platform, _> = TryFrom::try_from(database_url);
+        let database_url = &cfg.url;
+        let platform: Result<Platform, _> = TryFrom::try_from(database_url.as_str());
         match platform {
             Ok(platform) => match platform {
                 Platform::Mysql => {
@@ -98,18 +98,18 @@ impl Pool {
 
     /// returns a akita manager which provides api which data is already converted into
     /// Data, Rows and Value
-    pub fn akita_manager(&mut self) -> Result<AkitaManager, AkitaError> {
+    pub fn akita_manager(&self) -> Result<AkitaManager, AkitaError> {
         let db = self.database()?;
         let cfg = self.1.clone();
         Ok(AkitaManager(db, cfg))
     }
 
-    fn get_pool_mut(&mut self) -> Result<&PlatformPool, AkitaError> {
+    fn get_pool_mut(&self) -> Result<&PlatformPool, AkitaError> {
         Ok(&self.0)
     }
 
     /// get a usable database connection from
-    pub fn connect_mut(&mut self) -> Result<PooledConnection, AkitaError> {
+    pub fn connect_mut(&self) -> Result<PooledConnection, AkitaError> {
         let pool = self.get_pool_mut()?;
         match *pool {
             PlatformPool::MysqlPool(ref pool_mysql) => {
@@ -123,7 +123,7 @@ impl Pool {
     }
 
     /// get a database instance with a connection, ready to send sql statements
-    pub fn database(&mut self) -> Result<DatabasePlatform, AkitaError> {
+    pub fn database(&self) -> Result<DatabasePlatform, AkitaError> {
         let pooled_conn = self.connect_mut()?;
         match pooled_conn {
             PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase(*pooled_mysql)))),
@@ -131,7 +131,7 @@ impl Pool {
     }
 
     /// return an entity manager which provides a higher level api
-    pub fn entity_manager(&mut self) -> Result<AkitaEntityManager, AkitaError> {
+    pub fn entity_manager(&self) -> Result<AkitaEntityManager, AkitaError> {
         let db = self.database()?;
         let cfg = self.1.clone();
         Ok(AkitaEntityManager(db, cfg))

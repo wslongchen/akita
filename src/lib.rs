@@ -40,6 +40,7 @@
 //! * ```usize```
 //! * ```f32, f64```
 //! * ```bool```
+//! * ```serde_json::Value```
 //! * ```str, String```
 //! * ```NaiveDate, NaiveDateTime```
 //! 
@@ -62,7 +63,7 @@
 //! }
 //! 
 //! fn main() {
-//!     let db_url = "mysql://root:password@localhost:3306/akita";
+//!     let db_url = String::from("mysql://root:password@localhost:3306/akita");
 //!     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
 //!     let mut em = pool.entity_manager().expect("must be ok");
 //!     let mut wrap = UpdateWrapper::new();

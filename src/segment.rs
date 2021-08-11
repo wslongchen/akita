@@ -17,6 +17,8 @@ pub enum Segment{
     Int32(i32),
     Int64(i64),
     Usize(usize),
+    U8(u8),
+    Int8(i8),
     U32(u32),
     U64(u64),
     Str(&'static str),
@@ -107,6 +109,8 @@ impl Segment {
             Segment::U32(val) => format!("{}", val),
             Segment::U64(val) => format!("{}", val),
             Segment::Str(val) => format!("{}", val),
+            Segment::U8(val) => format!("{}", val),
+            Segment::Int8(val) => format!("{}", val),
         }
     }
 }
@@ -124,12 +128,23 @@ impl Into<Segment> for i64 {
     }
 }
 
+impl Into<Segment> for i8 {
+    fn into(self) -> Segment {
+        Segment::Int8(self)
+    }
+}
+
 impl Into<Segment> for u64 {
     fn into(self) -> Segment {
         Segment::U64(self)
     }
 }
 
+impl Into<Segment> for u8 {
+    fn into(self) -> Segment {
+        Segment::U8(self)
+    }
+}
 
 impl Into<Segment> for u32 {
     fn into(self) -> Segment {
@@ -150,7 +165,6 @@ impl Into<Segment> for usize {
         Segment::Usize(self)
     }
 }
-
 
 impl Into<Segment> for f64 {
     fn into(self) -> Segment {

@@ -1,7 +1,7 @@
 use crate::{AkitaError, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, manager::AkitaEntityManager, value::ToValue, information::{GetFields, GetTableName}};
+use serde::{Deserialize, Serialize};
 
-
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct IPage <T> 
     where T: Sized  {
     pub total: usize,

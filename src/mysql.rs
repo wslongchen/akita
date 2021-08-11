@@ -34,7 +34,6 @@ impl Database for MysqlDatabase {
         Ok(())
     }
     fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError> {
-        println!("sql:{}", &sql);
         match log_level {
             LogLevel::Debug => debug!("[sql]: {}", &sql),
             LogLevel::Info => info!("[sql]: {}", &sql),
@@ -87,7 +86,6 @@ impl Database for MysqlDatabase {
     }
 
     fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
-        println!("sql:{}, params: {:?}", &sql, param);
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
 
@@ -204,7 +202,6 @@ impl Database for MysqlDatabase {
                         let end = spec.type_.find(')');
                         if let (Some(start), Some(end)) = (start, end) {
                             let dtype = &spec.type_[0..start];
-                            println!("dtype: {:?}", dtype);
                             let range = &spec.type_[start + 1..end];
                             let choices = range
                                 .split(',')
@@ -365,6 +362,7 @@ impl mysql::prelude::ToValue for MyValue<'_> {
             Value::Json(ref v) => v.into(),
             Value::Nil => mysql::Value::NULL,
             Value::Array(_) => unimplemented!("unsupported type"),
+            Value::SerdeJson(ref v) => v.into(),
             // Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
         }
