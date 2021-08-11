@@ -685,7 +685,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrap = UpdateWrapper::new();
-        wrap.eq(true, "username", "'ussd'");
+        wrap.eq("username", "'ussd'");
         match em.remove::<SystemUser, UpdateWrapper>(&mut wrap) {
             Ok(res) => {
                 println!("success removed data!");
@@ -702,7 +702,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrap = UpdateWrapper::new();
-        wrap.eq(true, "username", "'ussd'");
+        wrap.eq("username", "'ussd'");
         match em.count::<SystemUser, UpdateWrapper>(&mut wrap) {
             Ok(res) => {
                 println!("success count data!");
@@ -736,7 +736,7 @@ mod test {
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
         let mut wrap = UpdateWrapper::new();
-        wrap.eq(true, "username", "'ussd'");
+        wrap.eq("username", "'ussd'");
         match em.update(&user, &mut wrap) {
             Ok(res) => {
                 println!("success update data!");
@@ -818,7 +818,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq("username", "'ussd'");
         match em.select_by_id::<SystemUser, i32>(1) {
             Ok(res) => {
                 println!("success insert data!");
@@ -835,7 +835,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq("username", "'ussd'");
         match em.select_one::<SystemUser, UpdateWrapper>(&mut wrapper) {
             Ok(res) => {
                 println!("success select data!");
@@ -852,7 +852,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq("username", "'ussd'");
         match em.list::<SystemUser, UpdateWrapper>(&mut wrapper) {
             Ok(res) => {
                 println!("success insert data!");
@@ -869,7 +869,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq("username", "'ussd'");
         match SystemUser::list(&mut wrapper, &mut em) {
             Ok(res) => {
                 println!("success insert data!");
@@ -887,7 +887,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq( "username", "'ussd'");
         match em.page::<SystemUser, UpdateWrapper>(1, 10,&mut wrapper) {
             Ok(res) => {
                 println!("success insert data!");
@@ -904,7 +904,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = UpdateWrapper::new();
-        wrapper.eq(true, "username", "'ussd'");
+        wrapper.eq("username", "'ussd'");
         match SystemUser::page(1, 10, &mut wrapper, &mut em) {
             Ok(res) => {
                 println!("success insert data!");

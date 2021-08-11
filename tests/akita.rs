@@ -6,10 +6,10 @@ use akita::*;
 use mysql::chrono::NaiveDateTime;
 use mysql::TxOpts;
 
-#[derive(Table, Clone)]
+#[derive(Table, Clone, ToAkita, FromAkita)]
 #[table(name = "t_system_user")]
 pub struct User {
-    #[id(name = "id")]
+    #[table_id(name = "id")]
     pub pk: i64,
     pub id: String,
     pub name: String,
@@ -23,15 +23,13 @@ pub struct User {
     pub birthday: Option<NaiveDate>,
     /// 性别
     pub gender: u8,
-    #[column(exist = "false")]
+    #[field(exist = "false")]
     pub is_org: bool,
-    #[column(name = "token")]
+    #[field(name = "token")]
     pub url_token: String,
     pub data: Vec<String>,
     pub user_type: String,
-    pub inner_struct: Option<TestInnerStruct>,
     pub inner_tuple: (String),
-    pub inner_enum: TestInnerEnum,
 }
 
 impl Default for User {
@@ -50,9 +48,7 @@ impl Default for User {
             status: 0,
             level: 1,
             data: vec![],
-            inner_struct: None,
             inner_tuple: ("".to_string()),
-            inner_enum: TestInnerEnum::Field,
         }
     }
 }
