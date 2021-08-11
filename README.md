@@ -16,7 +16,7 @@
 You may be looking for:
 
 - [An overview of Akita (Coming Soon...)]()
-- [Examples](https://github.com/wslongchen/akita/blob/master/tests/akita.rs)
+- [Examples](https://github.com/wslongchen/akita/blob/0.2.0/example/simple.rs)
 - [API documentation](https://docs.rs/akita/0.1.6/akita/)
 - [Release notes](https://github.com/wslongchen/akita/releases)
 
