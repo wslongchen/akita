@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.2.3?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.2.4?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -9,7 +9,7 @@
 [Rust 1.13]: https://blog.rust-lang.org/2016/11/10/Rust-1.13.html
 [Rust 1.31]: https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018.html
 
-**Akita is a mini framework for MySQL.**
+**Akita is a mini orm framework for MySQL.**
 
 ---
 

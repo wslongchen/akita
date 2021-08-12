@@ -147,11 +147,11 @@ impl_to_segment!(u16, U16);
 impl_to_segment!(u32, U32);
 impl_to_segment!(u64, U64);
 
-impl_to_segment!(String, Text);
+
 impl_to_segment!(usize, Usize);
 impl_to_segment!(isize, Isize);
 impl_to_segment!(f64, Float);
-impl_to_segment!(&'static str, Str);
+
 impl_to_segment!(SqlKeyword, Keyword);
 impl_to_segment!(bool, Boolean);
 
@@ -175,6 +175,20 @@ where
 {
     fn to_segment(&self) -> Segment {
         (*self).to_segment()
+    }
+}
+
+impl ToSegment for &'static str
+{
+    fn to_segment(&self) -> Segment {
+        Segment::Extenssion(format!("'{}'", self))
+    }
+}
+
+impl ToSegment for String
+{
+    fn to_segment(&self) -> Segment {
+        Segment::Extenssion(format!("'{}'", self))
     }
 }
 
@@ -298,7 +312,6 @@ impl SegmentList {
     }
 
     fn transform_list(&mut self, seg_type: &SegmentType, list: &mut Vec<Segment>, first: Option<&Segment>, last: Option<&Segment>) -> bool {
-        println!("frist: {:?}, last:{:?}", first, last);
         match seg_type {
             SegmentType::GroupBy => { list.remove(0); true },
             SegmentType::Having => { if !list.is_empty() { list.push(SqlKeyword::AND.into()); } list.remove(0); true },
