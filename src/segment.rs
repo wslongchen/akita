@@ -7,7 +7,7 @@ pub trait SqlSegment {
     fn get_sql_segment(&self) -> String;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Segment{
     Keyword(SqlKeyword),
     Float(f64),
@@ -15,11 +15,15 @@ pub enum Segment{
     Extenssion(String),
     Text(String),
     Int32(i32),
+    Int16(i16),
     Int64(i64),
     Usize(usize),
+    Isize(isize),
+    Boolean(bool),
     U8(u8),
     Int8(i8),
     U32(u32),
+    U16(u16),
     U64(u64),
     Str(&'static str),
     Nil,
@@ -34,7 +38,7 @@ pub enum SegmentType{
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SqlKeyword {
     AND,
     OR,
@@ -111,77 +115,75 @@ impl Segment {
             Segment::Str(val) => format!("{}", val),
             Segment::U8(val) => format!("{}", val),
             Segment::Int8(val) => format!("{}", val),
+            Segment::Int16(val) => format!("{}", val),
+            Segment::Isize(val) => format!("{}", val),
+            Segment::Boolean(val) => format!("{}", if *val { 1 } else { 0 }),
+            Segment::U16(val) => format!("{}", val),
         }
     }
 }
 
+pub trait ToSegment {
+    fn to_segment(&self) -> Segment;
+}
 
-impl Into<Segment> for i32 {
-    fn into(self) -> Segment {
-        Segment::Int32(self)
+macro_rules! impl_to_segment {
+    ($ty:ty, $variant:ident) => {
+        impl ToSegment for $ty {
+            fn to_segment(&self) -> Segment {
+                Segment::$variant(self.to_owned())
+            }
+        }
+    };
+}
+
+impl_to_segment!(i8, Int8);
+impl_to_segment!(i16, Int16);
+impl_to_segment!(i32, Int32);
+impl_to_segment!(i64, Int64);
+
+impl_to_segment!(u8, U8);
+impl_to_segment!(u16, U16);
+impl_to_segment!(u32, U32);
+impl_to_segment!(u64, U64);
+
+impl_to_segment!(String, Text);
+impl_to_segment!(usize, Usize);
+impl_to_segment!(isize, Isize);
+impl_to_segment!(f64, Float);
+impl_to_segment!(&'static str, Str);
+impl_to_segment!(SqlKeyword, Keyword);
+impl_to_segment!(bool, Boolean);
+
+
+impl<T> ToSegment for Option<T>
+where
+    T: ToSegment,
+{
+    fn to_segment(&self) -> Segment {
+        
+        match self {
+            Some(v) => v.to_segment(),
+            None => Segment::Nil,
+        }
     }
 }
 
-impl Into<Segment> for i64 {
-    fn into(self) -> Segment {
-        Segment::Int64(self)
+impl<T> ToSegment for &T
+where
+    T: ToSegment,
+{
+    fn to_segment(&self) -> Segment {
+        (*self).to_segment()
     }
 }
 
-impl Into<Segment> for i8 {
-    fn into(self) -> Segment {
-        Segment::Int8(self)
-    }
-}
-
-impl Into<Segment> for u64 {
-    fn into(self) -> Segment {
-        Segment::U64(self)
-    }
-}
-
-impl Into<Segment> for u8 {
-    fn into(self) -> Segment {
-        Segment::U8(self)
-    }
-}
-
-impl Into<Segment> for u32 {
-    fn into(self) -> Segment {
-        Segment::U32(self)
-    }
-}
-
-
-impl Into<Segment> for String {
-    fn into(self) -> Segment {
-        Segment::Text(self)
-    }
-}
-
-
-impl Into<Segment> for usize {
-    fn into(self) -> Segment {
-        Segment::Usize(self)
-    }
-}
-
-impl Into<Segment> for f64 {
-    fn into(self) -> Segment {
-        Segment::Float(self)
-    }
-}
-
-impl Into<Segment> for &'static str {
-    fn into(self) -> Segment {
-        Segment::Str(self)
-    }
-}
-
-
-impl Into<Segment> for SqlKeyword {
-    fn into(self) -> Segment {
-        Segment::Keyword(self)
+impl<T> From<T> for Segment
+where
+    T: ToSegment,
+{
+    fn from(v: T) -> Segment {
+        v.to_segment()
     }
 }
 
@@ -241,11 +243,7 @@ impl SegmentList {
                 if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Nil)) {
                     self.remove_and_flush_last();
                 }
-                LEFT_BRACKET.to_string() + self.segments.iter().map(|seg| match seg {
-                    Segment::Text(val) => format!("{}", val),
-                    Segment::Str(val) => format!("{}", val),
-                     _ => seg.get_sql_segment(),
-                }).collect::<Vec<String>>().join(SPACE).as_str() + RIGHT_BRACKET
+                LEFT_BRACKET.to_string() + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str() + RIGHT_BRACKET
             },
         }
         
@@ -300,6 +298,7 @@ impl SegmentList {
     }
 
     fn transform_list(&mut self, seg_type: &SegmentType, list: &mut Vec<Segment>, first: Option<&Segment>, last: Option<&Segment>) -> bool {
+        println!("frist: {:?}, last:{:?}", first, last);
         match seg_type {
             SegmentType::GroupBy => { list.remove(0); true },
             SegmentType::Having => { if !list.is_empty() { list.push(SqlKeyword::AND.into()); } list.remove(0); true },
@@ -339,15 +338,15 @@ impl SegmentList {
                         return false;
                     }
                 } else {
+                    if !self.execute_not {
+                        list.insert(if MatchSegment::EXISTS.matches(first) { 0 } else { 1 }, SqlKeyword::NOT.into());
+                        self.execute_not = true;
+                    }
                     if MatchSegment::APPLY.matches(first) {
                         list.remove(0);
                     }
                     if !MatchSegment::AND_OR.matches(last) && !self.segments.is_empty() {
                         self.segments.push(SqlKeyword::AND.into());
-                    }
-                    if !self.execute_not {
-                        list.insert(0, SqlKeyword::NOT.into());
-                        self.execute_not = true;
                     }
                 }
                 true
@@ -370,7 +369,9 @@ impl MergeSegments {
             } else if MatchSegment::HAVING.matches(&segment) {
                 self.having.add_all(segments);
             } else {
-                self.normal.add_all(segments);
+                if !segments.contains(&Segment::Nil) {
+                    self.normal.add_all(segments);
+                }
             }
         }        
     }
@@ -403,12 +404,15 @@ impl MergeSegments {
 
 
 impl SqlLike {
-    pub fn concat_like(&self, val:Segment) -> String {
+    pub fn concat_like(&self, val:Segment) -> Segment {
+        if val.eq(&Segment::Nil) {
+            return Segment::Nil;
+        }
         let val = val.get_sql_segment().replace(SINGLE_QUOTE, EMPTY);
         match *self {
-            SqlLike::DEFAULT => format!("'%{}%'", val),
-            SqlLike::LEFT => format!("'%{}'", val),
-            SqlLike::RIGHT => format!("'{}%'", val),
+            SqlLike::DEFAULT => Segment::Extenssion(format!("'%{}%'", val)),
+            SqlLike::LEFT => Segment::Extenssion(format!("'%{}'", val)),
+            SqlLike::RIGHT => Segment::Extenssion(format!("'{}%'", val)),
         }
     }
 }
