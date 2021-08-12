@@ -86,7 +86,11 @@ pub trait Wrapper {
     fn having<S: Into<String>>(&mut self, sql_having: S) -> &mut Self { self.do_it(true, vec![SqlKeyword::HAVING.into(), sql_having.into().into()]) }
     fn having_condition<S: Into<String>>(&mut self, condition: bool, sql_having: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::HAVING.into(), sql_having.into().into()]) }
     fn order_by<S: Into<String> + Clone>(&mut self, is_asc: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { let mode = if is_asc { SqlKeyword::ASC } else { SqlKeyword::DESC }; self.do_it(true, vec![ SqlKeyword::ORDER_BY.into(), Segment::ColumnField(cols.join(COMMA)), mode.into() ]) } }
+    fn asc_by<S: Into<String> + Clone>(&mut self, columns: Vec<S>) -> &mut Self { self.order_by(true, columns) }
+    fn desc_by<S: Into<String> + Clone>(&mut self, columns: Vec<S>) -> &mut Self { self.order_by(false, columns) }
     fn order_by_condition<S: Into<String> + Clone>(&mut self, condition: bool, is_asc: bool, columns: Vec<S>) -> &mut Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { let mode = if is_asc { SqlKeyword::ASC } else { SqlKeyword::DESC }; self.do_it(condition, vec![ SqlKeyword::ORDER_BY.into(), Segment::ColumnField(cols.join(COMMA)), mode.into() ]) } }
+    fn asc_by_condition<S: Into<String> + Clone>(&mut self, condition: bool, columns: Vec<S>) -> &mut Self { self.order_by_condition(condition, true, columns) }
+    fn desc_by_condition<S: Into<String> + Clone>(&mut self, condition: bool, columns: Vec<S>) -> &mut Self { self.order_by_condition(condition, false, columns) }
     fn comment<S: Into<String>>(&mut self, comment: S) -> &mut Self;
     fn comment_condition<S: Into<String>>(&mut self, condition: bool, comment: S) -> &mut Self;
     fn get_select_sql(&mut self) -> String;
@@ -235,12 +239,12 @@ impl_wrapper!(UpdateWrapper);
 #[test]
 fn basic_test() {
     let mut wrapper = UpdateWrapper::new();
-    // let s : Option<i32> = None;
-    // wrapper.like("fffff", s);
-    // wrapper.eq("dddd", s);
+    let s : Option<String> = Some("ffffa".to_string());
+    wrapper.like("fffff", &s);
+    wrapper.eq("dddd", &s);
     
     // wrapper.eq("col", 2);
-    wrapper.not_in("vecs", vec![1]);
+    wrapper.not_in("vecs", vec!["a","f","g"]);
     // wrapper.not_between("username", 2, 8);
     // wrapper.set("username", 4);
     println!("{}", wrapper.get_sql_segment());
