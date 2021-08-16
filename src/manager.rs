@@ -8,19 +8,31 @@ pub struct AkitaManager(pub DatabasePlatform, pub AkitaConfig);
 #[allow(unused)]
 pub struct AkitaEntityManager(pub DatabasePlatform, pub AkitaConfig);
 
-#[allow(unused)]
-impl AkitaManager {
-    pub fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.0.start_transaction()
-    }
+pub struct AkitaTransaction<'a>(pub &'a mut DatabasePlatform);
 
-    pub fn commit_transaction(&mut self) -> Result<(), AkitaError> {
+impl AkitaTransaction <'_> {
+    pub fn commit(self) -> Result<(), AkitaError> {
         self.0.commit_transaction()
     }
 
-    pub fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
+    pub fn rollback(self) -> Result<(), AkitaError> {
         self.0.rollback_transaction()
     }
+}
+
+#[allow(unused)]
+impl AkitaManager {
+    pub fn start_transaction(&mut self) -> Result<AkitaTransaction, AkitaError> {
+        Ok(AkitaTransaction(&mut self.0))
+    }
+
+    // pub fn commit_transaction(&mut self) -> Result<(), AkitaError> {
+    //     self.0.commit_transaction()
+    // }
+
+    // pub fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
+    //     self.0.rollback_transaction()
+    // }
 
     pub fn execute_result(
         &mut self,
@@ -77,17 +89,17 @@ impl AkitaManager {
 
 #[allow(unused)]
 impl AkitaEntityManager{
-    pub fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.0.start_transaction()
+    pub fn start_transaction(&mut self) -> Result<AkitaTransaction, AkitaError> {
+        Ok(AkitaTransaction(&mut self.0))
     }
 
-    pub fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.0.commit_transaction()
-    }
+    // pub fn commit_transaction(&mut self) -> Result<(), AkitaError> {
+    //     self.0.commit_transaction()
+    // }
 
-    pub fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.0.rollback_transaction()
-    }
+    // pub fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
+    //     self.0.rollback_transaction()
+    // }
 
     pub fn set_session_user(&mut self, username: &str) -> Result<(), AkitaError> {
         let sql = format!("SET SESSION ROLE '{}'", username);
@@ -751,7 +763,7 @@ mod test {
 
     #[test]
     fn update_by_id() {
-        let db_url = String::from("mysql://root:MIMAlongchen520.@47.94.194.242:3306/dog_cloud");
+        let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
