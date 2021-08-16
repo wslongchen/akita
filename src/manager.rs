@@ -387,7 +387,7 @@ impl AkitaEntityManager{
     }
 
     #[allow(unused_variables)]
-    pub fn save_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
+    pub fn save_batch<T>(&mut self, entities: &[&T]) -> Result<Vec<usize>, AkitaError>
     where
         T: GetTableName + GetFields + ToAkita,
     {
@@ -397,7 +397,7 @@ impl AkitaEntityManager{
     }
 
     /// called multiple times when using database platform that doesn;t support multiple value
-    pub fn save<T>(&mut self, entity: &T) -> Result<(), AkitaError>
+    pub fn save<T>(&mut self, entity: &T) -> Result<usize, AkitaError>
     where
         T: GetTableName + GetFields + ToAkita,
     {
@@ -414,7 +414,9 @@ impl AkitaEntityManager{
         }
         let bvalues: Vec<&Value> = values.iter().collect();
         self.0.execute_result(&sql, &bvalues)?;
-        Ok(())
+        let rows = self.0.execute_result("SELECT LAST_INSERT_ID();", &[])?;
+        let count = rows.iter().next().map(|data| i64::from_data(&data)).unwrap_or_default();
+        Ok(count as usize)
     }
 
     
@@ -487,7 +489,7 @@ impl AkitaEntityManager{
         Ok(retrieved_entities)
     }
 
-    fn save_batch_inner<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
+    fn save_batch_inner<T>(&mut self, entities: &[&T]) -> Result<Vec<usize>, AkitaError>
     where
         T: GetTableName + GetFields + ToAkita,
     {
@@ -495,10 +497,11 @@ impl AkitaEntityManager{
         if table.complete_name().is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
+        let mut result = Vec::new();
         for entity in entities {
-            self.save(*entity)?;
+            result.push(self.save(*entity)?);
         }
-        Ok(())
+        Ok(result)
     }
 
     /// build the returning clause
@@ -658,7 +661,6 @@ mod test {
     #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
     #[table(name="t_system_user")]
     struct SystemUser {
-        #[field = "name"]
         id: Option<i32>,
         #[table_id]
         username: String,
@@ -749,7 +751,7 @@ mod test {
 
     #[test]
     fn update_by_id() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let db_url = String::from("mysql://root:MIMAlongchen520.@47.94.194.242:3306/dog_cloud");
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };

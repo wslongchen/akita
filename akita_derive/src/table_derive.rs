@@ -690,7 +690,7 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
         .map(|&(field, _ty, attrs)| {
             let identify = has_contract_meta(attrs, "table_id");
             let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
-            let exist = if identify { "true".to_string() } else { let exist = get_contract_meta_item_value(&attrs, "field", "exist").unwrap_or("false".to_string()); if exist.eq("false") { exist } else { "true".to_string() }  };
+            let exist = if identify { "true".to_string() } else { let exist = get_contract_meta_item_value(&attrs, "field", "exist").unwrap_or("true".to_string()); if exist.eq("false") { exist } else { "true".to_string() }  };
             let field_type = if identify {
                 let field_type = get_contract_meta_item_value(attrs, "table_id", "type").unwrap_or("none".to_string()).to_lowercase();
                 quote!(FieldType::TableId(#field_type.to_string()))
@@ -731,12 +731,12 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
 
             type Item = #name;
 
-            fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
+            fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<usize, AkitaError> where Self::Item : GetFields + GetTableName + ToAkita {
                 let data: Self::Item = self.clone();
                 entity_manager.save(&data)
             }
 
-            fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields {
+            fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<Vec<usize>, AkitaError> where Self::Item : GetTableName + GetFields {
                 entity_manager.save_batch::<Self::Item>(datas)
             }
 
@@ -829,34 +829,6 @@ pub fn impl_get_column_names(input: TokenStream) -> TokenStream {
         }
     ).into()
 }
-
-// impl FromRowExt for #name
-//                 {
-//                     #[inline]
-//                     fn from_long_row(row: Row) -> #name {
-                        
-//                         match FromRowExt::from_long_row_opt(row) {
-//                             Ok(x) => x,
-//                             Err(FromRowError(row)) => panic!(
-//                                 "Couldn't convert {:?} to type (T1). (see FromRow documentation)",
-//                                 row
-//                             ),
-//                         }
-//                     }
-//                     fn from_long_row_opt(
-//                         row: Row,
-//                     ) -> Result<#name, FromRowError> {
-//                         if row.len() < 1 {
-//                             return Err(FromRowError(row));
-//                         }
-//                         let mut value = #name::default();
-//                         #builder_set_fields
-//                         // Ok(
-//                         //     #name { #build_values_field }
-//                         // )
-//                         Ok(value)
-//                     }
-//                 }
 
 #[allow(unused)]
 fn camel_to_snack<S: Into<String>>(field: S) -> String {

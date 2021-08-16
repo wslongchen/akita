@@ -180,6 +180,8 @@ impl_usined_to_value!(u8, Tinyint, i8);
 impl_usined_to_value!(u16, Smallint, i16);
 impl_usined_to_value!(u32, Int, i32);
 impl_usined_to_value!(u64, Bigint, i64);
+impl_usined_to_value!(usize, Bigint, i64);
+
 
 impl_to_value!(bool, Bool);
 impl_to_value!(i8, Tinyint);
@@ -292,6 +294,10 @@ impl_from_value!(Uuid, "Uuid", Uuid);
 impl_from_value!(NaiveDate, "NaiveDate", Date);
 impl_from_value_numeric!(i8, to_i8, "i8", Tinyint);
 impl_from_value_numeric!(u8, to_u8, "u8", Tinyint, Bigint, Int);
+impl_from_value_numeric!(u16, to_u16, "u16", Tinyint, Bigint, Int);
+impl_from_value_numeric!(u32, to_u32, "u32", Tinyint, Bigint, Int);
+impl_from_value_numeric!(u64, to_u64, "u64", Tinyint, Bigint, Int);
+impl_from_value_numeric!(usize, to_usize, "usize", Tinyint, Bigint, Int);
 impl_from_value_numeric!(i16, to_i16, "i16", Tinyint, Smallint);
 impl_from_value_numeric!(i32, to_i32, "i32", Tinyint, Smallint, Int, Bigint);
 impl_from_value_numeric!(i64, to_i64, "i64", Tinyint, Smallint, Int, Bigint);

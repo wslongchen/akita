@@ -88,7 +88,6 @@ impl Database for MysqlDatabase {
     fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
-
             let fields = rows
                 .columns().as_ref()
                 .iter()

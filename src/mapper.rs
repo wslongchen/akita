@@ -31,10 +31,10 @@ pub trait BaseMapper{
     type Item;
 
     /// Insert Data.
-    fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
+    fn insert(&self, entity_manager: &mut AkitaEntityManager) -> Result<usize, AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Insert Data Batch.
-    fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
+    fn insert_batch(datas: &[&Self::Item], entity_manager: &mut AkitaEntityManager) -> Result<Vec<usize>, AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Update Data With Wrapper.
     fn update<W: Wrapper>(&self, wrapper: &mut UpdateWrapper, entity_manager: &mut AkitaEntityManager) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;

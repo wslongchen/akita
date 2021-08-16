@@ -138,6 +138,7 @@ impl<'a> Iterator for Iter<'a> {
         } else {
             None
         }
+       
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) { self.iter.size_hint() }
@@ -145,16 +146,33 @@ impl<'a> Iterator for Iter<'a> {
 
 impl<'a> ExactSizeIterator for Iter<'a> {}
 
-impl ToAkita for u8 {
-    fn to_data(&self) -> AkitaData {
-        let mut data = AkitaData::new();
-        data.insert("0", *self);
-        data
-    }
+
+macro_rules! impl_to_segment {
+    ($ty:ty) => {
+        impl ToAkita for $ty {
+            fn to_data(&self) -> AkitaData {
+                let mut data = AkitaData::new();
+                data.insert("0", self);
+                data
+            }
+        }
+
+        impl FromAkita for $ty {
+            fn from_data(data: &AkitaData) -> Self {
+                let (_k,v) = data.0.first_key_value().unwrap();
+                FromValue::from_value(v).unwrap()
+            }
+        }
+
+    };
 }
-impl FromAkita for u8 {
-    fn from_data(data: &AkitaData) -> Self {
-        let value = data.get("0").unwrap_or(0);
-        value
-    }
-}
+
+impl_to_segment!(i8);
+impl_to_segment!(i16);
+impl_to_segment!(i32);
+impl_to_segment!(i64);
+impl_to_segment!(u8);
+impl_to_segment!(u16);
+impl_to_segment!(u32);
+impl_to_segment!(u64);
+impl_to_segment!(usize);
