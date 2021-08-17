@@ -4,7 +4,6 @@
 use akita::prelude::*;
 use akita::*;
 use mysql::chrono::NaiveDateTime;
-use mysql::TxOpts;
 
 #[derive(Table, Clone, ToAkita, FromAkita)]
 #[table(name = "t_system_user")]

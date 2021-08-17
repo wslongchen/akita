@@ -100,6 +100,7 @@
 //! 
 //! 
 //! 
+#![feature(map_first_last)]
 #[allow(unused)]
 mod comm;
 mod wrapper;
@@ -118,7 +119,7 @@ mod manager;
 #[doc(inline)]
 pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
 #[doc(inline)]
-pub use mapper::{BaseMapper, IPage};
+pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
 pub use segment::SqlSegment;
 #[doc(inline)]
@@ -133,6 +134,7 @@ pub use data::*;
 pub use information::{GetTableName, TableName, FieldName, GetFields, FieldType};
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
+pub use crate as akita;
 
 pub mod prelude {
     #[doc(inline)]
