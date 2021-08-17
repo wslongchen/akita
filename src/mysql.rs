@@ -11,8 +11,8 @@ use crate::database::Database;
 use crate::pool::LogLevel;
 use crate::types::SqlType;
 use crate::value::{ToValue, Value};
-use crate::{AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName}, comm};
-use crate::data::{FromAkita, Rows, AkitaData};
+use crate::{self as akita, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName}, comm};
+use crate::data::{FromAkita, Rows};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
 pub struct MysqlDatabase(pub r2d2::PooledConnection<MysqlConnectionManager>);
@@ -20,17 +20,17 @@ pub struct MysqlDatabase(pub r2d2::PooledConnection<MysqlConnectionManager>);
 /// TODO: 补全MYSQL数据操作
 impl Database for MysqlDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("START TRANSACTION", &[])?;
+        self.execute_result("BEGIN", &[])?;
         Ok(())
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT TRANSACTION", &[])?;
+        self.execute_result("COMMIT", &[])?;
         Ok(())
     }
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK TRANSACTION", &[])?;
+        self.execute_result("ROLLBACK", &[])?;
         Ok(())
     }
     fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError> {

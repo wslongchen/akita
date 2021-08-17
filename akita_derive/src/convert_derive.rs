@@ -28,9 +28,9 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
         })
         .collect();
     quote!(
-        impl FromAkita for #name {
+        impl akita::FromAkita for #name {
             
-            fn from_data(data: &AkitaData) -> Self {
+            fn from_data(data: &akita::AkitaData) -> Self {
                 #name {
                     #(#from_fields)*
                 }
@@ -69,10 +69,10 @@ pub fn impl_to_akita(input: TokenStream) -> TokenStream {
         .collect();
 
     quote!(
-        impl #generics ToAkita for #name #generics {
+        impl #generics akita::ToAkita for #name #generics {
 
-            fn to_data(&self) -> AkitaData {
-                let mut data = AkitaData::new();
+            fn to_data(&self) -> akita::AkitaData {
+                let mut data = akita::AkitaData::new();
                 #(#from_fields)*
                 data
             }
