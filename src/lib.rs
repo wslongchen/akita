@@ -154,3 +154,63 @@ pub use akita_derive::*;
 
 #[macro_use]
 extern crate log;
+
+
+
+/// This macro is a convenient way to pass named parameters to a statement.
+///
+/// ```ignore
+/// let foo = 42;
+/// params! {
+///     foo,
+///     "foo2x" => foo * 2,
+/// });
+/// ```
+#[macro_export]
+macro_rules! params {
+    () => {};
+    (@to_pair $name:expr => $value:expr) => (
+        (std::string::String::from($name), $crate::value::Value::from($value))
+    );
+    (@to_pair $name:ident) => (
+        (std::string::String::from(stringify!($name)), $crate::value::Value::from($name))
+    );
+    (@expand $vec:expr;) => {};
+    (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {
+        $vec.push(params!(@to_pair $name => $value));
+        params!(@expand $vec; $($tail)*);
+    };
+    (@expand $vec:expr; $name:expr => $value:expr $(, $tail:tt)*) => {
+        $vec.push(params!(@to_pair $name => $value));
+        params!(@expand $vec; $($tail)*);
+    };
+    (@expand $vec:expr; $name:ident, $($tail:tt)*) => {
+        $vec.push(params!(@to_pair $name));
+        params!(@expand $vec; $($tail)*);
+    };
+    (@expand $vec:expr; $name:ident $(, $tail:tt)*) => {
+        $vec.push(params!(@to_pair $name));
+        params!(@expand $vec; $($tail)*);
+    };
+    ($i:ident, $($tail:tt)*) => {
+        {
+            let mut output = std::vec::Vec::new();
+            params!(@expand output; $i, $($tail)*);
+            output
+        }
+    };
+    ($i:expr => $($tail:tt)*) => {
+        {
+            let mut output = std::vec::Vec::new();
+            params!(@expand output; $i => $($tail)*);
+            output
+        }
+    };
+    ($i:ident) => {
+        {
+            let mut output = std::vec::Vec::new();
+            params!(@expand output; $i);
+            output
+        }
+    }
+}

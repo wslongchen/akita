@@ -69,8 +69,8 @@ pub trait Wrapper {
     fn not_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![ SqlKeyword::NOT.into() ]) }
     fn and_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::AND.into()]) }
     fn or_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
-    fn apply<S: Into<String>>(&mut self, apply_sql: S) -> &mut Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), apply_sql.into().into()]) }
-    fn apply_condition<S: Into<String>>(&mut self, condition: bool, apply_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), apply_sql.into().into()]) }
+    fn apply<S: Into<String>>(&mut self, apply_sql: S) -> &mut Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
+    fn apply_condition<S: Into<String>>(&mut self, condition: bool, apply_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
     fn is_null<S: Into<String>>(&mut self, column: S) -> &mut Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
     fn is_null_condition<S: Into<String>>(&mut self, condition: bool, column: S) -> &mut Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
     fn is_not_null<S: Into<String>>(&mut self, column: S) -> &mut Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NOT_NULL.into() ]) }

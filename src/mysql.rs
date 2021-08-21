@@ -139,7 +139,6 @@ impl Database for MysqlDatabase {
             comment: String,
             is_view: i32,
         }
-
         let schema: Value = table_name
             .schema
             .as_ref()

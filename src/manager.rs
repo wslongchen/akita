@@ -464,7 +464,7 @@ impl AkitaMapper for AkitaEntityManager{
         };
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let sql = format!("SELECT {} FROM {} {} limit 1", &enumerated_columns, &table.complete_name(), where_condition);
+        let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
         let rows = self.0.execute_result(&sql, &[])?;
         Ok(rows.iter().next().map(|data| T::from_data(&data)))
     }
@@ -821,7 +821,7 @@ impl AkitaMapper for AkitaEntityManager{
 
 #[cfg(test)]
 mod test {
-    use crate::{akita, AkitaConfig, AkitaMapper, Pool, UpdateWrapper, Wrapper, BaseMapper};
+    use crate::{AkitaConfig, AkitaMapper, BaseMapper, Pool, UpdateWrapper, Wrapper, akita, params};
 
     #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
     #[table(name="t_system_user")]
@@ -835,6 +835,7 @@ mod test {
 
     #[test]
     fn get_table_info() {
+        let s = params! { "test" => 1};
         // let db_url = String::from("mysql://root:password@localhost:3306/akita");
         // let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         // let mut em = pool.entity_manager().expect("must be ok");
