@@ -117,6 +117,8 @@ pub struct UpdateWrapper{
     pub param_name_seq: AtomicI32,
     /// SQL set字段
     pub sql_set: Vec<String>,
+    /// set 字段
+    pub fields_set: Vec<(String, Segment)>,
     /// SQL查询字段
     pub sql_select: Option<String>,
     /// SQL注释
@@ -132,7 +134,7 @@ pub struct UpdateWrapper{
 impl UpdateWrapper {
 
     pub fn new() -> Self {
-        Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: AtomicI32::new(0), sql_first: None, last_sql: None, sql_comment: None, sql_select: None }
+        Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: AtomicI32::new(0), sql_first: None, last_sql: None, sql_comment: None, sql_select: None, fields_set: Vec::new() }
     }
 
     pub fn set<S: Into<String>, U: ToSegment>(&mut self, column: S, val: U) -> &mut Self {
@@ -141,7 +143,9 @@ impl UpdateWrapper {
 
     pub fn set_condition<S: Into<String>, U: ToSegment>(&mut self,condition: bool, column: S, val: U) -> &mut Self {
         if condition {
-            self.sql_set.push(column.into() + EQUALS + val.to_segment().get_sql_segment().as_str());
+            let col: String = column.into();
+            self.sql_set.push(col.to_owned() + EQUALS + val.to_segment().get_sql_segment().as_str());
+            self.fields_set.push((col.to_owned(), val.to_segment()));
         }
         self
     }

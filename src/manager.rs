@@ -157,6 +157,15 @@ impl AkitaMapper for AkitaTransaction <'_> {
         self.conn.execute_result(sql, params)
     }
 
+    fn execute_drop<'a, S: Into<String>>(
+        &mut self,
+        sql: S,
+        params: &[&'a dyn ToValue],
+    ) -> Result<(), AkitaError>
+    {
+        self.conn.execute_drop(sql, params)
+    }
+
     fn execute_first<'a, R, S: Into<String>>(
         &mut self,
         sql: S,
@@ -336,7 +345,7 @@ impl AkitaEntityManager{
             "({})\n",
             columns
                 .iter()
-                .map(|c| c.name.to_owned())
+                .map(|c| format!("`{}`", c.name))
                 .collect::<Vec<_>>()
                 .join(", ")
         );
@@ -374,25 +383,47 @@ impl AkitaEntityManager{
     {
         let table = T::table_name();
         let columns = T::fields();
-        let set_fields = &wrapper.sql_set;
+        let set_fields = &wrapper.fields_set;
         let mut sql = String::new();
         sql += &format!("update {} ", table.complete_name());
-        sql += &format!(
-            "set {}",
-            columns
-                .iter().filter(|col| col.exist || (!set_fields.is_empty() && set_fields.contains(&col.name)))
-                .enumerate()
-                .map(|(x, col)| {
-                    #[allow(unreachable_patterns)]
-                    match self.0 {
-                        // #[cfg(feature = "with-mysql")]
-                        DatabasePlatform::Mysql(_) => format!("{} = ?", &col.name),
-                        _ => format!("${}", x + 1),
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        
+        if set_fields.is_empty() {
+            sql += &format!(
+                "set {}",
+                columns.iter().filter(|col| col.exist).collect::<Vec<_>>()
+                    .iter()
+                    .enumerate()
+                    .map(|(x, col)| {
+                        #[allow(unreachable_patterns)]
+                        match self.0 {
+                            // #[cfg(feature = "with-mysql")]
+                            DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
+                            _ => format!("${}", x + 1),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        } else {
+            let fields = set_fields.iter().map(|f| f.0.to_owned()).collect::<Vec<String>>();
+            // columns.iter().filter(|col| !set_fields.is_empty() && fields.contains(&col.name) && col.exist).collect::<Vec<_>>()
+            sql += &format!(
+                "set {}",
+                set_fields
+                    .iter()
+                    .enumerate()
+                    .map(|(x, (col, value))| {
+                        #[allow(unreachable_patterns)]
+                        match self.0 {
+                            // #[cfg(feature = "with-mysql")]
+                            DatabasePlatform::Mysql(_) => format!("`{}` = {}", col, value.get_sql_segment()),
+                            _ => format!("${}", x + 1),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
         let where_condition = wrapper.get_sql_segment();
         if !where_condition.is_empty() {
             sql += &format!(" where {} ", where_condition);
@@ -419,7 +450,7 @@ impl AkitaMapper for AkitaEntityManager{
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
-            .map(|c| c.name.to_owned())
+            .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -433,8 +464,8 @@ impl AkitaMapper for AkitaEntityManager{
         let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(),where_condition);
         let rows = self.0.execute_result(&sql, &[])?;
         let mut entities = vec![];
-        for dao in rows.iter() {
-            let entity = T::from_data(&dao);
+        for data in rows.iter() {
+            let entity = T::from_data(&data);
             entities.push(entity)
         }
         Ok(entities)
@@ -453,7 +484,7 @@ impl AkitaMapper for AkitaEntityManager{
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
-            .map(|c| c.name.to_owned())
+            .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -482,7 +513,7 @@ impl AkitaMapper for AkitaEntityManager{
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
-            .map(|c| c.name.to_owned())
+            .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
         
@@ -515,7 +546,7 @@ impl AkitaMapper for AkitaEntityManager{
         let columns = T::fields();
         let enumerated_columns = columns
             .iter()
-            .map(|c| c.name.to_owned())
+            .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -529,14 +560,16 @@ impl AkitaMapper for AkitaEntityManager{
         let count_sql = format!("select count(1) as count from {} {}", &table.complete_name(), where_condition);
         let count: Count = self.execute_first(&count_sql, &[])?;
         let mut page = IPage::new(page, size ,count.count as usize, vec![]);
-        let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &table.complete_name(), where_condition,page.offset(),  page.size);
-        let rows = self.0.execute_result(&sql, &[])?;
-        let mut entities = vec![];
-        for dao in rows.iter() {
-            let entity = T::from_data(&dao);
-            entities.push(entity)
+        if page.total > 0 {
+            let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &table.complete_name(), where_condition,page.offset(),  page.size);
+            let rows = self.0.execute_result(&sql, &[])?;
+            let mut entities = vec![];
+            for dao in rows.iter() {
+                let entity = T::from_data(&dao);
+                entities.push(entity)
+            }
+            page.records = entities;
         }
-        page.records = entities;
         Ok(page)
     }
 
@@ -618,22 +651,27 @@ impl AkitaMapper for AkitaEntityManager{
         }
         let columns = T::fields();
         let sql = self.build_update_clause(entity, wrapper);
-        let update_fields = &wrapper.sql_set;
-        let data = entity.to_data();
-        let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-        for col in columns.iter() {
-            if !col.exist | (!update_fields.contains(&col.name) && !update_fields.is_empty()) {
-                continue;
+        let update_fields = &wrapper.fields_set;
+        let mut bvalues: Vec<&Value> = Vec::new();
+        if update_fields.is_empty() {
+            let data = entity.to_data();
+            let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+            for col in columns.iter() {
+                if !col.exist || col.field_type.ne(&FieldType::TableField) {
+                    continue;
+                }
+                let col_name = &col.name;
+                let value = data.get_value(&col_name);
+                match value {
+                    Some(value) => values.push(value.clone()),
+                    None => values.push(Value::Nil),
+                }
             }
-            let col_name = &col.name;
-            let value = data.get_value(&col.alias.to_owned().unwrap_or(col_name.to_owned()));
-            match value {
-                Some(value) => values.push(value.clone()),
-                None => values.push(Value::Nil),
-            }
+            let v = values.iter().collect::<Vec<_>>();
+            self.0.execute_result(&sql, &v)?;
+        } else {
+            self.0.execute_result(&sql, &[])?;
         }
-        let bvalues: Vec<&Value> = values.iter().collect();
-        self.0.execute_result(&sql, &bvalues)?;
         Ok(())
     }
 
@@ -653,13 +691,13 @@ impl AkitaMapper for AkitaEntityManager{
             FieldType::TableField => false,
         }) {
             let set_fields = columns
-            .iter().filter(|col| col.exist)
+            .iter().filter(|col| col.exist && col.field_type == FieldType::TableField)
             .enumerate()
             .map(|(x, col)| {
                 #[allow(unreachable_patterns)]
                 match self.0 {
                     // #[cfg(feature = "with-mysql")]
-                    DatabasePlatform::Mysql(_) => format!("{} = ?", &col.name),
+                    DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
                     _ => format!("${}", x + 1),
                 }
             })
@@ -668,11 +706,11 @@ impl AkitaMapper for AkitaEntityManager{
             let sql = format!("update {} set {} where {} = ?", &table.name, &set_fields, &field.name);
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
             for col in columns.iter() {
-                if !col.exist {
+                if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
                 let col_name = &col.name;
-                let value = data.get_value(&col.alias.to_owned().unwrap_or(col_name.to_owned()));
+                let value = data.get_value(col_name);
                 match value {
                     Some(value) => values.push(value.clone()),
                     None => values.push(Value::Nil),
@@ -735,7 +773,7 @@ impl AkitaMapper for AkitaEntityManager{
         let return_columns = R::fields();
         let return_column_names = return_columns
             .iter()
-            .map(|rc| rc.name.to_owned())
+            .map(|rc| format!("`{}`", rc.name))
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -796,6 +834,17 @@ impl AkitaMapper for AkitaEntityManager{
             },
             Err(e) => Err(e),
         }
+    }
+
+    fn execute_drop<'a, S: Into<String>>(
+        &mut self,
+        sql: S,
+        params: &[&'a dyn ToValue],
+    ) -> Result<(), AkitaError>
+    {
+        let sql: String = sql.into();
+        let _result: Result<Vec<()>, AkitaError> = self.execute_result(&sql, &params);
+        Ok(())
     }
 
     fn execute_result_opt<'a, R, S: Into<String>>(

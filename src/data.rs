@@ -160,11 +160,17 @@ macro_rules! impl_to_segment {
         impl FromAkita for $ty {
             fn from_data(data: &AkitaData) -> Self {
                 let (_k,v) = data.0.first_key_value().unwrap();
-                FromValue::from_value(v).unwrap()
+                FromValue::from_value(v).unwrap_or_default()
             }
         }
 
     };
+}
+
+impl FromAkita for () {
+    fn from_data(_data: &AkitaData) -> Self {
+        ()
+    }
 }
 
 impl_to_segment!(i8);
