@@ -69,8 +69,8 @@ pub trait Wrapper {
     fn not_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![ SqlKeyword::NOT.into() ]) }
     fn and_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::AND.into()]) }
     fn or_condition(&mut self, condition: bool) -> &mut Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
-    fn apply<S: Into<String>>(&mut self, apply_sql: S) -> &mut Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), apply_sql.into().into()]) }
-    fn apply_condition<S: Into<String>>(&mut self, condition: bool, apply_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), apply_sql.into().into()]) }
+    fn apply<S: Into<String>>(&mut self, apply_sql: S) -> &mut Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
+    fn apply_condition<S: Into<String>>(&mut self, condition: bool, apply_sql: S) -> &mut Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
     fn is_null<S: Into<String>>(&mut self, column: S) -> &mut Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
     fn is_null_condition<S: Into<String>>(&mut self, condition: bool, column: S) -> &mut Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
     fn is_not_null<S: Into<String>>(&mut self, column: S) -> &mut Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NOT_NULL.into() ]) }
@@ -117,6 +117,8 @@ pub struct UpdateWrapper{
     pub param_name_seq: AtomicI32,
     /// SQL set字段
     pub sql_set: Vec<String>,
+    /// set 字段
+    pub fields_set: Vec<(String, Segment)>,
     /// SQL查询字段
     pub sql_select: Option<String>,
     /// SQL注释
@@ -132,7 +134,7 @@ pub struct UpdateWrapper{
 impl UpdateWrapper {
 
     pub fn new() -> Self {
-        Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: AtomicI32::new(0), sql_first: None, last_sql: None, sql_comment: None, sql_select: None }
+        Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: AtomicI32::new(0), sql_first: None, last_sql: None, sql_comment: None, sql_select: None, fields_set: Vec::new() }
     }
 
     pub fn set<S: Into<String>, U: ToSegment>(&mut self, column: S, val: U) -> &mut Self {
@@ -141,7 +143,9 @@ impl UpdateWrapper {
 
     pub fn set_condition<S: Into<String>, U: ToSegment>(&mut self,condition: bool, column: S, val: U) -> &mut Self {
         if condition {
-            self.sql_set.push(column.into() + EQUALS + val.to_segment().get_sql_segment().as_str());
+            let col: String = column.into();
+            self.sql_set.push(col.to_owned() + EQUALS + val.to_segment().get_sql_segment().as_str());
+            self.fields_set.push((col.to_owned(), val.to_segment()));
         }
         self
     }

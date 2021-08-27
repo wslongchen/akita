@@ -142,6 +142,12 @@ pub trait AkitaMapper {
     where
         R: FromAkita;
 
+    fn execute_drop<'a, S: Into<String>>(
+        &mut self,
+        sql: S,
+        params: &[&'a dyn ToValue],
+    ) -> Result<(), AkitaError>;
+
     fn execute_first<'a, R, S: Into<String>>(
         &mut self,
         sql: S,

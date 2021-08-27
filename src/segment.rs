@@ -29,6 +29,11 @@ pub enum Segment{
     Nil,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum AkitaKeyword{
+    SqlExtenssion(String),
+}
+
 #[derive(Clone, Debug)]
 pub enum SegmentType{
     GroupBy,
@@ -189,6 +194,15 @@ impl ToSegment for String
 {
     fn to_segment(&self) -> Segment {
         Segment::Extenssion(format!("'{}'", self))
+    }
+}
+
+impl ToSegment for AkitaKeyword
+{
+    fn to_segment(&self) -> Segment {
+        match self {
+            AkitaKeyword::SqlExtenssion(ref ext) => Segment::Extenssion(ext.to_string()),
+        }
     }
 }
 

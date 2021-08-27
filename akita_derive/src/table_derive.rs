@@ -403,7 +403,7 @@ pub fn get_field_type(ty: &Type) -> Option<String> {
 }
 
 /// Filter contract attribute like #[table(foo = bar)]
-fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&str) -> Option<String> {
+pub fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&str) -> Option<String> {
     let res = attrs.iter().filter_map(|attr| {
         if attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter {
             match attr.parse_meta() {
@@ -444,7 +444,7 @@ fn get_contract_meta_item_value(attrs: &Vec<syn::Attribute>, filter: &str, key:&
 }
 
 #[allow(unused)]
-fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
+pub fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
     attrs.iter().find(|attr| attr.path.segments.len() == 1 && attr.path.segments[0].ident == filter).is_some()
 }
 
