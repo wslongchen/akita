@@ -12,9 +12,7 @@ pub trait Database {
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError>;
 
-    fn execute_result(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, AkitaError>;
-
-    fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError>;
+    fn execute_result(&mut self, sql: &str, param: &[&Value], log: Option<LogLevel>) -> Result<Rows, AkitaError>;
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError>;
 

@@ -20,72 +20,28 @@ pub struct MysqlDatabase(pub r2d2::PooledConnection<MysqlConnectionManager>);
 /// TODO: 补全MYSQL数据操作
 impl Database for MysqlDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("BEGIN", &[])?;
+        self.execute_result("BEGIN", &[], None)?;
         Ok(())
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT", &[])?;
+        self.execute_result("COMMIT", &[], None)?;
         Ok(())
     }
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK", &[])?;
+        self.execute_result("ROLLBACK", &[], None)?;
         Ok(())
     }
-    fn execute_result_log(&mut self, sql: &str, param: &[&Value], log_level: &LogLevel) -> Result<Rows, AkitaError> {
-        match log_level {
-            LogLevel::Debug => debug!("[sql]: {}", &sql),
-            LogLevel::Info => info!("[sql]: {}", &sql),
-            LogLevel::Error => error!("[sql]: {}", &sql),
-        }
-        fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
-            let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
-
-            let fields = rows
-                .columns().as_ref()
-                .iter()
-                .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
-                .collect::<Result<Vec<String>, _>>()
-                .map_err(|e| AkitaError::from(e))?;
-
-            let mut records = Rows::new(fields);
-            // while rows.next().is_some() {
-            //     for r in rows.by_ref() {
-            //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
-            //     }
-            // }
-            for r in rows.by_ref() {
-                records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
+    
+    fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value], log: Option<LogLevel>) -> Result<Rows, AkitaError> {
+        if let Some(log_level) = log {
+            match log_level {
+                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
+                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
+                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
             }
-            Ok(records)
         }
-
-        if param.is_empty() {
-            let rows = self
-                .0
-                .query_iter(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-
-            collect(rows)
-        } else {
-            let stmt = self
-                .0
-                .prep(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-            let params: mysql::Params = param
-                .iter()
-                .map(|v| MyValue(v))
-                .map(|v| mysql::prelude::ToValue::to_value(&v))
-                .collect::<Vec<_>>()
-                .into();
-            let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-            
-            collect(rows)
-        }
-    }
-
-    fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
             let fields = rows
@@ -160,6 +116,7 @@ impl Database for MysqlDatabase {
                 &schema, &schema,
                 &table_name,
             ],
+            None
         )?
         .iter()
         .map(|data| FromAkita::from_data(&data))
@@ -189,7 +146,7 @@ impl Database for MysqlDatabase {
                        CAST(COLUMN_TYPE as CHAR(255)) AS type_
                   FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"#,
-                &[table_schema, &table_name],
+                &[table_schema, &table_name],None,
             )?
             .iter()
             .map(|data| FromAkita::from_data(&data))
@@ -291,7 +248,7 @@ impl Database for MysqlDatabase {
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
-            self.execute_result(&sql, &[]).map(|rows| {
+            self.execute_result(&sql, &[], None).map(|rows| {
                 rows.iter()
                     .map(|row| {
                         row.get_opt("name")
@@ -320,7 +277,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
     }
     let sql = "SELECT TABLE_NAME as table_name FROM information_schema.tables WHERE table_type= ?";
     let result: Vec<TableNameSimple> = db
-        .execute_result(sql, &[&kind.to_value()])?
+        .execute_result(sql, &[&kind.to_value()],None)?
         .iter()
         .map(|row| TableNameSimple {
             table_name: row.get("table_name").expect("must have a table name"),

@@ -1,6 +1,8 @@
 //! 
 //! SQL Segments.
 //! 
+use chrono::{NaiveDate, NaiveDateTime};
+
 use crate::comm::*;
 
 pub trait SqlSegment {
@@ -20,6 +22,8 @@ pub enum Segment{
     Usize(usize),
     Isize(isize),
     Boolean(bool),
+    DateTime(NaiveDateTime),
+    Date(NaiveDate),
     U8(u8),
     Int8(i8),
     U32(u32),
@@ -124,6 +128,8 @@ impl Segment {
             Segment::Isize(val) => format!("{}", val),
             Segment::Boolean(val) => format!("{}", if *val { 1 } else { 0 }),
             Segment::U16(val) => format!("{}", val),
+            Segment::DateTime(val) => format!("'{}'", val.format("%Y-%m-%d %H:%M:%S").to_string()),
+            Segment::Date(val) => format!("'{}'", val.format("%Y-%m-%d").to_string()),
         }
     }
 }
@@ -194,6 +200,19 @@ impl ToSegment for String
 {
     fn to_segment(&self) -> Segment {
         Segment::Extenssion(format!("'{}'", self))
+    }
+}
+
+impl ToSegment for NaiveDateTime
+{
+    fn to_segment(&self) -> Segment {
+        Segment::DateTime(self.to_owned())
+    }
+}
+impl ToSegment for NaiveDate
+{
+    fn to_segment(&self) -> Segment {
+        Segment::Date(self.to_owned())
     }
 }
 
