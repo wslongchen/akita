@@ -209,7 +209,7 @@ impl AkitaManager {
         sql: &str,
         params: &[&Value],
     ) -> Result<Rows, AkitaError> {
-        let rows = self.0.execute_result(sql, params)?;
+        let rows = self.0.execute_result(sql, params,self.1.log_level.to_owned())?;
         Ok(rows)
     }
 
@@ -218,7 +218,7 @@ impl AkitaManager {
         sql: &str,
         params: &[&Value],
     ) -> Result<Vec<AkitaData>, AkitaError> {
-        let rows = self.0.execute_result(sql, params)?;
+        let rows = self.0.execute_result(sql, params,self.1.log_level.to_owned())?;
         let datas: Vec<AkitaData> = rows.iter().collect();
         Ok(datas)
     }
@@ -270,7 +270,7 @@ impl AkitaEntityManager{
 
     pub fn set_session_user(&mut self, username: &str) -> Result<(), AkitaError> {
         let sql = format!("SET SESSION ROLE '{}'", username);
-        self.0.execute_result(&sql, &[])?;
+        self.0.execute_result(&sql, &[],self.1.log_level.to_owned())?;
         Ok(())
     }
 
@@ -462,7 +462,7 @@ impl AkitaMapper for AkitaEntityManager{
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(),where_condition);
-        let rows = self.0.execute_result(&sql, &[])?;
+        let rows = self.0.execute_result(&sql, &[],self.1.log_level.to_owned())?;
         let mut entities = vec![];
         for data in rows.iter() {
             let entity = T::from_data(&data);
@@ -496,7 +496,7 @@ impl AkitaMapper for AkitaEntityManager{
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
-        let rows = self.0.execute_result(&sql, &[])?;
+        let rows = self.0.execute_result(&sql, &[],self.1.log_level.to_owned())?;
         Ok(rows.iter().next().map(|data| T::from_data(&data)))
     }
 
@@ -521,8 +521,8 @@ impl AkitaMapper for AkitaEntityManager{
             FieldType::TableId(_) => true,
             FieldType::TableField => false,
         }) {
-            let sql = format!("SELECT {} FROM {} WHERE {} = {} limit 1", &enumerated_columns, &table.complete_name(), &field.name, &id.to_value());
-            let rows = self.0.execute_result(&sql, &[])?;
+            let sql = format!("SELECT {} FROM {} WHERE `{}` = ? limit 1", &enumerated_columns, &table.complete_name(), &field.name);
+            let rows = self.0.execute_result(&sql, &[&id.to_value()],self.1.log_level.to_owned())?;
             Ok(rows.iter().next().map(|data| T::from_data(&data)))
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
@@ -562,7 +562,7 @@ impl AkitaMapper for AkitaEntityManager{
         let mut page = IPage::new(page, size ,count.count as usize, vec![]);
         if page.total > 0 {
             let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &table.complete_name(), where_condition,page.offset(),  page.size);
-            let rows = self.0.execute_result(&sql, &[])?;
+            let rows = self.0.execute_result(&sql, &[],self.1.log_level.to_owned())?;
             let mut entities = vec![];
             for dao in rows.iter() {
                 let entity = T::from_data(&dao);
@@ -609,7 +609,7 @@ impl AkitaMapper for AkitaEntityManager{
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!("delete from {} {}", &table.complete_name(), where_condition);
-        let _ = self.0.execute_result(&sql, &[])?;
+        let _ = self.0.execute_result(&sql, &[], self.1.log_level.to_owned())?;
         Ok(())
     }
 
@@ -626,13 +626,8 @@ impl AkitaMapper for AkitaEntityManager{
             FieldType::TableId(_) => true,
             FieldType::TableField => false,
         }) {
-            let sql = format!("delete from {} where {} = {}", &table.name, &field.name, &id.to_value());
-            if let Some(log) = &self.1.log_level {
-                let _ = self.0.execute_result_log(&sql, &[], log)?;
-            } else {
-                let _ = self.0.execute_result(&sql, &[])?;
-            }
-            
+            let sql = format!("delete from {} where `{}` = ?", &table.name, &field.name);
+            let _ = self.0.execute_result(&sql, &[&id.to_value()],self.1.log_level.to_owned())?;
             Ok(())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
@@ -668,9 +663,9 @@ impl AkitaMapper for AkitaEntityManager{
                 }
             }
             let v = values.iter().collect::<Vec<_>>();
-            self.0.execute_result(&sql, &v)?;
+            self.0.execute_result(&sql, &v,self.1.log_level.to_owned())?;
         } else {
-            self.0.execute_result(&sql, &[])?;
+            self.0.execute_result(&sql, &[],self.1.log_level.to_owned())?;
         }
         Ok(())
     }
@@ -703,7 +698,7 @@ impl AkitaMapper for AkitaEntityManager{
             })
             .collect::<Vec<_>>()
             .join(", ");
-            let sql = format!("update {} set {} where {} = ?", &table.name, &set_fields, &field.name);
+            let sql = format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.name);
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
@@ -718,12 +713,7 @@ impl AkitaMapper for AkitaEntityManager{
             }
             values.push(id.to_value());
             let bvalues: Vec<&Value> = values.iter().collect();
-            if let Some(log) = &self.1.log_level {
-                let _ = self.0.execute_result_log(&sql, &bvalues, log)?;
-            } else {
-                let _ = self.0.execute_result(&sql, &bvalues)?;
-            }
-            
+            let _ = self.0.execute_result(&sql, &bvalues,self.1.log_level.to_owned())?;
             Ok(())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
@@ -758,8 +748,8 @@ impl AkitaMapper for AkitaEntityManager{
             }
         }
         let bvalues: Vec<&Value> = values.iter().collect();
-        self.0.execute_result(&sql, &bvalues)?;
-        let rows = self.0.execute_result("SELECT LAST_INSERT_ID();", &[])?;
+        self.0.execute_result(&sql, &bvalues, self.1.log_level.to_owned())?;
+        let rows = self.0.execute_result("SELECT LAST_INSERT_ID();", &[], self.1.log_level.to_owned())?;
         let count = rows.iter().next().map(|data| i64::from_data(&data)).unwrap_or_default();
         Ok(count as usize)
     }
@@ -812,7 +802,7 @@ impl AkitaMapper for AkitaEntityManager{
     {
         let values: Vec<Value> = params.iter().map(|p| p.to_value()).collect();
         let bvalues: Vec<&Value> = values.iter().collect();
-        let rows = self.0.execute_result(sql, &bvalues)?;
+        let rows = self.0.execute_result(sql, &bvalues, self.1.log_level.to_owned())?;
         Ok(rows.iter().map(|data| R::from_data(&data)).collect::<Vec<R>>())
     }
 
