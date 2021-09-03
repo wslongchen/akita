@@ -138,7 +138,6 @@ impl<'a> Iterator for Iter<'a> {
         } else {
             None
         }
-       
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) { self.iter.size_hint() }
@@ -159,8 +158,11 @@ macro_rules! impl_to_segment {
 
         impl FromAkita for $ty {
             fn from_data(data: &AkitaData) -> Self {
-                let (_k,v) = data.0.first_key_value().unwrap();
-                FromValue::from_value(v).unwrap_or_default()
+                if let Some(value) = data.0.values().next() {
+                    FromValue::from_value(value).unwrap_or_default()
+                } else {
+                    FromValue::from_value(&Value::Nil).unwrap_or_default()
+                }
             }
         }
 

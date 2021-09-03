@@ -9,6 +9,10 @@ pub trait SqlSegment {
     fn get_sql_segment(&self) -> String;
 }
 
+/// Segment are generally not used directly unless you are using the
+/// more low level functionality in the library.  For the most part
+/// this is hidden with the help of the `ToSegment` trait.
+///
 #[derive(Clone, Debug, PartialEq)]
 pub enum Segment{
     Keyword(SqlKeyword),
@@ -33,6 +37,10 @@ pub enum Segment{
     Nil,
 }
 
+/// AkitaKeyword is mainly used to distinguish 
+/// whether it is the type of database function or other keywords
+/// If you need to use some system functions or keywords, 
+/// you can distinguish them from ordinary strings
 #[derive(Clone, Debug, PartialEq)]
 pub enum AkitaKeyword{
     SqlExtenssion(String),
@@ -349,7 +357,10 @@ impl SegmentList {
             SegmentType::GroupBy => { list.remove(0); true },
             SegmentType::Having => { if !list.is_empty() { list.push(SqlKeyword::AND.into()); } list.remove(0); true },
             SegmentType::OrderBy => { 
-                list.remove(0); 
+                list.remove(0);
+                if !self.segments.is_empty() {
+                    list.insert(0, Segment::Extenssion(COMMA.to_string()));
+                }
                 // let sql = list.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE);
                 // list.clear(); 
                 // list.push(Segment::Extenssion(sql));
