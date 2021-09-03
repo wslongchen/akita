@@ -1,6 +1,6 @@
 [package]
 name = "akita"
-version = "0.2.8"
+version = "0.2.9"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
 description = "Akita.Mini Database Helper For MySQL."

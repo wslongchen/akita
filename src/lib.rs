@@ -100,7 +100,6 @@
 //! 
 //! 
 //! 
-#![feature(map_first_last)]
 #[allow(unused)]
 mod comm;
 mod wrapper;
