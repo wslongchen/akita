@@ -49,7 +49,7 @@ pub trait BaseMapper{
     fn find_by_id<I: ToValue,M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita;
 
     /// Update Data With Table's Ident.
-    fn update_by_id<I: ToValue,M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita ;
+    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita ;
 
     /// Delete Data With Wrapper.
     fn delete<W: Wrapper,M: AkitaMapper>(&self, wrapper: &mut W, entity_manager: &mut M) -> Result<(), AkitaError>where Self::Item : GetFields + GetTableName + ToAkita ;
@@ -112,9 +112,8 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToAkita;
 
     /// Update the records by id.
-    fn update_by_id<T, I>(&mut self, entity: &T, id: I) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        I: ToValue,
         T: GetTableName + GetFields + ToAkita;
 
     #[allow(unused_variables)]
