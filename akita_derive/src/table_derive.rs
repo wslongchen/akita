@@ -449,7 +449,7 @@ pub fn has_contract_meta(attrs: &Vec<syn::Attribute>, filter: &str) -> bool {
 }
 
 #[allow(unused)]
-fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2 {
+pub fn get_type_default_value(ty: &Type, ident: &Ident, exist: bool) -> TokenStream2 {
     let ident_name = ident.to_string();
     let ori_ty = get_field_type(ty).unwrap_or_default();
     let mut ft = String::default();
@@ -537,6 +537,31 @@ pub fn get_field_value(ty: &Type, ident: &Ident) -> TokenStream2 {
             "NaiveDateTime" => quote!(data.insert(stringify!(#ident),&self.#ident.format("%Y-%m-%d %H:%M:%S").to_string());),
             "bool" => quote!(data.insert(stringify!(#ident),&self.#ident);),
             _ => quote!(data.insert(stringify!(#ident),&self.#ident);),
+        }
+    }
+}
+
+#[allow(unused)]
+pub fn get_field_default_value(ty: &Type, ident: &Ident) -> TokenStream2 {
+    let ident_name = ident.to_string();
+    let ori_ty = get_field_type(ty).unwrap_or_default();
+    let mut ft = String::default();
+    if let Type::Path(r#path) = ty {
+        ft = r#path.path.segments[0].ident.to_string();
+    }
+    if ft.eq("Option") {
+        quote!(None)
+    } else {
+        match ori_ty.as_str() {
+            "f64" | "f32" => quote!(0.0),
+            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => quote!(0),
+            "bool" => quote!(false),
+            "str" => quote!(""),
+            "String" => quote!(String::default()),
+            "NaiveDate"  => quote!(chrono::Local::now().naive_local().date()),
+            "NaiveDateTime" => quote!(chrono::Local::now().naive_local()),
+            "Vec" => quote!(Vec::new()),
+            _ => quote!(None)
         }
     }
 }
@@ -749,9 +774,9 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
                 entity_manager.list(wrapper)
             }
 
-            fn update_by_id<I: akita::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita {
+            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita {
                 let data: Self::Item = self.clone();
-                entity_manager.update_by_id::<Self::Item, I>(&data, id)
+                entity_manager.update_by_id::<Self::Item>(&data)
             }
 
             fn delete<W: akita::Wrapper, M: akita::AkitaMapper>(&self, wrapper: &mut W, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita {

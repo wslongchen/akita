@@ -28,7 +28,6 @@ pub struct User {
     pub url_token: String,
     pub data: Vec<String>,
     pub user_type: String,
-    pub inner_tuple: (String),
 }
 
 impl Default for User {
@@ -47,7 +46,6 @@ impl Default for User {
             status: 0,
             level: 1,
             data: vec![],
-            inner_tuple: ("".to_string()),
         }
     }
 }

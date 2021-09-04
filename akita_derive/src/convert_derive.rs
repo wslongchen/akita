@@ -2,7 +2,7 @@ use proc_macro::{TokenStream};
 use quote::quote;
 use syn::{self, Attribute, Data, DeriveInput, Type};
 
-use crate::table_derive::{get_contract_meta_item_value, has_contract_meta};
+use crate::table_derive::{get_contract_meta_item_value, get_field_default_value, has_contract_meta};
 
 pub fn impl_from_akita(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
@@ -26,12 +26,14 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
 
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
-        .map(|&(field, _ty, attrs)| {
+        .map(|&(field, ty, attrs)| {
             let identify = has_contract_meta(attrs, "table_id");
-            let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
-            quote!( #field: data.get(#field_name).unwrap(),)
+            let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string()); 
+            let default_value = get_field_default_value(ty, field);
+            quote!( #field: match data.get(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
         })
         .collect();
+    
     quote!(
         impl akita::FromAkita for #name {
             

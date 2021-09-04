@@ -112,11 +112,10 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     /// Update the records by id.
-    fn update_by_id<T, I>(&mut self, entity: &T, id: I) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        I: ToValue,
         T: GetTableName + GetFields + ToAkita {
-            self.conn.update_by_id(entity, id)
+            self.conn.update_by_id(entity)
         
     }
 
@@ -344,7 +343,7 @@ impl AkitaEntityManager{
         sql += &format!(
             "({})\n",
             columns
-                .iter()
+                .iter().filter(|f| f.exist)
                 .map(|c| format!("`{}`", c.name))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -357,7 +356,7 @@ impl AkitaEntityManager{
                 format!(
                     "\n\t({})",
                     columns
-                        .iter()
+                        .iter().filter(|f| f.exist)
                         .enumerate()
                         .map(|(x, _)| {
                             #[allow(unreachable_patterns)]
@@ -449,7 +448,7 @@ impl AkitaMapper for AkitaEntityManager{
         }
         let columns = T::fields();
         let enumerated_columns = columns
-            .iter()
+            .iter().filter(|f| f.exist)
             .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
@@ -483,7 +482,7 @@ impl AkitaMapper for AkitaEntityManager{
         }
         let columns = T::fields();
         let enumerated_columns = columns
-            .iter()
+            .iter().filter(|f| f.exist)
             .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
@@ -512,7 +511,7 @@ impl AkitaMapper for AkitaEntityManager{
         }
         let columns = T::fields();
         let enumerated_columns = columns
-            .iter()
+            .iter().filter(|f| f.exist)
             .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
@@ -545,7 +544,7 @@ impl AkitaMapper for AkitaEntityManager{
         }
         let columns = T::fields();
         let enumerated_columns = columns
-            .iter()
+            .iter().filter(|f| f.exist)
             .map(|c| format!("`{}`", c.name))
             .collect::<Vec<_>>()
             .join(", ");
@@ -671,9 +670,8 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     /// Update the records by id.
-    fn update_by_id<T, I>(&mut self, entity: &T, id: I) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        I: ToValue,
         T: GetTableName + GetFields + ToAkita {
         let table = T::table_name();
         if table.complete_name().is_empty() {
@@ -700,6 +698,7 @@ impl AkitaMapper for AkitaEntityManager{
             .join(", ");
             let sql = format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.name);
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+            let id = data.get_value(&field.name);
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
@@ -711,7 +710,12 @@ impl AkitaMapper for AkitaEntityManager{
                     None => values.push(Value::Nil),
                 }
             }
-            values.push(id.to_value());
+            match id {
+                Some(id) => values.push(id.clone()),
+                None => {
+                    return Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident value...", &table.name)));
+                }
+            }
             let bvalues: Vec<&Value> = values.iter().collect();
             let _ = self.0.execute_result(&sql, &bvalues,self.1.log_level.to_owned())?;
             Ok(())
@@ -762,7 +766,7 @@ impl AkitaMapper for AkitaEntityManager{
     {
         let return_columns = R::fields();
         let return_column_names = return_columns
-            .iter()
+            .iter().filter(|f| f.exist)
             .map(|rc| format!("`{}`", rc.name))
             .collect::<Vec<_>>()
             .join(", ");
@@ -960,7 +964,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
-        match em.update_by_id(&user, "id") {
+        match em.update_by_id(&user) {
             Ok(res) => {
                 println!("success update data by id!");
             }
