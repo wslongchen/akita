@@ -126,12 +126,6 @@ pub trait AkitaMapper {
     where
         T: GetTableName + GetFields + ToAkita;
 
-    /// this is soly for use with sqlite since sqlite doesn't support bulk insert
-    fn save_batch_result<T, R>(&mut self, entities: &[&T]) -> Result<Vec<R>, AkitaError>
-    where
-        T: GetTableName + GetFields + ToAkita,
-        R: FromAkita + GetFields;
-
     #[allow(clippy::redundant_closure)]
     fn execute_result<'a, R>(
         &mut self,

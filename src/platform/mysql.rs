@@ -1,12 +1,14 @@
 //! 
 //! MySQL modules.
 //! 
+use log::{debug, error, info};
 use mysql::prelude::Protocol;
 use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
 
+use crate::AkitaConfig;
 use crate::database::Database;
 use crate::pool::LogLevel;
 use crate::types::SqlType;
@@ -15,27 +17,27 @@ use crate::{self as akita, AkitaError, information::{ColumnDef, FieldName, Colum
 use crate::data::{FromAkita, Rows};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
-pub struct MysqlDatabase(pub r2d2::PooledConnection<MysqlConnectionManager>);
+pub struct MysqlDatabase(pub r2d2::PooledConnection<MysqlConnectionManager>, pub AkitaConfig);
 
 /// TODO: 补全MYSQL数据操作
 impl Database for MysqlDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("BEGIN", &[], None)?;
+        self.execute_result("BEGIN", &[])?;
         Ok(())
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT", &[], None)?;
+        self.execute_result("COMMIT", &[])?;
         Ok(())
     }
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK", &[], None)?;
+        self.execute_result("ROLLBACK", &[])?;
         Ok(())
     }
     
-    fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value], log: Option<LogLevel>) -> Result<Rows, AkitaError> {
-        if let Some(log_level) = log {
+    fn execute_result(&mut self, sql: &str, param: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
+        if let Some(log_level) = &self.1.log_level() {
             match log_level {
                 LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
                 LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
@@ -77,7 +79,7 @@ impl Database for MysqlDatabase {
                 .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
             let params: mysql::Params = param
                 .iter()
-                .map(|v| MyValue(v))
+                .map(|v| MySQLValue(v))
                 .map(|v| mysql::prelude::ToValue::to_value(&v))
                 .collect::<Vec<_>>()
                 .into();
@@ -116,7 +118,6 @@ impl Database for MysqlDatabase {
                 &schema, &schema,
                 &table_name,
             ],
-            None
         )?
         .iter()
         .map(|data| FromAkita::from_data(&data))
@@ -146,7 +147,7 @@ impl Database for MysqlDatabase {
                        CAST(COLUMN_TYPE as CHAR(255)) AS type_
                   FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"#,
-                &[table_schema, &table_name],None,
+                &[table_schema, &table_name],
             )?
             .iter()
             .map(|data| FromAkita::from_data(&data))
@@ -248,7 +249,7 @@ impl Database for MysqlDatabase {
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
-            self.execute_result(&sql, &[], None).map(|rows| {
+            self.execute_result(&sql, &[]).map(|rows| {
                 rows.iter()
                     .map(|row| {
                         row.get_opt("name")
@@ -277,7 +278,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
     }
     let sql = "SELECT TABLE_NAME as table_name FROM information_schema.tables WHERE table_type= ?";
     let result: Vec<TableNameSimple> = db
-        .execute_result(sql, &[&kind.to_value()],None)?
+        .execute_result(sql, &[&kind.to_value()])?
         .iter()
         .map(|row| TableNameSimple {
             table_name: row.get("table_name").expect("must have a table name"),
@@ -292,10 +293,10 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
 }
 
 #[derive(Debug)]
-pub struct MyValue<'a>(&'a Value);
+pub struct MySQLValue<'a>(&'a Value);
 
 
-impl mysql::prelude::ToValue for MyValue<'_> {
+impl mysql::prelude::ToValue for MySQLValue<'_> {
     fn to_value(&self) -> mysql::Value {
         match self.0 {
             Value::Bool(ref v) => v.into(),
@@ -318,7 +319,7 @@ impl mysql::prelude::ToValue for MyValue<'_> {
             Value::Nil => mysql::Value::NULL,
             Value::Array(_) => unimplemented!("unsupported type"),
             Value::SerdeJson(ref v) => v.into(),
-            // Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
+            Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
         }
     }
@@ -344,12 +345,12 @@ fn into_record(
             }
 
             match column_type {
-                ColumnType::MYSQL_TYPE_DECIMAL | ColumnType::MYSQL_TYPE_NEWDECIMAL => fvo(cell).map(Value::Float),
-                    // .and_then(|v: Vec<u8>| {
-                    //     bigdecimal::BigDecimal::parse_bytes(&v, 10)
-                    //         .ok_or(mysql::FromValueError(mysql::Value::Bytes(v)))
-                    // })
-                    // .map(Value::BigDecimal),
+                ColumnType::MYSQL_TYPE_DECIMAL | ColumnType::MYSQL_TYPE_NEWDECIMAL => fvo(cell)
+                    .and_then(|v: Vec<u8>| {
+                        bigdecimal::BigDecimal::parse_bytes(&v, 10)
+                            .ok_or(mysql::FromValueError(mysql::Value::Bytes(v)))
+                    })
+                    .map(Value::BigDecimal),
                 ColumnType::MYSQL_TYPE_TINY => fvo(cell).map(Value::Tinyint),
                 ColumnType::MYSQL_TYPE_SHORT | ColumnType::MYSQL_TYPE_YEAR => {
                     fvo(cell).map(Value::Smallint)
@@ -413,12 +414,14 @@ pub fn from_long_row<T: FromRowExt + Default>(row: Row) -> T {
 #[derive(Clone, Debug)]
 pub struct MysqlConnectionManager {
     params: Opts,
+    cfg: AkitaConfig,
 }
 
 impl MysqlConnectionManager {
-    pub fn new(params: OptsBuilder) -> MysqlConnectionManager {
+    pub fn new(params: OptsBuilder, cfg: AkitaConfig) -> MysqlConnectionManager {
         MysqlConnectionManager {
             params: Opts::from(params),
+            cfg,
         }
     }
 }
@@ -442,24 +445,23 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
 
 ///
 /// 创建连接池
-/// database_url 连接地址
-/// max_size 最大连接数量
+/// cfg 配置信息
 /// 
-pub fn init_pool<S: Into<String>>(database_url: S, max_size: u32) -> Result<R2d2Pool, AkitaError> {
-    let database_url: String = database_url.into();
-    test_connection(&database_url)?;
+pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
+    let database_url = &cfg.url();
+    test_connection(&database_url, cfg)?;
     let opts = Opts::from_url(&database_url)?;
     let builder = OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder);
-    let pool = Pool::builder().max_size(max_size).build(manager)?;
+    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
+    let pool = Pool::builder().connection_timeout(cfg.connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size()).build(manager)?;
     Ok(pool)
 }
 
 /// 测试连接池连接
-fn test_connection(database_url: &str) -> Result<(), AkitaError> {
+fn test_connection(database_url: &str, cfg: &AkitaConfig) -> Result<(), AkitaError> {
     let opts = mysql::Opts::from_url(&database_url)?;
     let builder = mysql::OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder);
+    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
     let mut conn = manager.connect()?;
     manager.is_valid(&mut conn)?;
     Ok(())

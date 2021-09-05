@@ -2,7 +2,15 @@ use std::{convert::TryFrom, ops::Deref};
 
 use url::Url;
 
-use crate::{AkitaError, data::Rows, information::{DatabaseName, TableDef, TableName,}, mysql::MysqlDatabase, pool::LogLevel, value::Value};
+cfg_if! {if #[cfg(feature = "akita-sqlite")]{
+    use crate::platform::sqlite::SqliteDatabase;
+}}
+
+cfg_if! {if #[cfg(feature = "akita-mysql")]{
+    use crate::platform::mysql::MysqlDatabase;
+}}
+
+use crate::{AkitaError, cfg_if, data::Rows, information::{DatabaseName, TableDef, TableName}, value::Value};
 
 
 pub trait Database {
@@ -12,7 +20,7 @@ pub trait Database {
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError>;
 
-    fn execute_result(&mut self, sql: &str, param: &[&Value], log: Option<LogLevel>) -> Result<Rows, AkitaError>;
+    fn execute_result(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, AkitaError>;
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError>;
 
@@ -33,7 +41,10 @@ pub trait Database {
 
 
 pub enum DatabasePlatform {
+    #[cfg(feature = "akita-mysql")]
     Mysql(Box<MysqlDatabase>),
+    #[cfg(feature = "akita-sqlite")]
+    Sqlite(Box<SqliteDatabase>),
 }
 
 impl Deref for DatabasePlatform {
@@ -41,7 +52,10 @@ impl Deref for DatabasePlatform {
 
     fn deref(&self) -> &Self::Target {
         match *self {
+            #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(ref mysql) => mysql.deref(),
+            #[cfg(feature = "akita-sqlite")]
+            DatabasePlatform::Sqlite(ref sqlite) => sqlite.deref(),
         }
     }
 }
@@ -49,13 +63,19 @@ impl Deref for DatabasePlatform {
 impl std::ops::DerefMut for DatabasePlatform {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match *self {
+            #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(ref mut mysql) => mysql.deref_mut(),
+            #[cfg(feature = "akita-sqlite")]
+            DatabasePlatform::Sqlite(ref mut sqlite) => sqlite.deref_mut(),
         }
     }
 }
 
 pub(crate) enum Platform {
+    #[cfg(feature = "akita-mysql")]
     Mysql,
+    #[cfg(feature = "akita-sqlite")]
+    Sqlite(String),
     Unsupported(String),
 }
 
@@ -68,7 +88,16 @@ impl<'a> TryFrom<&'a str> for Platform {
             Ok(url) => {
                 let scheme = url.scheme();
                 match scheme {
+                    #[cfg(feature = "akita-mysql")]
                     "mysql" => Ok(Platform::Mysql),
+                    #[cfg(feature = "akita-sqlite")]
+                    "sqlite" => {
+                        let host = url.host_str().unwrap_or_default();
+                        let path = url.path();
+                        let path = if path == "/" { "" } else { path };
+                        let db_file = format!("{}{}", host, path);
+                        Ok(Platform::Sqlite(db_file))
+                    },
                     _ => Ok(Platform::Unsupported(scheme.to_string())),
                 }
             }

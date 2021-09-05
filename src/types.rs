@@ -139,7 +139,7 @@ impl HasType for Value {
             Value::Bigint(_) => Some(SqlType::Bigint),
             Value::Float(_) => Some(SqlType::Float),
             Value::Double(_) => Some(SqlType::Double),
-            // Value::BigDecimal(_) => Some(SqlType::Numeric),
+            Value::BigDecimal(_) => Some(SqlType::Numeric),
             Value::Blob(_) => Some(SqlType::Blob),
             Value::Char(_) => Some(SqlType::Char),
             Value::Text(_) => Some(SqlType::Text),

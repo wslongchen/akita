@@ -1,4 +1,5 @@
 use std::fmt;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use uuid::Uuid;
 
@@ -14,7 +15,7 @@ pub enum Value {
 
     Float(f32),
     Double(f64),
-    // BigDecimal(BigDecimal),
+    BigDecimal(BigDecimal),
 
     Blob(Vec<u8>),
     Char(char),
@@ -27,7 +28,7 @@ pub enum Value {
     DateTime(NaiveDateTime),
     Timestamp(DateTime<Utc>),
     Interval(Interval),
-    SerdeJson(mysql::serde_json::Value),
+    SerdeJson(serde_json::Value),
 
     // Point(Point<f64>),
 
@@ -68,14 +69,14 @@ impl fmt::Display for Value {
             Value::Bigint(v) => write!(f, "{}", v),
             Value::Float(v) => write!(f, "{}", v),
             Value::Double(v) => write!(f, "{}", v),
-            // Value::BigDecimal(v) => write!(f, "{}", v),
+            Value::BigDecimal(v) => write!(f, "{}", v),
             Value::Char(v) => write!(f, "{}", v),
             Value::Text(v) => write!(f, "{}", v),
             Value::Json(v) => write!(f, "{}", v),
             Value::Uuid(v) => write!(f, "{}", v),
             Value::Date(v) => write!(f, "{}", v),
             Value::Time(v) => write!(f, "{}", v),
-            Value::SerdeJson(v) => write!(f, "{}", mysql::serde_json::to_string(v).unwrap_or_default()),
+            Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::DateTime(v) => write!(f, "{}", v.format("%Y-%m-%d %H:%M:%S").to_string()),
             Value::Timestamp(v) => write!(f, "{}", v.to_rfc3339()),
             Value::Array(array) => array.fmt(f),
@@ -228,8 +229,8 @@ pub enum ConvertError {
     NotSupported(String, String),
 }
 
-impl From<mysql::serde_json::Error> for ConvertError {
-    fn from(err: mysql::serde_json::Error) -> Self {
+impl From<serde_json::Error> for ConvertError {
+    fn from(err: serde_json::Error) -> Self {
         ConvertError::NotSupported(err.to_string(), "SerdeJson".to_string())
     }
 }
@@ -260,7 +261,7 @@ macro_rules! impl_from_value_numeric {
                 match *v {
                     $(Value::$variant(ref v) => Ok(v.to_owned() as $ty),
                     )*
-                    // Value::BigDecimal(ref v) => Ok(v.$method().unwrap()),
+                    Value::BigDecimal(ref v) => Ok(v.$method().unwrap()),
                     _ => Err(ConvertError::NotSupported(format!("{:?}", v), $ty_name.into())),
                 }
             }
@@ -334,27 +335,27 @@ impl FromValue for bool {
     }
 }
 
-impl FromValue for mysql::serde_json::Value {
+impl FromValue for serde_json::Value {
     fn from_value(v: &Value) -> Result<Self, ConvertError> {
         match v.clone() {
-            Value::Bool(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Tinyint(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Smallint(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Int(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Bigint(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Float(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Double(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Blob(v) => mysql::serde_json::to_value(String::from_utf8_lossy(&v)).map_err(ConvertError::from),
-            Value::Char(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Text(v) => mysql::serde_json::from_str(&v).map_err(ConvertError::from),
-            Value::Json(v) => mysql::serde_json::from_str(&v).map_err(ConvertError::from),
-            Value::Uuid(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Date(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Time(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::DateTime(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
-            Value::Timestamp(v) => mysql::serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Bool(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Tinyint(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Smallint(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Int(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Bigint(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Float(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Double(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Blob(v) => serde_json::to_value(String::from_utf8_lossy(&v)).map_err(ConvertError::from),
+            Value::Char(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Text(v) => serde_json::from_str(&v).map_err(ConvertError::from),
+            Value::Json(v) => serde_json::from_str(&v).map_err(ConvertError::from),
+            Value::Uuid(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Date(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Time(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::DateTime(v) => serde_json::to_value(v).map_err(ConvertError::from),
+            Value::Timestamp(v) => serde_json::to_value(v).map_err(ConvertError::from),
             Value::SerdeJson(v) => Ok(v.clone()),
-            // Value::Array(v) => mysql::serde_json::to_value(v).map_err(|err| ConvertError::from(err)),
+            // Value::Array(v) => serde_json::to_value(v).map_err(|err| ConvertError::from(err)),
             _ => Err(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "SerdeJson".to_string(),
