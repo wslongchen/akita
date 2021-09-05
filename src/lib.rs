@@ -1,4 +1,4 @@
-// Copyright (c) 2020 rust-mysql-simple contributors
+// Copyright (c) 2020 akita contributors
 //
 // Licensed under the Apache License, Version 2.0
 // <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0> or the MIT
@@ -8,13 +8,12 @@
 
 //! This create offers:
 //!
-//! *   MySql database's helper in pure rust;
-//! *   A mini orm framework (Just MySQL)。
+//! *   MySql/SQLite database's helper in pure rust;
+//! *   A mini orm framework (Just MySQL/SQLite)。
 //!
 //! Features:
 //!
-//! *   Other Database support, i.e. support SQLite, Oracle, MSSQL...;
-//! *   support of original SQL;
+//! *   Other Database support, i.e. support Oracle, MSSQL...;
 //! *   support of named parameters for custom condition;
 //!
 //! ## Installation
@@ -26,6 +25,13 @@
 //! akita = "*"
 //! ```
 //!
+//! 
+//! ## Feature.
+//! 
+//! * ```akita-mysql``` - to use mysql
+//! * ```akita-sqlite``` - to use sqlite
+//! 
+//! 
 //! ## Annotions.
 //! * Table - to make Akita work with structs
 //! * column - to make struct field with own database.
@@ -95,7 +101,7 @@
 //!     Err(err) => {println!("err:{}", err);}
 //! }
 //! ```
-//! Update At 2021.08.04 10:21 
+//! Update At 2021.09.05 10:21 
 //! By Mr.Pan
 //! 
 //! 
@@ -106,14 +112,15 @@ mod wrapper;
 mod segment;
 mod errors;
 mod mapper;
-mod mysql;
 mod pool;
 mod information;
 mod value;
 mod types;
 mod database;
+mod platform;
 mod data;
 mod manager;
+
 
 #[doc(inline)]
 pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
@@ -151,7 +158,6 @@ extern crate akita_derive;
 #[doc(hidden)]
 pub use akita_derive::*;
 
-#[macro_use]
 extern crate log;
 
 

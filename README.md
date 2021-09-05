@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.2.10?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.2.11?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -9,13 +9,22 @@
 [Rust 1.13]: https://blog.rust-lang.org/2016/11/10/Rust-1.13.html
 [Rust 1.31]: https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018.html
 
-**Akita is a mini orm framework for MySQL.**
+**Akita - Mini orm for rust with SQLite & MySQL.**
 
+This create offers:
+* MySql database's helper in pure rust;
+* SQLite database's helper in pure rust;
+* A mini orm framework (With MySQL/SQLite)。
+
+Features:
+
+* Other Database support, i.e. support Oracle, MSSQL...;
+* support of named parameters for custom condition;
 ---
 
 You may be looking for:
 
-- [An overview of Akita (Coming Soon...)]()
+- [An overview of Akita](https://crates.io/crates/akita)
 - [Examples](https://github.com/wslongchen/akita/blob/0.2.0/example/simple.rs)
 - [API documentation](https://docs.rs/akita/0.1.6/akita/)
 - [Release notes](https://github.com/wslongchen/akita/releases)
@@ -75,6 +84,11 @@ fn main() {
 }
 ```
 
+
+## Feature.
+
+* ```akita-mysql``` - to use mysql
+* ```akita-sqlite``` - to use sqlite
 
 ## Annotions.
 

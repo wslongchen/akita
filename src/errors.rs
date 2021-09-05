@@ -11,6 +11,7 @@ pub enum AkitaError {
     MissingTable(String),
     MissingField(String),
     MySQLError(String),
+    SQLiteError(String),
     ExcuteSqlError(String, String),
     DataError(String),
     R2D2Error(String),
@@ -35,6 +36,7 @@ impl fmt::Display for AkitaError {
             AkitaError::MissingField(ref err) => err.fmt(f),
             AkitaError::RedundantField(ref err) => err.fmt(f),
             AkitaError::MySQLError(ref err) => err.fmt(f),
+            AkitaError::SQLiteError(ref err) => err.fmt(f),
             AkitaError::R2D2Error(ref err) => err.fmt(f),
         }
     }
@@ -56,6 +58,7 @@ impl std::error::Error for AkitaError {
             AkitaError::MissingField(ref err) => err,
             AkitaError::RedundantField(ref err) => err,
             AkitaError::MySQLError(ref err) => err,
+            AkitaError::SQLiteError(ref err) => err,
             AkitaError::R2D2Error(ref err) => err,
         }
     }
@@ -75,7 +78,7 @@ impl From<ParseError> for AkitaError {
     }
 }
 
-
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::Error> for AkitaError {
     fn from(err: mysql::Error) -> Self {
         AkitaError::MySQLError(err.to_string())
@@ -88,18 +91,28 @@ impl From<r2d2::Error> for AkitaError {
     }
 }
 
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::UrlError> for AkitaError {
     fn from(err: mysql::UrlError) -> Self {
         AkitaError::MySQLError(err.to_string())
     }
 }
 
+#[cfg(feature = "akita-sqlite")]
+impl From<rusqlite::Error> for AkitaError {
+    fn from(err: rusqlite::Error) -> Self {
+        AkitaError::SQLiteError(err.to_string())
+    }
+}
+
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::FromValueError> for AkitaError {
     fn from(err: mysql::FromValueError) -> Self {
         AkitaError::MySQLError(err.to_string())
     }
 }
 
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::FromRowError> for AkitaError {
     fn from(err: mysql::FromRowError) -> Self {
         AkitaError::MySQLError(err.to_string())
