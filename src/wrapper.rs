@@ -220,13 +220,13 @@ macro_rules! impl_wrapper {
             fn le_condition<S: Into<String>, U: ToSegment>(&mut self, condition: bool, column: S, val: U) -> &mut Self { self.add_condition(condition, Segment::ColumnField(column.into()), SqlKeyword::LE, val.into()) }
             fn first<S: Into<String>>(&mut self, sql: S) -> &mut Self { self.first_condition(true, sql) }
             fn last<S: Into<String>>(&mut self, sql: S) -> &mut Self { self.last_condition(true, sql) }
-            fn first_condition<S: Into<String>>(&mut self, condition: bool, sql: S) -> &mut Self { if condition { self.last_sql = format!("{}{}", SPACE , sql.into()).into(); } self }
-            fn last_condition<S: Into<String>>(&mut self, condition: bool, sql: S) -> &mut Self { if condition { self.sql_first = format!("{}{}", SPACE , sql.into()).into(); } self }
+            fn first_condition<S: Into<String>>(&mut self, condition: bool, sql: S) -> &mut Self { if condition { self.sql_first = format!("{}{}", sql.into(), SPACE ).into(); } self }
+            fn last_condition<S: Into<String>>(&mut self, condition: bool, sql: S) -> &mut Self { if condition { self.last_sql = format!("{}{}", SPACE , sql.into()).into(); } self }
             fn inside<S: Into<String>, U: ToSegment + Clone>(&mut self, column: S, vals: Vec<U>) -> &mut Self { self.in_condition(true, column, vals) }
             fn in_condition<S: Into<String>, U: ToSegment + Clone>(&mut self, condition: bool, column: S, vals: Vec<U>) -> &mut Self { let segs: Vec<Segment> = vals.iter().map(|val|val.to_owned().into()).collect::<Vec<Segment>>(); if condition { self.append_sql_segments(vec![Segment::ColumnField(column.into()), SqlKeyword::IN.into(), self.in_expression(segs)]) } self }
             fn append_sql_segments(&mut self, sql_segments: Vec<Segment>) { self.expression.add(sql_segments); }
             fn do_it(&mut self, condition: bool, segments: Vec<Segment>) -> &mut Self { if condition { self.expression.add(segments); } self }
-            fn get_sql_segment(&mut self) -> String {self.expression.get_sql_segment() }
+            fn get_sql_segment(&mut self) -> String { format!("{} {} {}", self.sql_first.to_owned().unwrap_or_default(), self.expression.get_sql_segment(), self.last_sql.to_owned().unwrap_or_default()) }
             fn comment<S: Into<String>>(&mut self, comment: S) -> &mut Self { self.comment_condition(true, comment) }
             fn comment_condition<S: Into<String>>(&mut self, condition: bool, comment: S) -> &mut Self { if condition { self.sql_comment = comment.into().into(); } self }
             fn get_select_sql(&mut self) -> String { if let Some(select) = &self.sql_select { select.to_owned() } else { "*".to_string() } }
