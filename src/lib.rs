@@ -127,7 +127,7 @@ pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
 #[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
-pub use segment::{SqlSegment, Segment, AkitaKeyword};
+pub use segment::{Segment, AkitaKeyword};
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]

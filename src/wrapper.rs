@@ -244,9 +244,10 @@ impl_wrapper!(UpdateWrapper);
 fn basic_test() {
     let mut wrapper = UpdateWrapper::new();
     let s : Option<String> = Some("ffffa".to_string());
+    let d: Option<i32> = None;
     wrapper.like("fffff", &s);
     wrapper.eq("dddd", &s);
-    
+    wrapper.eq("ff", d);
     // wrapper.eq("col", 2);
     wrapper.not_in("vecs", vec!["a","f","g"]);
     // wrapper.not_between("username", 2, 8);
