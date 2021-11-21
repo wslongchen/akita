@@ -10,6 +10,8 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 
+use crate::auth::{Role, User};
+
 use crate::{AkitaConfig, ToValue};
 use crate::comm::{extract_datatype_with_capacity, maybe_trim_parenthesis};
 use crate::database::Database;
@@ -17,13 +19,13 @@ use crate::information::{Capacity, ColumnConstraint, ForeignKey, Key, Literal, T
 use crate::pool::LogLevel;
 use crate::types::SqlType;
 use crate::value::{Value};
-use crate::{self as akita, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName}};
+use crate::{self as akita, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent}};
 use crate::data::{Rows};
 type R2d2Pool = Pool<SqliteConnectionManager>;
 
 pub struct SqliteDatabase(pub r2d2::PooledConnection<SqliteConnectionManager>, pub AkitaConfig);
 
-/// TODO: 补全SQLite数据操作
+/// SQLite数据操作
 impl Database for SqliteDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
         self.execute_result("BEGIN TRANSACTION", &[])?;
@@ -310,6 +312,45 @@ impl Database for SqliteDatabase {
         Ok(Some(table))
     }
 
+    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError> {
+        let table_names = get_table_names(&mut *self, &"table".to_string())?;
+        let view_names = get_table_names(&mut *self, &"view".to_string())?;
+        let schema_content = SchemaContent {
+            schema: "".to_string(),
+            tablenames: table_names,
+            views: view_names,
+        };
+        Ok(vec![schema_content])
+    }
+
+    fn get_all_tables(&mut self) -> Result<Vec<TableDef>, AkitaError> {
+        let tablenames = self.get_tablenames()?;
+        Ok(tablenames
+            .iter()
+            .filter_map(|tablename| self.get_table(tablename).ok().flatten())
+            .collect())
+    }
+
+    fn get_tablenames(&mut self) -> Result<Vec<TableName>, AkitaError> {
+        #[derive(Debug, FromAkita)]
+        struct TableNameSimple {
+            tbl_name: String,
+        }
+        let sql = "SELECT tbl_name FROM sqlite_master WHERE type IN ('table', 'view')";
+        let result: Vec<TableNameSimple> = self
+            .execute_result(sql, &[])?
+            .iter()
+            .map(|row| TableNameSimple {
+                tbl_name: row.get("tbl_name").expect("tbl_name"),
+            })
+            .collect();
+        let tablenames = result
+            .iter()
+            .map(|r| TableName::from(&r.tbl_name))
+            .collect();
+        Ok(tablenames)
+    }
+
     fn set_autoincrement_value(
         &mut self,
         table_name: &TableName,
@@ -340,6 +381,26 @@ impl Database for SqliteDatabase {
         } else {
             Ok(None)
         }
+    }
+
+    fn get_users(&mut self) -> Result<Vec<User>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operatio to extract users".to_string(),
+        ))
+    }
+
+    // #[cfg(feature = "db-auth")]
+    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<User>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operatio to user details".to_string(),
+        ))
+    }
+
+    // #[cfg(feature = "db-auth")]
+    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to extract roles".to_string(),
+        ))
     }
 
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {

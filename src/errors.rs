@@ -18,6 +18,7 @@ pub enum AkitaError {
     UrlParseError(String),
     RedundantField(String),
     UnknownDatabase(String),
+    UnsupportedOperation(String),
     Unknown,
 }
 
@@ -28,6 +29,7 @@ impl fmt::Display for AkitaError {
             AkitaError::InvalidSQL(ref err) => err.fmt(f),
             AkitaError::InvalidField(ref err) => err.fmt(f),
             AkitaError::ExcuteSqlError(ref err, ref sql) => write!(f, "SQL Excute Error: {}, SQL: {}", err, sql),
+            AkitaError::UnsupportedOperation(ref err) => write!(f, "Unsupported operation: {}", err),
             AkitaError::UnknownDatabase(ref schema) => write!(f, "Unknown Database URL :{} (Just Support MySQL)", schema),
             AkitaError::MissingIdent(ref err) => err.fmt(f),
             AkitaError::UrlParseError(ref err) => err.fmt(f),
@@ -51,6 +53,7 @@ impl std::error::Error for AkitaError {
             AkitaError::InvalidSQL(ref err) => err,
             AkitaError::ExcuteSqlError(ref err, ref _sql) => err,
             AkitaError::InvalidField(ref err) => err,
+            AkitaError::UnsupportedOperation(ref err) => err,
             AkitaError::UrlParseError(ref err) => err,
             AkitaError::MissingIdent(ref err) => err,
             AkitaError::DataError(ref err) => err,
@@ -78,7 +81,7 @@ impl From<ParseError> for AkitaError {
     }
 }
 
-#[cfg(feature = "akita-mysql")]
+// #[cfg(feature = "akita-mysql")]
 impl From<mysql::Error> for AkitaError {
     fn from(err: mysql::Error) -> Self {
         AkitaError::MySQLError(err.to_string())
@@ -91,7 +94,7 @@ impl From<r2d2::Error> for AkitaError {
     }
 }
 
-#[cfg(feature = "akita-mysql")]
+// #[cfg(feature = "akita-mysql")]
 impl From<mysql::UrlError> for AkitaError {
     fn from(err: mysql::UrlError) -> Self {
         AkitaError::MySQLError(err.to_string())
@@ -105,14 +108,14 @@ impl From<rusqlite::Error> for AkitaError {
     }
 }
 
-#[cfg(feature = "akita-mysql")]
+// #[cfg(feature = "akita-mysql")]
 impl From<mysql::FromValueError> for AkitaError {
     fn from(err: mysql::FromValueError) -> Self {
         AkitaError::MySQLError(err.to_string())
     }
 }
 
-#[cfg(feature = "akita-mysql")]
+// #[cfg(feature = "akita-mysql")]
 impl From<mysql::FromRowError> for AkitaError {
     fn from(err: mysql::FromRowError) -> Self {
         AkitaError::MySQLError(err.to_string())

@@ -6,11 +6,14 @@ cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::SqliteDatabase;
 }}
 
-cfg_if! {if #[cfg(feature = "akita-mysql")]{
-    use crate::platform::mysql::MysqlDatabase;
-}}
+use crate::Params;
+// cfg_if! {if #[cfg(feature = "akita-mysql")]{
+//     use crate::platform::mysql::MysqlDatabase;
+// }}
+use crate::platform::mysql::MysqlDatabase;
 
-use crate::{AkitaError, cfg_if, data::Rows, information::{DatabaseName, TableDef, TableName}, value::Value};
+use crate::auth::{Role, User};
+use crate::{AkitaError, cfg_if, data::Rows, information::{DatabaseName, SchemaContent, TableDef, TableName}};
 
 
 pub trait Database {
@@ -20,9 +23,15 @@ pub trait Database {
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError>;
 
-    fn execute_result(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, AkitaError>;
+    fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError>;
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError>;
+
+    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError>;
+
+    fn get_all_tables(&mut self) -> Result<Vec<TableDef>, AkitaError>;
+
+    fn get_tablenames(&mut self) -> Result<Vec<TableName>, AkitaError>;
 
     fn set_autoincrement_value(
         &mut self,
@@ -37,11 +46,20 @@ pub trait Database {
 
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError>;
 
+    // #[cfg(feature = "akita-auth")]
+    fn get_users(&mut self) -> Result<Vec<User>, AkitaError>;
+
+    // #[cfg(feature = "akita-auth")]
+    fn get_user_detail(&mut self, username: &str) -> Result<Vec<User>, AkitaError>;
+
+    // #[cfg(feature = "akita-auth")]
+    fn get_roles(&mut self, username: &str) -> Result<Vec<Role>, AkitaError>;
+
 }
 
 
 pub enum DatabasePlatform {
-    #[cfg(feature = "akita-mysql")]
+    // #[cfg(feature = "akita-mysql")]
     Mysql(Box<MysqlDatabase>),
     #[cfg(feature = "akita-sqlite")]
     Sqlite(Box<SqliteDatabase>),
@@ -52,7 +70,7 @@ impl Deref for DatabasePlatform {
 
     fn deref(&self) -> &Self::Target {
         match *self {
-            #[cfg(feature = "akita-mysql")]
+            // #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(ref mysql) => mysql.deref(),
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(ref sqlite) => sqlite.deref(),
@@ -63,7 +81,7 @@ impl Deref for DatabasePlatform {
 impl std::ops::DerefMut for DatabasePlatform {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match *self {
-            #[cfg(feature = "akita-mysql")]
+            // #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(ref mut mysql) => mysql.deref_mut(),
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(ref mut sqlite) => sqlite.deref_mut(),
@@ -72,7 +90,7 @@ impl std::ops::DerefMut for DatabasePlatform {
 }
 
 pub(crate) enum Platform {
-    #[cfg(feature = "akita-mysql")]
+    // #[cfg(feature = "akita-mysql")]
     Mysql,
     #[cfg(feature = "akita-sqlite")]
     Sqlite(String),
@@ -88,7 +106,7 @@ impl<'a> TryFrom<&'a str> for Platform {
             Ok(url) => {
                 let scheme = url.scheme();
                 match scheme {
-                    #[cfg(feature = "akita-mysql")]
+                    // #[cfg(feature = "akita-mysql")]
                     "mysql" => Ok(Platform::Mysql),
                     #[cfg(feature = "akita-sqlite")]
                     "sqlite" => {

@@ -1,4 +1,4 @@
-use crate::{AkitaError, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, value::ToValue, information::{GetFields, GetTableName}};
+use crate::{AkitaError, Params, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, information::{GetFields, GetTableName}, value::ToValue};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -127,32 +127,32 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToAkita;
 
     #[allow(clippy::redundant_closure)]
-    fn execute_result<'a, R>(
+    fn execute_result<'a, R, P: Into<Params>>(
         &mut self,
         sql: &str,
-        params: &[&'a dyn ToValue],
+        params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
         R: FromAkita;
 
-    fn execute_drop<'a, S: Into<String>>(
+    fn execute_drop<'a, S: Into<String>, P: Into<Params>>(
         &mut self,
         sql: S,
-        params: &[&'a dyn ToValue],
+        params: P,
     ) -> Result<(), AkitaError>;
 
-    fn execute_first<'a, R, S: Into<String>>(
+    fn execute_first<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
         sql: S,
-        params: &[&'a dyn ToValue],
+        params: P,
     ) -> Result<R, AkitaError>
     where
         R: FromAkita;
 
-    fn execute_result_opt<'a, R, S: Into<String>>(
+    fn execute_result_opt<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
         sql: S,
-        params: &[&'a dyn ToValue],
+        params: P,
     ) -> Result<Option<R>, AkitaError>
     where
         R: FromAkita;
