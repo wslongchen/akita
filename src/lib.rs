@@ -119,6 +119,7 @@ mod types;
 mod database;
 mod platform;
 mod data;
+mod auth;
 mod manager;
 
 
@@ -127,7 +128,7 @@ pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
 #[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
-pub use segment::{SqlSegment, Segment, AkitaKeyword};
+pub use segment::{Segment, AkitaKeyword};
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]
@@ -137,7 +138,8 @@ pub use pool::{AkitaConfig, LogLevel, Pool};
 #[doc(inline)]
 pub use data::*;
 #[doc(inline)]
-pub use information::{GetTableName, TableName, FieldName, GetFields, FieldType};
+pub use information::*;
+pub use auth::*;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
 pub use crate as akita;
@@ -175,10 +177,10 @@ extern crate log;
 macro_rules! params {
     () => {};
     (@to_pair $name:expr => $value:expr) => (
-        (std::string::String::from($name), $crate::value::Value::from($value))
+        (std::string::String::from($name), akita::Value::from($value))
     );
     (@to_pair $name:ident) => (
-        (std::string::String::from(stringify!($name)), $crate::value::Value::from($name))
+        (std::string::String::from(stringify!($name)), akita::Value::from($name))
     );
     (@expand $vec:expr;) => {};
     (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {

@@ -292,6 +292,6 @@ pub struct SchemaContent {
 
 #[allow(unused)]
 pub struct DatabaseName {
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
 }

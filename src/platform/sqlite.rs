@@ -10,37 +10,45 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 
-use crate::{AkitaConfig, ToValue};
+cfg_if! {if #[cfg(feature = "akita-auth")]{
+    use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
+}}
+
+use crate::{AkitaConfig, Params, ToValue};
 use crate::comm::{extract_datatype_with_capacity, maybe_trim_parenthesis};
 use crate::database::Database;
 use crate::information::{Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey};
 use crate::pool::LogLevel;
 use crate::types::SqlType;
 use crate::value::{Value};
-use crate::{self as akita, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName}};
+use crate::{self as akita, cfg_if, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent}};
 use crate::data::{Rows};
 type R2d2Pool = Pool<SqliteConnectionManager>;
 
-pub struct SqliteDatabase(pub r2d2::PooledConnection<SqliteConnectionManager>, pub AkitaConfig);
+pub struct SqliteDatabase(r2d2::PooledConnection<SqliteConnectionManager>, AkitaConfig);
 
-/// TODO: 补全SQLite数据操作
+impl SqliteDatabase {
+    pub fn new(pool: r2d2::PooledConnection<SqliteConnectionManager>, cfg: AkitaConfig) -> Self {
+        SqliteDatabase(pool, cfg)
+    }
+}
+
+/// SQLite数据操作
+#[allow(unused)]
 impl Database for SqliteDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("BEGIN TRANSACTION", &[])?;
-        Ok(())
+        self.execute_result("BEGIN TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT TRANSACTION", &[])?;
-        Ok(())
+        self.execute_result("COMMIT TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
     }
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK TRANSACTION", &[])?;
-        Ok(())
+        self.execute_result("ROLLBACK TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
     }
     
-    fn execute_result(&mut self, sql: &str, params: &[&crate::value::Value]) -> Result<Rows, AkitaError> {
+    fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
                 LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
@@ -59,7 +67,31 @@ impl Database for SqliteDatabase {
             Ok(mut stmt) => {
                 let column_count = stmt.column_count();
                 let mut records = Rows::new(column_names);
-                let sql_values = to_sq_values(params);
+                let sql_values = match params {
+                    Params::Nil => {
+                        vec![]
+                    },
+                    Params::Vector(param) => {
+                        param
+                            .iter()
+                            .map(|v| to_sq_value(v))
+                            .collect::<Vec<_>>()
+                    },
+                    Params::Custom(param) => {
+                        let mut format_sql = sql.to_owned();
+                        let len = format_sql.len();
+                        let mut values = param.iter().map(|param| {
+                            let key = format!(":{}", param.0);
+                            let index = format_sql.find(&key).unwrap_or(len);
+                            (index, key, &param.1)
+                        }).collect::<Vec<_>>();
+                        values.sort_by(|a, b| a.0.cmp(&b.0));
+                        values.iter().map(|v| {
+                            format_sql = format_sql.replace(&v.1, &format!("${}", v.0 + 1));
+                            to_sq_value(v.2)
+                        }).collect::<Vec<_>>()
+                    },
+                };
                 // let v = sq_values.iter().map(|v| v.to_sql().unwrap()).collect::<Vec<_>>();
                 if let Ok(mut rows) = stmt.query(sql_values) {
                     while let Some(row) = rows.next()? {
@@ -81,6 +113,48 @@ impl Database for SqliteDatabase {
                     }
                 }
                 Ok(records)
+            }
+            Err(e) => Err(AkitaError::from(e)),
+        }
+    }
+
+    fn execute_drop(&mut self, sql: &str, params: Params) -> Result<(), AkitaError> {
+        if let Some(log_level) = &self.1.log_level() {
+            match log_level {
+                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
+                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
+                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
+            }
+        }
+        let stmt = self.0.prepare(&sql);
+        match stmt {
+            Ok(mut stmt) => {
+                let sql_values = match params {
+                    Params::Nil => {
+                        vec![]
+                    },
+                    Params::Vector(param) => {
+                        param
+                            .iter()
+                            .map(|v| to_sq_value(v))
+                            .collect::<Vec<_>>()
+                    },
+                    Params::Custom(param) => {
+                        let mut format_sql = sql.to_owned();
+                        let len = format_sql.len();
+                        let mut values = param.iter().map(|param| {
+                            let key = format!(":{}", param.0);
+                            let index = format_sql.find(&key).unwrap_or(len);
+                            (index, key, &param.1)
+                        }).collect::<Vec<_>>();
+                        values.sort_by(|a, b| a.0.cmp(&b.0));
+                        values.iter().map(|v| {
+                            format_sql = format_sql.replace(&v.1, &format!("${}", v.0 + 1));
+                            to_sq_value(v.2)
+                        }).collect::<Vec<_>>()
+                    },
+                };
+                stmt.execute(sql_values).map(|_| ()).map_err(AkitaError::from)
             }
             Err(e) => Err(AkitaError::from(e)),
         }
@@ -262,22 +336,22 @@ impl Database for SqliteDatabase {
             };
         }
         let sql = format!("PRAGMA table_info({});", table_name.complete_name());
-        let result = self.execute_result(&sql, &[])?;
+        let result = self.execute_result(&sql, ().into())?;
         let mut primary_columns = vec![];
         let mut columns = vec![];
-        for dao in result.iter() {
-            let name: Result<Option<String>, _> = dao.get("name");
+        for data in result.iter() {
+            let name: Result<Option<String>, _> = data.get("name");
             let name = unwrap_ok_some!(name);
-            let data_type: Result<Option<String>, _> = dao.get("type");
+            let data_type: Result<Option<String>, _> = data.get("type");
             let data_type = unwrap_ok_some!(data_type).to_lowercase();
-            let not_null: Result<Option<i64>, _> = dao.get("notnull");
+            let not_null: Result<Option<i64>, _> = data.get("notnull");
             let not_null = unwrap_ok_some!(not_null) != 0;
-            let pk: Result<Option<i64>, _> = dao.get("pk");
+            let pk: Result<Option<i64>, _> = data.get("pk");
             let pk = unwrap_ok_some!(pk) != 0;
             if pk {
                 primary_columns.push(FieldName::from(&name));
             }
-            let default = dao.0.get("dflt_value").map(|v| match *v {
+            let default = data.get_value("dflt_value").map(|v| match *v {
                 Value::Text(ref v) => v.to_owned(),
                 Value::Nil => "null".to_string(),
                 _ => panic!("Expecting a text value, got: {:?}", v),
@@ -310,6 +384,49 @@ impl Database for SqliteDatabase {
         Ok(Some(table))
     }
 
+    fn exist_table(&mut self, table_name: &TableName) -> Result<bool, AkitaError> {
+        todo!()
+    }
+
+    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError> {
+        let table_names = get_table_names(&mut *self, &"table".to_string())?;
+        let view_names = get_table_names(&mut *self, &"view".to_string())?;
+        let schema_content = SchemaContent {
+            schema: "".to_string(),
+            tablenames: table_names,
+            views: view_names,
+        };
+        Ok(vec![schema_content])
+    }
+
+    fn get_all_tables(&mut self, shema: &str) -> Result<Vec<TableDef>, AkitaError> {
+        let tablenames = self.get_tablenames(shema)?;
+        Ok(tablenames
+            .iter()
+            .filter_map(|tablename| self.get_table(tablename).ok().flatten())
+            .collect())
+    }
+
+    fn get_tablenames(&mut self, _shema: &str) -> Result<Vec<TableName>, AkitaError> {
+        #[derive(Debug, FromAkita)]
+        struct TableNameSimple {
+            tbl_name: String,
+        }
+        let sql = "SELECT tbl_name FROM sqlite_master WHERE type IN ('table', 'view')";
+        let result: Vec<TableNameSimple> = self
+            .execute_result(sql, ().into())?
+            .iter()
+            .map(|row| TableNameSimple {
+                tbl_name: row.get("tbl_name").expect("tbl_name"),
+            })
+            .collect();
+        let tablenames = result
+            .iter()
+            .map(|r| TableName::from(&r.tbl_name))
+            .collect();
+        Ok(tablenames)
+    }
+
     fn set_autoincrement_value(
         &mut self,
         table_name: &TableName,
@@ -318,7 +435,7 @@ impl Database for SqliteDatabase {
         let sql = "UPDATE sqlite_sequence SET seq = $2 WHERE name = $1";
         self.execute_result(
             sql,
-            &[&table_name.complete_name().into(), &sequence_value.into()]
+            (&table_name.complete_name(), &sequence_value).into()
         )?;
 
         Ok(None)
@@ -330,7 +447,7 @@ impl Database for SqliteDatabase {
     ) -> Result<Option<i64>, AkitaError> {
         let sql = "SELECT seq FROM sqlite_sequence where name = $1";
         let result: Vec<Option<i64>> = self
-            .execute_result(sql, &[&table_name.complete_name().into()])?
+            .execute_result(sql, (table_name.complete_name(),).into())?
             .iter()
             .filter_map(|row| row.get("seq").ok())
             .collect();
@@ -342,10 +459,78 @@ impl Database for SqliteDatabase {
         }
     }
 
+    fn create_database(&mut self, _database: &str) -> Result<(), AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't need to created database".to_string(),
+        ))
+    }
+
+    fn exist_databse(&mut self, database: &str) -> Result<bool, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't need to exist databse".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn get_users(&mut self) -> Result<Vec<DataBaseUser>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operatio to extract users".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn exist_user(&mut self, user: &UserInfo) -> Result<bool, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operatio to exist user".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operatio to user details".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to extract roles".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to create_user".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to drop_user".to_string(),
+        ))
+    }
+    
+    #[cfg(feature = "akita-auth")]
+    fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to grant_privileges".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn flush_privileges(&mut self) -> Result<(), AkitaError> {
+        Err(AkitaError::UnsupportedOperation(
+            "sqlite doesn't have operation to flush_privileges".to_string(),
+        ))
+    }
+
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
-            self.execute_result(&sql, &[]).map(|rows| {
+            self.execute_result(&sql, ().into()).map(|rows| {
                 rows.iter()
                     .map(|row| {
                         row.get_opt("name")
@@ -374,7 +559,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
     }
     let sql = "SELECT tbl_name FROM sqlite_master WHERE type = ?";
     let result: Vec<TableNameSimple> = db
-        .execute_result(sql, &[&kind.to_value()])?
+        .execute_result(sql, kind.to_value().into())?
         .iter()
         .map(|row| TableNameSimple {
             tbl_name: row.get("tbl_name").expect("tbl_name"),
@@ -399,7 +584,7 @@ fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<Fore
         to: String,
     }
     let result: Vec<ForeignSimple> = db
-        .execute_result(&sql, &[])?
+        .execute_result(&sql, ().into())?
         .iter()
         .map(|row| ForeignSimple {
             id: row.get("id").expect("id"),
@@ -431,14 +616,6 @@ fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<Fore
     Ok(foreign_keys)
 }
 
-fn to_sq_values(params: &[&Value]) -> Vec<rusqlite::types::Value> {
-    let mut sql_values = Vec::with_capacity(params.len());
-    for param in params {
-        let sq_val = to_sq_value(param);
-        sql_values.push(sq_val);
-    }
-    sql_values
-}
 
 fn to_sq_value(val: &Value) -> rusqlite::types::Value {
     match *val {

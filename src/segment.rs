@@ -5,10 +5,6 @@ use chrono::{NaiveDate, NaiveDateTime};
 
 use crate::comm::*;
 
-pub trait SqlSegment {
-    fn get_sql_segment(&self) -> String;
-}
-
 /// Segment are generally not used directly unless you are using the
 /// more low level functionality in the library.  For the most part
 /// this is hidden with the help of the `ToSegment` trait.
@@ -449,7 +445,7 @@ impl MergeSegments {
     pub fn get_sql_segment(&mut self) -> String {
         if self.normal.is_empty() {
             if !self.group_by.is_empty() || !self.order_by.is_empty() {
-                self.group_by.get_sql_segment() + self.get_sql_segment().as_str() + self.get_sql_segment().as_str()
+                "(1 = 1)".to_string() + self.having.get_sql_segment().as_str() + self.order_by.get_sql_segment().as_str()
             } else {
                 "".to_string()
             }
@@ -474,7 +470,7 @@ impl SqlLike {
     }
 }
 
-impl SqlSegment for SqlKeyword  {
+impl SqlKeyword  {
     fn get_sql_segment(&self) -> String {
         match *self {
             Self::AND => "and",
