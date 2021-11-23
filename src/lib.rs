@@ -138,7 +138,8 @@ pub use pool::{AkitaConfig, LogLevel, Pool};
 #[doc(inline)]
 pub use data::*;
 #[doc(inline)]
-pub use information::{GetTableName, TableName, FieldName, GetFields, FieldType, DatabaseName};
+pub use information::*;
+pub use auth::*;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
 pub use crate as akita;

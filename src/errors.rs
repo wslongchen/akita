@@ -81,7 +81,7 @@ impl From<ParseError> for AkitaError {
     }
 }
 
-// #[cfg(feature = "akita-mysql")]
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::Error> for AkitaError {
     fn from(err: mysql::Error) -> Self {
         AkitaError::MySQLError(err.to_string())
@@ -94,7 +94,7 @@ impl From<r2d2::Error> for AkitaError {
     }
 }
 
-// #[cfg(feature = "akita-mysql")]
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::UrlError> for AkitaError {
     fn from(err: mysql::UrlError) -> Self {
         AkitaError::MySQLError(err.to_string())
@@ -108,14 +108,14 @@ impl From<rusqlite::Error> for AkitaError {
     }
 }
 
-// #[cfg(feature = "akita-mysql")]
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::FromValueError> for AkitaError {
     fn from(err: mysql::FromValueError) -> Self {
         AkitaError::MySQLError(err.to_string())
     }
 }
 
-// #[cfg(feature = "akita-mysql")]
+#[cfg(feature = "akita-mysql")]
 impl From<mysql::FromRowError> for AkitaError {
     fn from(err: mysql::FromRowError) -> Self {
         AkitaError::MySQLError(err.to_string())

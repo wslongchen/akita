@@ -475,6 +475,24 @@ impl From<()> for Params {
     }
 }
 
+impl From<Value> for Params {
+    fn from(x: Value) -> Params {
+        Params::Vector(vec![x])
+    }
+}
+
+impl From<String> for Params {
+    fn from(x: String) -> Params {
+        Params::Vector(vec![x.into()])
+    }
+}
+
+impl <'a> From<&'a dyn ToValue> for Params {
+    fn from(x: &'a dyn ToValue) -> Params {
+        Params::Vector(vec![x.to_value().to_owned()])
+    }
+}
+
 macro_rules! into_params_impl {
     ($([$A:ident,$a:ident]),*) => (
         impl<$($A: Into<Value>,)*> From<($($A,)*)> for Params {

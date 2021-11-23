@@ -4,7 +4,7 @@ use crate::{FieldName, TableName, self as akita};
 
 
 #[derive(Debug, Serialize, Deserialize, FromAkita)]
-pub struct User {
+pub struct DataBaseUser {
     pub sysid: Option<i32>,
     pub username: String,
     pub is_superuser: bool,
@@ -27,7 +27,7 @@ pub struct Role {
 /// The table models can be filtered depending on how much
 ///  and which columns it has privilege
 #[allow(unused)]
-enum Privilege {
+pub enum Privilege {
     Select,
     Insert,
     Update,
@@ -37,6 +37,22 @@ enum Privilege {
     Truncate,
     Connect,
     Execute,
+}
+
+impl ToString for Privilege {
+    fn to_string(&self) -> String {
+        match self {
+            Privilege::Select => String::from("Select"),
+            Privilege::Insert => String::from("Insert"),
+            Privilege::Update => String::from("Update"),
+            Privilege::Delete => String::from("Delete"),
+            Privilege::Create => String::from("Create"),
+            Privilege::Drop => String::from("Drop"),
+            Privilege::Truncate => String::from("Truncate"),
+            Privilege::Connect => String::from("Connect"),
+            Privilege::Execute => String::from("Execute"),
+        }
+    }
 }
 
 ///
@@ -50,8 +66,49 @@ enum Privilege {
 /// User privileges for each tables
 #[allow(unused)]
 struct UserPrivilege {
-    user: User,
+    user: DataBaseUser,
     table_name: TableName,
     column_names: Vec<FieldName>,
     privilege: Vec<Privilege>,
+}
+
+#[allow(unused)]
+pub struct UserInfo {
+    pub username: String,
+    pub password: Option<String>,
+    pub host: Option<String>,
+    pub privileges: Option<Vec<Privilege>>,
+}
+
+impl UserInfo {
+    pub fn new(username: String, password: Option<String>, host: Option<String>, privileges: Option<Vec<Privilege>>) -> Self {
+        UserInfo {
+            username,
+            password,
+            host,
+            privileges,
+        }
+    }
+}
+
+#[allow(unused)]
+pub struct GrantUserPrivilege {
+    pub username: String,
+    pub schema: String,
+    pub table: String,
+    pub host: Option<String>,
+    pub privileges: Vec<Privilege>,
+}
+
+
+impl GrantUserPrivilege {
+    pub fn new(username: String, schema: String, table: String, host: Option<String>, privileges: Vec<Privilege>) -> Self {
+        GrantUserPrivilege {
+            username,
+            schema,
+            table,
+            host,
+            privileges,
+        }
+    }
 }

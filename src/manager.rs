@@ -3,10 +3,10 @@ use crate::data::{FromAkita, Rows, AkitaData, ToAkita};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
 #[allow(unused)]
-pub struct AkitaManager(pub DatabasePlatform);
+pub struct AkitaManager(DatabasePlatform);
 
 #[allow(unused)]
-pub struct AkitaEntityManager(pub DatabasePlatform);
+pub struct AkitaEntityManager(DatabasePlatform);
 
 pub struct AkitaTransaction<'a> {
     pub(crate) conn: &'a mut AkitaEntityManager,
@@ -27,7 +27,6 @@ impl AkitaTransaction <'_> {
         self.rolled_back = true;
         Ok(())
     }
-
 }
 
 impl<'a> Drop for AkitaTransaction<'a> {
@@ -102,7 +101,6 @@ impl AkitaMapper for AkitaTransaction <'_> {
             self.conn.remove_by_id::<T, I>(id)
         
     }
-    
 
     /// Update the records by wrapper.
     fn update<T>(&mut self, entity: &T, wrapper: &mut UpdateWrapper) -> Result<(), AkitaError> 
@@ -136,9 +134,9 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     #[allow(clippy::redundant_closure)]
-    fn execute_result<'a, R, P: Into<Params>>(
+    fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
@@ -182,6 +180,11 @@ impl AkitaMapper for AkitaTransaction <'_> {
 
 #[allow(unused)]
 impl AkitaManager {
+
+    pub fn new(db: DatabasePlatform) -> Self {
+        AkitaManager(db)
+    }
+
     pub fn start_transaction(&mut self) -> Result<(), AkitaError> {
         self.0.start_transaction()
     }
@@ -194,28 +197,28 @@ impl AkitaManager {
         self.0.rollback_transaction()
     }
 
-    pub fn execute_result<P: Into<Params>>(
+    pub fn execute_result<S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Rows, AkitaError> {
-        let rows = self.0.execute_result(sql, params.into())?;
+        let rows = self.0.execute_result(&sql.into(), params.into())?;
         Ok(rows)
     }
 
-    pub fn execute_iter<P: Into<Params>>(
+    pub fn execute_iter<S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Vec<AkitaData>, AkitaError> {
-        let rows = self.0.execute_result(sql, params.into())?;
+        let rows = self.0.execute_result(&sql.into(), params.into())?;
         let datas: Vec<AkitaData> = rows.iter().collect();
         Ok(datas)
     }
 
-    pub fn execute_first<P: Into<Params>>(
+    pub fn execute_first<S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<AkitaData, AkitaError> {
         let record: Result<Option<AkitaData>, AkitaError> =
@@ -229,9 +232,9 @@ impl AkitaManager {
         }
     }
 
-    pub fn execute_first_opt<P: Into<Params>>(
+    pub fn execute_first_opt<S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Option<AkitaData>, AkitaError> {
         let result: Result<Vec<AkitaData>, AkitaError> = self.execute_iter(sql, params);
@@ -249,6 +252,11 @@ impl AkitaManager {
 
 #[allow(unused)]
 impl AkitaEntityManager{
+
+    pub fn new(db: DatabasePlatform) -> Self {
+        AkitaEntityManager(db)
+    }
+
     pub fn start_transaction(&mut self) -> Result<AkitaTransaction, AkitaError> {
         self.0.start_transaction()?;
         Ok(AkitaTransaction {
@@ -354,7 +362,7 @@ impl AkitaEntityManager{
                             match self.0 {
                                 #[cfg(feature = "with-sqlite")]
                                 DatabasePlatform::Sqlite(_) => format!("${}", y * columns_len + x + 1),
-                                // #[cfg(feature = "akita-mysql")]
+                                #[cfg(feature = "akita-mysql")]
                                 DatabasePlatform::Mysql(_) => "?".to_string(),
                                 _ => format!("${}", y * columns_len + x + 1),
                             }
@@ -389,7 +397,7 @@ impl AkitaEntityManager{
                     .map(|(x, col)| {
                         #[allow(unreachable_patterns)]
                         match self.0 {
-                            // #[cfg(feature = "akita-mysql")]
+                            #[cfg(feature = "akita-mysql")]
                             DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
                             #[cfg(feature = "akita-sqlite")]
                             DatabasePlatform::Sqlite(_) => format!("`{}` = ${}", &col.name, x + 1),
@@ -410,7 +418,7 @@ impl AkitaEntityManager{
                     .map(|(x, (col, value))| {
                         #[allow(unreachable_patterns)]
                         match self.0 {
-                            // #[cfg(feature = "akita-mysql")]
+                            #[cfg(feature = "akita-mysql")]
                             DatabasePlatform::Mysql(_) => format!("`{}` = {}", col, value.get_sql_segment()),
                             #[cfg(feature = "akita-sqlite")]
                             DatabasePlatform::Sqlite(_) => format!("`{}` = ${}", col, x + 1),
@@ -520,7 +528,7 @@ impl AkitaMapper for AkitaEntityManager{
             FieldType::TableField => false,
         }) {
             let sql = match self.0 {
-                // #[cfg(feature = "akita-mysql")]
+                #[cfg(feature = "akita-mysql")]
                 DatabasePlatform::Mysql(_) => format!("SELECT {} FROM {} WHERE `{}` = ? limit 1", &enumerated_columns, &table.complete_name(), &field.name),
                 #[cfg(feature = "akita-sqlite")]
                 DatabasePlatform::Sqlite(_) => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
@@ -633,7 +641,7 @@ impl AkitaMapper for AkitaEntityManager{
             FieldType::TableField => false,
         }) {
             let sql = match self.0 {
-                // #[cfg(feature = "akita-mysql")]
+                #[cfg(feature = "akita-mysql")]
                 DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` = ?", &table.name, &field.name),
                 #[cfg(feature = "akita-sqlite")]
                 DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
@@ -702,7 +710,7 @@ impl AkitaMapper for AkitaEntityManager{
             .map(|(x, col)| {
                 #[allow(unreachable_patterns)]
                 match self.0 {
-                    // #[cfg(feature = "akita-mysql")]
+                    #[cfg(feature = "akita-mysql")]
                     DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
                     #[cfg(feature = "akita-sqlite")]
                     DatabasePlatform::Sqlite(_) => format!("`{}` = ${}",&col.name, x + 1),
@@ -712,7 +720,7 @@ impl AkitaMapper for AkitaEntityManager{
             .collect::<Vec<_>>()
             .join(", ");
             let sql = match self.0 {
-                // #[cfg(feature = "akita-mysql")]
+                #[cfg(feature = "akita-mysql")]
                 DatabasePlatform::Mysql(_) => format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.name),
                 #[cfg(feature = "akita-sqlite")]
                 DatabasePlatform::Sqlite(_) => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
@@ -751,7 +759,7 @@ impl AkitaMapper for AkitaEntityManager{
         T: GetTableName + GetFields + ToAkita,
     {
         match self.0 {
-            // #[cfg(feature = "akita-mysql")]
+            #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(_) => self.save_batch_inner(entities),
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(_) => self.save_batch_inner(entities),
@@ -777,7 +785,7 @@ impl AkitaMapper for AkitaEntityManager{
         let bvalues: Vec<&Value> = values.iter().collect();
         self.0.execute_result(&sql,values.into())?;
         let rows: Rows = match self.0 {
-            // #[cfg(feature = "akita-mysql")]
+            #[cfg(feature = "akita-mysql")]
             DatabasePlatform::Mysql(_) => self.0.execute_result("SELECT LAST_INSERT_ID();", Params::Nil)?,
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(_) => self.0.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?,
@@ -787,15 +795,15 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     #[allow(clippy::redundant_closure)]
-    fn execute_result<'a, R, P: Into<Params>>(
+    fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
         R: FromAkita,
     {
-        let rows = self.0.execute_result(sql, params.into())?;
+        let rows = self.0.execute_result(&sql.into(), params.into())?;
         Ok(rows.iter().map(|data| R::from_data(&data)).collect::<Vec<R>>())
     }
 

@@ -127,9 +127,9 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToAkita;
 
     #[allow(clippy::redundant_closure)]
-    fn execute_result<'a, R, P: Into<Params>>(
+    fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
-        sql: &str,
+        sql: S,
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where

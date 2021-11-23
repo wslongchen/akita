@@ -1,15 +1,13 @@
 use std::{convert::TryFrom, time::Duration};
 use log::*;
 
-// cfg_if! {if #[cfg(feature = "akita-mysql")]{
-//     use crate::platform::{mysql::{self, MysqlConnectionManager, MysqlDatabase}};
-// }}
-use crate::platform::{mysql::{self, MysqlConnectionManager, MysqlDatabase}};
+cfg_if! {if #[cfg(feature = "akita-mysql")]{
+    use crate::platform::{mysql::{self, MysqlConnectionManager, MysqlDatabase}};
+}}
 
 cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::{self, SqliteConnectionManager, SqliteDatabase};
 }}
-
 use crate::{AkitaError, cfg_if, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
 
 #[allow(unused)]
@@ -102,7 +100,7 @@ pub enum LogLevel {
 #[allow(unused)]
 #[derive(Clone)]
 pub enum PlatformPool {
-    // #[cfg(feature = "akita-mysql")]
+    #[cfg(feature = "akita-mysql")]
     MysqlPool(r2d2::Pool<MysqlConnectionManager>),
     #[cfg(feature = "akita-sqlite")]
     SqlitePool(r2d2::Pool<SqliteConnectionManager>),
@@ -110,7 +108,7 @@ pub enum PlatformPool {
 
 #[allow(unused)]
 pub enum PooledConnection {
-    // #[cfg(feature = "akita-mysql")]
+    #[cfg(feature = "akita-mysql")]
     PooledMysql(Box<r2d2::PooledConnection<MysqlConnectionManager>>),
     #[cfg(feature = "akita-sqlite")]
     PooledSqlite(Box<r2d2::PooledConnection<SqliteConnectionManager>>),
@@ -123,7 +121,7 @@ impl Pool {
         let platform: Result<Platform, _> = TryFrom::try_from(database_url.as_str());
         match platform {
             Ok(platform) => match platform {
-                // #[cfg(feature = "akita-mysql")]
+                #[cfg(feature = "akita-mysql")]
                 Platform::Mysql => {
                     let pool_mysql = mysql::init_pool(&cfg)?;
                     Ok(Pool(PlatformPool::MysqlPool(pool_mysql), cfg))
@@ -150,7 +148,7 @@ impl Pool {
     /// get a usable database connection from
     pub fn connect(&mut self) -> Result<PooledConnection, AkitaError> {
         match self.0 {
-            // #[cfg(feature = "akita-mysql")]
+            #[cfg(feature = "akita-mysql")]
             PlatformPool::MysqlPool(ref pool_mysql) => {
                 let pooled_conn = pool_mysql.get();
                 match pooled_conn {
@@ -173,7 +171,7 @@ impl Pool {
     /// Data, Rows and Value
     pub fn akita_manager(&self) -> Result<AkitaManager, AkitaError> {
         let db = self.database()?;
-        Ok(AkitaManager(db))
+        Ok(AkitaManager::new(db))
     }
 
     fn get_pool_mut(&self) -> Result<&PlatformPool, AkitaError> {
@@ -184,7 +182,7 @@ impl Pool {
     pub fn connect_mut(&self) -> Result<PooledConnection, AkitaError> {
         let pool = self.get_pool_mut()?;
         match *pool {
-            // #[cfg(feature = "akita-mysql")]
+            #[cfg(feature = "akita-mysql")]
             PlatformPool::MysqlPool(ref pool_mysql) => {
                 let pooled_conn = pool_mysql.get();
                 match pooled_conn {
@@ -207,16 +205,16 @@ impl Pool {
     pub fn database(&self) -> Result<DatabasePlatform, AkitaError> {
         let pooled_conn = self.connect_mut()?;
         match pooled_conn {
-            // #[cfg(feature = "akita-mysql")]
-            PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase(*pooled_mysql, self.1.to_owned())))),
+            #[cfg(feature = "akita-mysql")]
+            PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.1.to_owned())))),
             #[cfg(feature = "akita-sqlite")]
-            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase(*pooled_sqlite, self.1.to_owned())))),
+            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.1.to_owned())))),
         }
     }
 
     /// return an entity manager which provides a higher level api
     pub fn entity_manager(&self) -> Result<AkitaEntityManager, AkitaError> {
         let db = self.database()?;
-        Ok(AkitaEntityManager(db))
+        Ok(AkitaEntityManager::new(db))
     }
 }

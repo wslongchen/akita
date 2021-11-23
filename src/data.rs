@@ -4,7 +4,9 @@ use crate::{value::{ConvertError, FromValue, ToValue, Value}};
 
 
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct AkitaData(pub BTreeMap<String, Value>);
+pub struct AkitaData(BTreeMap<String, Value>);
+
+
 
 pub trait FromAkita {
     /// convert akita to an instance of the corresponding struct of the model
