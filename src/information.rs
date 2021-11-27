@@ -192,6 +192,14 @@ impl Capacity {
             Capacity::Range(_whole, _decimal) => None,
         }
     }
+
+    pub fn sql_format(&self) -> String {
+        match *self {
+            Capacity::Limit(limit) => format!("({})", limit),
+            Capacity::Range(_whole, _decimal) => format!("({}, {})", _whole, _decimal),
+        }
+    }
+
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -200,6 +208,16 @@ pub enum ColumnConstraint {
     DefaultValue(Literal),
     /// the string contains the sequence name of this serial column
     AutoIncrement(Option<String>),
+}
+
+impl ColumnConstraint {
+    pub fn sql_format(&self) -> String {
+        match self {
+            ColumnConstraint::NotNull => "not null".into(),
+            ColumnConstraint::DefaultValue(v) => v.sql_format(), 
+            ColumnConstraint::AutoIncrement(_) => "auto_increment".into(),
+        }
+    }
 }
 
 
@@ -219,6 +237,22 @@ pub enum Literal {
     ArrayInt(Vec<i64>),
     ArrayFloat(Vec<f64>),
     ArrayString(Vec<String>),
+}
+
+impl Literal {
+    pub fn sql_format(&self) -> String {
+        match self {
+            Literal::Bool(v) => v.to_string(),
+            Literal::Integer(v) => v.to_string(),
+            Literal::Double(v) => v.to_string(),
+            Literal::Uuid(v) => v.to_string(),
+            Literal::String(v) => v.to_owned(),
+            Literal::Blob(v) => String::from_utf8(v.to_owned()).unwrap_or_default(),
+            Literal::CurrentTime => "now()".to_string(),
+            Literal::CurrentDate => "now()".to_string(),
+            _ => String::default(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

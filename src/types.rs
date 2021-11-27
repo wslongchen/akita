@@ -94,6 +94,69 @@ impl SqlType {
             _ => panic!("not yet dealt {:?}", self),
         }
     }
+
+    pub fn sql_format(&self) -> String {
+        match *self {
+            SqlType::Text => "text".into(),
+            SqlType::Bool => "bool".into(),
+            SqlType::Tinyint => "tinyint".into(),
+            SqlType::Smallint => "smallint".into(),
+            SqlType::Int => "int".into(),
+            SqlType::Bigint => "bigint".into(),
+            SqlType::Real => "real".into(),
+            SqlType::Float => "float".into(),
+            SqlType::Double => "double".into(),
+            SqlType::Numeric => "numeric".into(),
+            SqlType::Tinyblob => "tinyblob".into(),
+            SqlType::Mediumblob => "mediumblob".into(),
+            SqlType::Blob => "blob".into(),
+            SqlType::Longblob => "longblob".into(),
+            SqlType::Varbinary => "varbinary".into(),
+            SqlType::Char => "char".into(),
+            SqlType::Varchar => "varchar".into(),
+            SqlType::Tinytext => "tinytext".into(),
+            SqlType::Mediumtext => "mediumtext".into(),
+            SqlType::Json => "json".into(),
+            SqlType::Date => "date".into(),
+            SqlType::Timestamp => "timestamp".into(),
+            SqlType::TimestampTz => "timestamp".into(),
+            SqlType::Time => "time".into(),
+            SqlType::TimeTz => "time".into(),
+            SqlType::Point => "point".into(),
+            SqlType::Enum(_, _) => "enum".into(),
+            _ => String::default(),
+        }
+    }
+
+    pub fn parse(sql_type: &str) -> Self {
+        match sql_type {
+            "text" => SqlType::Text,
+            "bool"=> SqlType::Bool ,
+            "tinyint" => SqlType::Tinyint,
+            "smallint" => SqlType::Smallint,
+            "int" => SqlType::Int,
+            "bigint" => SqlType::Bigint,
+            "real" => SqlType::Real,
+            "float" => SqlType::Float,
+            "double" =>SqlType::Double ,
+            "numeric" => SqlType::Numeric,
+            "tinyblob" => SqlType::Tinyblob,
+            "mediumblob" => SqlType::Mediumblob,
+            "blob" => SqlType::Blob,
+            "longblob" => SqlType::Longblob,
+            "varbinary" => SqlType::Varbinary,
+            "char" => SqlType::Char,
+            "varchar" => SqlType::Varchar,
+            "tinytext"=> SqlType::Tinytext,
+            "mediumtext" => SqlType::Mediumtext,
+            "json" => SqlType::Json,
+            "date" => SqlType::Date,
+            "timestamp" => SqlType::Timestamp,
+            "time" => SqlType::Time,
+            "point" => SqlType::Point,
+            _ => SqlType::Text,
+        }
+    }
 }
 
 #[allow(unused)]

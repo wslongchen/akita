@@ -2,6 +2,7 @@
 //! SQL Segments.
 //! 
 use chrono::{NaiveDate, NaiveDateTime};
+use serde_json::Value;
 
 use crate::comm::*;
 
@@ -15,6 +16,7 @@ pub enum Segment{
     Float(f64),
     ColumnField(String),
     Extenssion(String),
+    JsonValue(Value),
     Text(String),
     Int32(i32),
     Int16(i16),
@@ -134,6 +136,7 @@ impl Segment {
             Segment::U16(val) => format!("{}", val),
             Segment::DateTime(val) => format!("'{}'", val.format("%Y-%m-%d %H:%M:%S").to_string()),
             Segment::Date(val) => format!("'{}'", val.format("%Y-%m-%d").to_string()),
+            Segment::JsonValue(val) => format!("{}", val.to_string()),
         }
     }
 }
@@ -217,6 +220,13 @@ impl ToSegment for NaiveDate
 {
     fn to_segment(&self) -> Segment {
         Segment::Date(self.to_owned())
+    }
+}
+
+impl ToSegment for Value
+{
+    fn to_segment(&self) -> Segment {
+        Segment::JsonValue(self.to_owned())
     }
 }
 
