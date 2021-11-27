@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, slice};
+use std::{collections::{BTreeMap, btree_map::{Keys, Values}}, slice};
 
 use crate::{value::{ConvertError, FromValue, ToValue, Value}};
 
@@ -76,6 +76,10 @@ impl AkitaData {
     }
 
     pub fn get_value(&self, s: &str) -> Option<&Value> { self.0.get(s) }
+
+    pub fn values<'a>(&'a self) -> Values<'a, String, Value> { self.0.values() }
+
+    pub fn keys<'a>(&'a self) -> Keys<'a, String, Value> { self.0.keys() }
 
     pub fn remove(&mut self, s: &str) -> Option<Value> { self.0.remove(s) }
 }

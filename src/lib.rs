@@ -121,6 +121,8 @@ mod platform;
 mod data;
 mod auth;
 mod manager;
+#[allow(unused)]
+mod fuse;
 
 
 #[doc(inline)]
@@ -140,6 +142,8 @@ pub use data::*;
 #[doc(inline)]
 pub use information::*;
 pub use auth::*;
+pub use fuse::*;
+pub use types::SqlType;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
 pub use crate as akita;

@@ -73,6 +73,15 @@ pub static HTML_QUOTE: &str = "&quot;";
 pub static HTML_LT: &str = "&lt;";
 pub static HTML_GT: &str = "&gt;";
 pub static WRAPPER_PARAM: &str = "MPGENVAL";
+pub static PRIMARY_KEY: &str = "primary key";
+pub static UNIQUE_KEY: &str = "unique key";
+pub static KEY: &str = "key";
+pub static CONSTRAINT: &str = "key";
+pub static FOREIGN_KEY: &str = "FOREIGN KEY";
+pub static REFERENCES: &str = "REFERENCES";
+pub static DELETE: &str = "DELETE";
+pub static UPDATE: &str = "UPDATE";
+pub static CASCADE: &str = "CASCADE";
 
 
 fn is_keyword(s: &str) -> bool {
