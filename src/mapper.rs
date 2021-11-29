@@ -30,10 +30,10 @@ pub trait BaseMapper{
     type Item;
 
     /// Insert Data.
-    fn insert<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<usize, AkitaError> where Self::Item : GetTableName + GetFields;
+    fn insert<M: AkitaMapper, I>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromAkita;
 
     /// Insert Data Batch.
-    fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<usize>, AkitaError> where Self::Item : GetTableName + GetFields;
+    fn insert_batch<M: AkitaMapper, I>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromAkita;
 
     /// Update Data With Wrapper.
     fn update<W: Wrapper,M: AkitaMapper>(&self, wrapper: &mut UpdateWrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
@@ -117,14 +117,16 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToAkita;
 
     #[allow(unused_variables)]
-    fn save_batch<T>(&mut self, entities: &[&T]) -> Result<Vec<usize>, AkitaError>
+    fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita;
+        T: GetTableName + GetFields + ToAkita,
+        I: FromAkita;
 
     /// called multiple times when using database platform that doesn;t support multiple value
-    fn save<T>(&mut self, entity: &T) -> Result<usize, AkitaError>
+    fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita;
+        T: GetTableName + GetFields + ToAkita,
+        I: FromAkita;
 
     #[allow(clippy::redundant_closure)]
     fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(

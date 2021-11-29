@@ -1,7 +1,9 @@
-use std::fmt;
+use std::{any::type_name, fmt};
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use uuid::Uuid;
+
+use crate::AkitaData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -161,6 +163,7 @@ impl_usined_to_value!(u16, Smallint, i16);
 impl_usined_to_value!(u32, Int, i32);
 impl_usined_to_value!(u64, Bigint, i64);
 impl_usined_to_value!(usize, Bigint, i64);
+impl_usined_to_value!(isize, Bigint, i64);
 
 
 impl_to_value!(bool, Bool);
@@ -183,6 +186,29 @@ impl_to_value!(NaiveDateTime, DateTime);
 impl ToValue for &str {
     fn to_value(&self) -> Value {
         Value::Text(self.to_string())
+    }
+}
+
+impl ToValue for serde_json::Value {
+    fn to_value(&self) -> Value {
+        match self {
+            serde_json::Value::Null => Value::Nil,
+            serde_json::Value::Bool(v) => Value::Bool(v.to_owned()),
+            serde_json::Value::Number(v) => {
+                if v.is_f64() {
+                    Value::Double(v.as_f64().unwrap_or_default())
+                } else if v.is_i64() {
+                    Value::Bigint(v.as_i64().unwrap_or_default())
+                } else if v.is_u64() {
+                    Value::Bigint(v.as_u64().unwrap_or_default() as i64)
+                } else {
+                    Value::Int(0)
+                }
+            },
+            serde_json::Value::String(v) => Value::Text(v.to_owned()),
+            serde_json::Value::Array(_v) => Value::SerdeJson(self.to_owned()),
+            serde_json::Value::Object(_v) => Value::SerdeJson(self.to_owned()),
+        }
     }
 }
 
@@ -240,6 +266,17 @@ where
 #[derive(Debug)]
 pub enum ConvertError {
     NotSupported(String, String),
+    FromAkitaError(AkitaData),
+}
+
+impl fmt::Display for ConvertError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Couldn't convert the row `{:?}` to a desired type",
+            self.to_owned()
+        )
+    }
 }
 
 impl From<serde_json::Error> for ConvertError {
@@ -249,14 +286,25 @@ impl From<serde_json::Error> for ConvertError {
 }
 
 pub trait FromValue: Sized {
-    fn from_value(v: &Value) -> Result<Self, ConvertError>;
+    fn from_value(v: &Value) -> Self {
+        match Self::from_value_opt(v) {
+            Ok(x) => x,
+            Err(_err) => panic!(
+                "Couldn't from {:?} to type {}. (see FromRow documentation)",
+                v,
+                type_name::<Self>(),
+            ),
+        }
+    }
+
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError>;
 }
 
 macro_rules! impl_from_value {
     ($ty: ty, $ty_name: tt, $($variant: ident),*) => {
         /// try from to owned
         impl FromValue for $ty {
-            fn from_value(v: &Value) -> Result<Self, ConvertError> {
+            fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
                 match *v {
                     $(Value::$variant(ref v) => Ok(v.to_owned() as $ty),
                     )*
@@ -270,11 +318,11 @@ macro_rules! impl_from_value {
 macro_rules! impl_from_value_numeric {
     ($ty: ty, $method:ident, $ty_name: tt, $($variant: ident),*) => {
         impl FromValue for $ty {
-            fn from_value(v: &Value) -> Result<Self, ConvertError> {
+            fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
                 match *v {
                     $(Value::$variant(ref v) => Ok(v.to_owned() as $ty),
                     )*
-                    Value::BigDecimal(ref v) => Ok(v.$method().unwrap()),
+                    Value::BigDecimal(ref v) => Ok(v.$method().unwrap_or_default()),
                     _ => Err(ConvertError::NotSupported(format!("{:?}", v), $ty_name.into())),
                 }
             }
@@ -287,6 +335,7 @@ impl_from_value!(char, "char", Char);
 impl_from_value!(Uuid, "Uuid", Uuid);
 impl_from_value!(NaiveDate, "NaiveDate", Date);
 impl_from_value_numeric!(i8, to_i8, "i8", Tinyint);
+impl_from_value_numeric!(isize, to_isize, "isize", Tinyint, Bigint, Int);
 impl_from_value_numeric!(u8, to_u8, "u8", Tinyint, Bigint, Int);
 impl_from_value_numeric!(u16, to_u16, "u16", Tinyint, Bigint, Int);
 impl_from_value_numeric!(u32, to_u32, "u32", Tinyint, Bigint, Int);
@@ -301,7 +350,7 @@ impl_from_value_numeric!(f64, to_f64, "f64", Float, Double);
 /// Char can be casted into String
 /// and they havea separate implementation for extracting data
 impl FromValue for String {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Text(ref v) => Ok(v.to_owned()),
             Value::Char(ref v) => {
@@ -321,7 +370,7 @@ impl FromValue for String {
 }
 
 impl FromValue for Vec<String> {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Array(Array::Text(ref t)) => Ok(t.to_owned()),
             _ => Err(ConvertError::NotSupported(
@@ -332,8 +381,20 @@ impl FromValue for Vec<String> {
     }
 }
 
+impl FromValue for () {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
+        match *v {
+            Value::Nil => Ok(()),
+            _ => Err(ConvertError::NotSupported(
+                format!("{:?}", v),
+                "Vec<String>".to_string(),
+            )),
+        }
+    }
+}
+
 impl FromValue for bool {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Bool(v) => Ok(v),
             Value::Tinyint(v) => Ok(v == 1),
@@ -349,7 +410,7 @@ impl FromValue for bool {
 }
 
 impl FromValue for serde_json::Value {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match v.clone() {
             Value::Bool(v) => serde_json::to_value(v).map_err(ConvertError::from),
             Value::Tinyint(v) => serde_json::to_value(v).map_err(ConvertError::from),
@@ -378,7 +439,7 @@ impl FromValue for serde_json::Value {
 }
 
 impl FromValue for DateTime<Utc> {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Text(ref v) => Ok(DateTime::<Utc>::from_utc(parse_naive_date_time(v), Utc)),
             Value::DateTime(v) => Ok(DateTime::<Utc>::from_utc(v, Utc)),
@@ -392,7 +453,7 @@ impl FromValue for DateTime<Utc> {
 }
 
 impl FromValue for NaiveDateTime {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Text(ref v) => Ok(parse_naive_date_time(v)),
             Value::DateTime(v) => Ok(v),
@@ -408,10 +469,10 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(v: &Value) -> Result<Self, ConvertError> {
+    fn from_value_opt(v: &Value) -> Result<Self, ConvertError> {
         match *v {
             Value::Nil => Ok(None),
-            _ => FromValue::from_value(v).map(Some),
+            _ => FromValue::from_value_opt(v).map(Some),
         }
     }
 }

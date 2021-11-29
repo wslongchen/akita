@@ -212,7 +212,6 @@ impl Database for MysqlDatabase {
         .iter()
         .map(|data| FromAkita::from_data(&data))
         .collect();
-
         let table_spec = match tables.len() {
             0 => return Err(AkitaError::DataError("Unknown table finded.".to_string())),
             _ => tables.remove(0),

@@ -3,6 +3,8 @@
 //! 
 use std::{fmt, str::Utf8Error, string::ParseError};
 
+use crate::ConvertError;
+
 #[derive(Debug)]
 pub enum AkitaError {
     InvalidSQL(String),
@@ -78,6 +80,11 @@ impl From<Utf8Error> for AkitaError {
 impl From<ParseError> for AkitaError {
     fn from(err: ParseError) -> Self {
         AkitaError::UrlParseError(err.to_string())
+    }
+}
+impl From<ConvertError> for AkitaError {
+    fn from(err: ConvertError) -> Self {
+        AkitaError::DataError(err.to_string())
     }
 }
 

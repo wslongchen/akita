@@ -119,6 +119,7 @@ mod types;
 mod database;
 mod platform;
 mod data;
+#[cfg(feature = "akita-auth")]
 mod auth;
 mod manager;
 #[allow(unused)]
@@ -141,6 +142,7 @@ pub use pool::{AkitaConfig, LogLevel, Pool};
 pub use data::*;
 #[doc(inline)]
 pub use information::*;
+#[cfg(feature = "akita-auth")]
 pub use auth::*;
 pub use fuse::*;
 pub use types::SqlType;
