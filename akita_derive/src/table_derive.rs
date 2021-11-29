@@ -406,13 +406,13 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
 
             type Item = #name;
 
-            fn insert<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<usize, akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita {
+            fn insert<M: akita::AkitaMapper, I>(&self, entity_manager: &mut M) -> Result<Option<I>, akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita, I: akita::FromAkita {
                 let data: Self::Item = self.clone();
                 entity_manager.save(&data)
             }
 
-            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<usize>, akita::AkitaError> where Self::Item : akita::GetTableName + akita::GetFields {
-                entity_manager.save_batch::<Self::Item>(datas)
+            fn insert_batch<M: akita::AkitaMapper, I>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, akita::AkitaError> where Self::Item : akita::GetTableName + akita::GetFields, I: akita::FromAkita {
+                entity_manager.save_batch::<Self::Item, I>(datas)
             }
 
             fn update<W: akita::Wrapper, M: akita::AkitaMapper>(&self, wrapper: &mut akita::UpdateWrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::GetFields + akita::GetTableName + akita::ToAkita {

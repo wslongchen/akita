@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.3.0?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.3.2?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -43,7 +43,7 @@ Click to show Cargo.toml.
 # The core APIs, including the Table traits. Always
 # required when using Akita. using #[derive(Table)] 
 # to make Akita work with structs defined in your crate.
-akita = { version = "0.2.0"] }
+akita = { version = "0.3.0"] }
 
 ```
 

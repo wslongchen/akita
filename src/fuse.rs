@@ -2,7 +2,7 @@
 //! Fuse features
 //! 
 
-use crate::{self as akita, AkitaError, AkitaMapper, IPage, Params, Pool, QueryWrapper, Rows, UpdateWrapper, Value, Wrapper, data::{FromAkita, ToAkita}, database::DatabasePlatform, information::{GetFields, GetTableName}};
+use crate::{self as akita, AkitaError, AkitaMapper, IPage, Params, Pool, QueryWrapper, Rows, UpdateWrapper, Value, Wrapper, data::{FromAkita, ToAkita}, database::DatabasePlatform, information::{GetFields}};
 
 pub struct Akita {
     db: Option<DatabasePlatform>,
@@ -115,10 +115,6 @@ impl Akita {
     where
         T: FromAkita
     {
-        #[derive(FromAkita)]
-        struct Count {
-            count: i64,
-        }
         if self.table.is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
@@ -144,8 +140,7 @@ impl Akita {
         }
         let db = self.db.as_mut().expect("Missing database connection");
         let result = db.execute_result(&count_sql, Params::Nil)?;
-        let datas: Vec<Count> = result.iter().map(|d| Count::from_data(&d)).collect();
-        let count = datas.iter().next().map(|c| c.count).unwrap_or_default();
+        let count = result.iter().map(|d| i64::from_data(&d)).next().unwrap_or(0);
         let mut page = IPage::new(page, size ,count as usize, vec![]);
         if page.total > 0 {
             let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &self.table, where_condition,page.offset(),  page.size);
@@ -162,10 +157,6 @@ impl Akita {
 
     /// Get the total count of records
     pub fn count(&mut self) -> Result<usize, AkitaError> {
-        #[derive(FromAkita)]
-        struct Count {
-            count: i64,
-        }
         if self.table.is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
@@ -190,13 +181,12 @@ impl Akita {
         }
         let db = self.db.as_mut().expect("Missing database connection");
         let result = db.execute_result(&sql, Params::Nil)?;
-        let datas: Vec<Count> = result.iter().map(|d| Count::from_data(&d)).collect();
-        let count = datas.iter().next().map(|c| c.count).unwrap_or_default();
-        Ok(count as usize)
+        let count = result.iter().map(|d| i64::from_data(&d)).next().map(|c| c as usize).unwrap_or(0);
+        Ok(count)
     }
 
     /// Remove the records by wrapper.
-    pub fn remove<T, W>(&mut self, wrapper: &mut W) -> Result<(), AkitaError> {
+    pub fn remove(&mut self) -> Result<(), AkitaError> {
         if self.table.is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
@@ -242,7 +232,7 @@ impl Akita {
     /// called multiple times when using database platform that doesn;t support multiple value
     pub fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
+        T: GetFields + ToAkita,
         I: FromAkita
     {
         let columns = T::fields();
@@ -270,6 +260,32 @@ impl Akita {
         };
         let last_insert_id = rows.iter().next().map(|data| I::from_data(&data));
         Ok(last_insert_id)
+    }
+
+    /// called multiple times when using database platform that doesn;t support multiple value
+    pub fn save_map<T>(&mut self, entity: &T) -> Result<(), AkitaError>
+    where
+        T: ToAkita,
+    {
+        let columns = entity.to_data();
+        let columns = columns.keys().collect::<Vec<&String>>();
+        let sql = self.build_insert_clause_map(entity)?;
+        let data = entity.to_data();
+        let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+        for col in columns.iter() {
+            let value = data.get_value(col);
+            match value {
+                Some(value) => values.push(value.clone()),
+                None => values.push(Value::Nil),
+            }
+        }
+        let bvalues: Vec<&Value> = values.iter().collect();
+        if self.db.is_none() {
+            return Err(AkitaError::DataError("Missing database connection".to_string()))
+        }
+        let db = self.db.as_mut().expect("Missing database connection");
+        db.execute_result(&sql,values.into())?;
+        Ok(())
     }
 
     /// Performs text query and maps each row of the first result set.
@@ -563,11 +579,64 @@ impl Akita {
     }
 
     /// build an insert clause
+    pub fn build_insert_clause_map<T>(&mut self, entity: &T) -> Result<String, AkitaError>
+    where
+        T: ToAkita,
+    {
+        let table = &self.table;
+        let columns = entity.to_data();
+        let columns = columns.keys().collect::<Vec<&String>>();
+        let columns_len = columns.len();
+        let mut sql = String::new();
+        let entities = &[entity];
+        if self.db.is_none() {
+            return Err(AkitaError::DataError("Missing database connection".to_string()))
+        }
+        let db = self.db.as_mut().expect("Missing database connection");
+        sql += &format!("INSERT INTO {} ", table);
+        sql += &format!(
+            "({})\n",
+            columns
+                .iter()
+                .map(|c| format!("`{}`", c))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        sql += "VALUES ";
+        sql += &entities
+            .iter()
+            .enumerate()
+            .map(|(y, _)| {
+                format!(
+                    "\n\t({})",
+                    columns
+                        .iter()
+                        .enumerate()
+                        .map(|(x, _)| {
+                            #[allow(unreachable_patterns)]
+                            match db {
+                                #[cfg(feature = "with-sqlite")]
+                                DatabasePlatform::Sqlite(_) => format!("${}", y * columns_len + x + 1),
+                                #[cfg(feature = "akita-mysql")]
+                                DatabasePlatform::Mysql(_) => "?".to_string(),
+                                _ => format!("${}", y * columns_len + x + 1),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        Ok(sql)
+    }
+
+    /// build an insert clause
     pub fn build_insert_clause<T>(&mut self, entities: &[&T]) -> Result<String, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
+        T: GetFields + ToAkita,
     {
-        let table = T::table_name();
+        let table = &self.table;
         let columns = T::fields();
         let columns_len = columns.len();
         let mut sql = String::new();
@@ -575,7 +644,7 @@ impl Akita {
             return Err(AkitaError::DataError("Missing database connection".to_string()))
         }
         let db = self.db.as_mut().expect("Missing database connection");
-        sql += &format!("INSERT INTO {} ", table.complete_name());
+        sql += &format!("INSERT INTO {} ", table);
         sql += &format!(
             "({})\n",
             columns

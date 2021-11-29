@@ -37,10 +37,10 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
     quote!(
         impl akita::FromAkita for #name {
             
-            fn from_data(data: &akita::AkitaData) -> Self {
-                #name {
+            fn from_data_opt(data: &akita::AkitaData) -> Result<Self, akita::ConvertError> {
+                Ok(#name {
                     #(#from_fields)*
-                }
+                })
             }
         }
     ).into()
