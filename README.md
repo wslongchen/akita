@@ -9,7 +9,7 @@
 [Rust 1.13]: https://blog.rust-lang.org/2016/11/10/Rust-1.13.html
 [Rust 1.31]: https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018.html
 
-**Akita - Mini orm for rust **
+```Akita - Mini orm for rust ```
 
 This create offers:
 * MySql database's helper in pure rust;
@@ -50,6 +50,8 @@ akita = { version = "0.3.0", features = ["akita-mysql"] }
 </details>
 <p></p>
 
+## API Documentation
+
 ```rust
 use akita::*;
 use akita::prelude::*;
@@ -75,6 +77,10 @@ pub struct User {
     #[field(name = "token")]
     pub url_token: String,
 }
+
+```
+ ### CRUD with EntityManager
+```rust
 
 
 fn main() {
@@ -116,7 +122,18 @@ fn main() {
         "id" = 1
     }).unwrap();
     let res = entity_manager.execute_drop("select now()").unwrap();
+}
+```
+ ### CRUD with Entity
+```rust
 
+
+fn main() {
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
+    let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
+        .set_log_level(LogLevel::Debug).set_max_size(6);
+    let mut pool = Pool::new(cfg).expect("must be ok");
+    let mut entity_manager = pool.entity_manager().expect("must be ok");
     // CRUD with Entity
     let model = User::default();
     // insert
@@ -129,7 +146,18 @@ fn main() {
     let list = model.list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
     // page
     let page = model.page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+}
+```
+ ### Fast with Akita
+```rust
 
+
+fn main() {
+    let db_url = String::from("mysql://root:password@localhost:3306/akita");
+    let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
+        .set_log_level(LogLevel::Debug).set_max_size(6);
+    let mut pool = Pool::new(cfg).expect("must be ok");
+    let mut entity_manager = pool.entity_manager().expect("must be ok");
     // Fast with Akita
     let mut akita = Akita::new();
     let list: Vec<User> = akita.conn(pool.database().unwrap())
@@ -146,8 +174,7 @@ fn main() {
 }
 ```
 
- ## API Documentation
- ## Wrapper
+ ### Wrapper
  ```ignore
 
  let mut wrapper = Wrapper::new().like(true, "column1", "ffff")
