@@ -1,4 +1,5 @@
 use std::{convert::TryFrom, time::Duration};
+use akita_core::cfg_if;
 use log::*;
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
@@ -8,7 +9,7 @@ cfg_if! {if #[cfg(feature = "akita-mysql")]{
 cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::{self, SqliteConnectionManager, SqliteDatabase};
 }}
-use crate::{AkitaError, cfg_if, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
+use crate::{AkitaError, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
 
 #[allow(unused)]
 #[derive(Clone)]

@@ -20,8 +20,8 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>()
         }
-        Data::Enum(_) => panic!("#[derive(FromAkita)] can only be used with structs"),
-        Data::Union(_) => panic!("#[derive(FromAkita)] can only be used with structs"),
+        Data::Enum(_) => panic!("#[derive(FromValue)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(FromValue)] can only be used with structs"),
     };
 
     let from_fields: Vec<proc_macro2::TokenStream> = fields
@@ -30,14 +30,14 @@ pub fn impl_from_akita(input: TokenStream) -> TokenStream {
             let identify = has_contract_meta(attrs, "table_id");
             let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string()); 
             let default_value = get_field_default_value(ty, field);
-            quote!( #field: match data.get(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
+            quote!( #field: match data.get_obj(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
         })
         .collect();
     
     quote!(
-        impl akita::FromAkita for #name {
+        impl akita::core::FromValue for #name {
             
-            fn from_data_opt(data: &akita::AkitaData) -> Result<Self, akita::ConvertError> {
+            fn from_value_opt(data: &akita::core::Value) -> Result<Self, akita::core::AkitaDataError> {
                 Ok(#name {
                     #(#from_fields)*
                 })
@@ -65,8 +65,8 @@ pub fn impl_to_akita(input: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>()
         }
-        Data::Enum(_) => panic!("#[derive(ToAkita)] can only be used with structs"),
-        Data::Union(_) => panic!("#[derive(ToAkita)] can only be used with structs"),
+        Data::Enum(_) => panic!("#[derive(ToValue)] can only be used with structs"),
+        Data::Union(_) => panic!("#[derive(ToValue)] can only be used with structs"),
     };
     
     let from_fields: Vec<proc_macro2::TokenStream> = fields
@@ -74,15 +74,15 @@ pub fn impl_to_akita(input: TokenStream) -> TokenStream {
         .map(|&(field, _ty, attrs)| {
             let identify = has_contract_meta(attrs, "table_id");
             let field_name = get_contract_meta_item_value(attrs, if identify { "table_id" } else { "field" }, "name").unwrap_or(field.to_string());
-            quote!( data.insert(#field_name, &self.#field);)
+            quote!( data.insert_obj(#field_name, &self.#field);)
         })
         .collect();
 
     quote!(
-        impl #generics akita::ToAkita for #name #generics {
+        impl #generics akita::core::ToValue for #name #generics {
 
-            fn to_data(&self) -> akita::AkitaData {
-                let mut data = akita::AkitaData::new();
+            fn to_value(&self) -> akita::core::Value {
+                let mut data = akita::core::Value::new_object();
                 #(#from_fields)*
                 data
             }

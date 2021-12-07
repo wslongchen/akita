@@ -3,7 +3,7 @@ use crate::pool::{AkitaConfig, LogLevel};
 use crate::{pool::Pool, data::*, IPage};
 use crate::manager::{GetTableName, TableName, FieldName, GetFields, FieldType, AkitaEntityManager};
 
-#[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+#[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
 #[table(name="t_system_user")]
 struct SystemUser {
     #[field = "name"]

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{FieldName, TableName, self as akita};
 
 
-#[derive(Debug, Serialize, Deserialize, FromAkita)]
+#[derive(Debug, Serialize, Deserialize, FromValue)]
 pub struct DataBaseUser {
     pub sysid: Option<i32>,
     pub username: String,
@@ -18,7 +18,7 @@ pub struct DataBaseUser {
     pub conn_limit: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromAkita)]
+#[derive(Debug, Serialize, Deserialize, FromValue)]
 pub struct Role {
     pub role_name: String,
 }

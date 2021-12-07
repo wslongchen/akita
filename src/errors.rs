@@ -5,6 +5,7 @@ use std::{fmt, str::Utf8Error, string::ParseError};
 
 use crate::ConvertError;
 
+
 #[derive(Debug)]
 pub enum AkitaError {
     InvalidSQL(String),

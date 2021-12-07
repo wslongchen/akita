@@ -5,7 +5,7 @@ use akita::prelude::*;
 use akita::*;
 use chrono::NaiveDateTime;
 
-#[derive(Table, Clone, ToAkita, FromAkita)]
+#[derive(AkitaTable, Clone, ToValue, FromValue)]
 #[table(name = "t_system_user")]
 pub struct User {
     #[table_id(name = "id")]

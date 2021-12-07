@@ -8,7 +8,7 @@ use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
 
-use crate::{AkitaConfig, Params};
+use crate::{AkitaConfig, Params, self as akita};
 
 cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
@@ -16,10 +16,8 @@ cfg_if! {if #[cfg(feature = "akita-auth")]{
 
 use crate::database::Database;
 use crate::pool::LogLevel;
-use crate::types::SqlType;
-use crate::value::{ToValue, Value};
-use crate::{self as akita, cfg_if, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent}, comm};
-use crate::data::{FromAkita, Rows};
+use serde_json::Map;
+use crate::{ToValue, Value, FromValue, Rows, SqlType, cfg_if, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent, comm};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
 pub struct MysqlDatabase(r2d2::PooledConnection<MysqlConnectionManager>, AkitaConfig);
@@ -180,7 +178,7 @@ impl Database for MysqlDatabase {
     }
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
-        #[derive(Debug, FromAkita)]
+        #[derive(Debug, FromValue)]
         struct TableSpec {
             schema: String,
             name: String,
@@ -210,14 +208,14 @@ impl Database for MysqlDatabase {
             ).into(),
         )?
         .iter()
-        .map(|data| FromAkita::from_data(&data))
+        .map(|data| FromValue::from_value(&data))
         .collect();
         let table_spec = match tables.len() {
             0 => return Err(AkitaError::DataError("Unknown table finded.".to_string())),
             _ => tables.remove(0),
         };
 
-        #[derive(Debug, FromAkita)]
+        #[derive(Debug, FromValue)]
         struct ColumnSpec {
             schema: String,
             table_name: String,
@@ -239,7 +237,7 @@ impl Database for MysqlDatabase {
                  (&table_schema, &table_name).into(),
             )?
             .iter()
-            .map(|data| FromAkita::from_data(&data))
+            .map(|data| FromValue::from_value(&data))
             .map(|spec: ColumnSpec| {
                 let (sql_type, capacity) =
                     if spec.type_.starts_with("enum(") || spec.type_.starts_with("set(") {
@@ -325,7 +323,7 @@ impl Database for MysqlDatabase {
         self.execute_result(&sql, (&table_name.name, &table_name.schema).into()).map(|rows| {
             rows.iter().next()
                 .map(|row| {
-                    row.get_opt::<i32>("count")
+                    row.get_obj_opt::<i32>("count")
                         .expect("must not error")
                 }).unwrap_or_default().unwrap_or_default() > 0
         })
@@ -351,7 +349,7 @@ impl Database for MysqlDatabase {
     }
 
     fn get_tablenames(&mut self, schema: &str) -> Result<Vec<TableName>, AkitaError> {
-        #[derive(Debug, FromAkita)]
+        #[derive(Debug, FromValue)]
         struct TableNameSimple {
             table_name: String,
         }
@@ -362,7 +360,7 @@ impl Database for MysqlDatabase {
             .execute_result(sql, (schema, ).into())?
             .iter()
             .map(|row| TableNameSimple {
-                table_name: row.get("table_name").expect("must have a table name"),
+                table_name: row.get_obj("table_name").expect("must have a table name"),
             })
             .collect();
         let tablenames = result
@@ -393,7 +391,7 @@ impl Database for MysqlDatabase {
             self.execute_result(&sql, Params::Nil).map(|rows| {
                 rows.iter()
                     .map(|row| {
-                        row.get_opt("name")
+                        row.get_obj_opt("name")
                             .expect("must not error")
                             .map(|name| DatabaseName {
                                 name,
@@ -420,7 +418,7 @@ impl Database for MysqlDatabase {
         self.execute_result(&sql, (database,).into()).map(|rows| {
             rows.iter().next()
                 .map(|row| {
-                    row.get_opt::<i32>("count")
+                    row.get_obj_opt::<i32>("count")
                         .expect("must not error")
                 }).unwrap_or_default().unwrap_or_default() > 0
         })
@@ -435,7 +433,7 @@ impl Database for MysqlDatabase {
             rows.iter()
                 .map(|row| DataBaseUser {
                     sysid: None,
-                    username: row.get("username").expect("username"),
+                    username: row.get_obj("username").expect("username"),
                     //TODO: join to the user_privileges tables
                     is_superuser: false,
                     is_inherit: false,
@@ -457,7 +455,7 @@ impl Database for MysqlDatabase {
         self.execute_result(&sql, (&user.username, user.host.as_ref().unwrap_or(&"localhost".to_owned())).into()).map(|rows| {
             rows.iter().next()
                 .map(|row| {
-                    row.get_opt::<i32>("count")
+                    row.get_obj_opt::<i32>("count")
                         .expect("must not error")
                 }).unwrap_or_default().unwrap_or_default() > 0
         })
@@ -528,7 +526,7 @@ impl Database for MysqlDatabase {
 
 #[allow(unused)]
 fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, AkitaError> {
-    #[derive(Debug, FromAkita)]
+    #[derive(Debug, FromValue)]
     struct TableNameSimple {
         table_name: String,
     }
@@ -537,7 +535,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
         .execute_result(sql, (kind.to_value(),).into())?
         .iter()
         .map(|row| TableNameSimple {
-            table_name: row.get("table_name").expect("must have a table name"),
+            table_name: row.get_obj("table_name").expect("must have a table name"),
         })
         .collect();
     let mut table_names = vec![];
@@ -575,6 +573,13 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Nil => mysql::Value::NULL,
             Value::Array(_) => unimplemented!("unsupported type"),
             Value::SerdeJson(ref v) => v.into(),
+            Value::Object(ref v) => {
+                let mut data = Map::new();
+                for (k, v) in v.into_iter() {
+                    data.insert(k.to_owned(), serde_json::Value::from_value(&v));
+                }
+                serde_json::Value::Object(data).into()
+            },
             Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
         }

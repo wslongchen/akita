@@ -57,7 +57,7 @@
 //! use akita::prelude::*;
 //! 
 //! /// Annotion Support: Table、table_id、field (name, exist)
-//! #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+//! #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
 //! #[table(name="t_system_user")]
 //! struct SystemUser {
 //!     #[field = "name"]
@@ -106,19 +106,13 @@
 //! 
 //! 
 //! 
-#[allow(unused)]
-mod comm;
 mod wrapper;
 mod segment;
 mod errors;
 mod mapper;
 mod pool;
-mod information;
-mod value;
-mod types;
 mod database;
 mod platform;
-mod data;
 #[cfg(feature = "akita-auth")]
 mod auth;
 mod manager;
@@ -127,7 +121,7 @@ mod fuse;
 
 
 #[doc(inline)]
-pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
+pub use wrapper::Wrapper;
 #[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
@@ -135,20 +129,12 @@ pub use segment::{Segment, AkitaKeyword};
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]
-pub use value::*;
-#[doc(inline)]
 pub use pool::{AkitaConfig, LogLevel, Pool};
-#[doc(inline)]
-pub use data::*;
-#[doc(inline)]
-pub use information::*;
 #[cfg(feature = "akita-auth")]
 pub use auth::*;
 pub use fuse::*;
-pub use types::SqlType;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
-pub use crate as akita;
 
 pub mod prelude {
     #[doc(inline)]
@@ -165,65 +151,11 @@ pub mod prelude {
 extern crate akita_derive;
 #[doc(hidden)]
 pub use akita_derive::*;
+pub use akita_core as core;
 
+pub use akita_core::*;
+
+pub use crate::core::{FieldName, FieldType, GetFields, GetTableName, Table, ToValue, FromValue};
+
+pub use akita_core::*;
 extern crate log;
-
-
-
-/// This macro is a convenient way to pass named parameters to a statement.
-///
-/// ```ignore
-/// let foo = 42;
-/// params! {
-///     foo,
-///     "foo2x" => foo * 2,
-/// });
-/// ```
-#[macro_export]
-macro_rules! params {
-    () => {};
-    (@to_pair $name:expr => $value:expr) => (
-        (std::string::String::from($name), akita::Value::from($value))
-    );
-    (@to_pair $name:ident) => (
-        (std::string::String::from(stringify!($name)), akita::Value::from($name))
-    );
-    (@expand $vec:expr;) => {};
-    (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {
-        $vec.push(params!(@to_pair $name => $value));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:expr => $value:expr $(, $tail:tt)*) => {
-        $vec.push(params!(@to_pair $name => $value));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:ident, $($tail:tt)*) => {
-        $vec.push(params!(@to_pair $name));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:ident $(, $tail:tt)*) => {
-        $vec.push(params!(@to_pair $name));
-        params!(@expand $vec; $($tail)*);
-    };
-    ($i:ident, $($tail:tt)*) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i, $($tail)*);
-            output
-        }
-    };
-    ($i:expr => $($tail:tt)*) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i => $($tail)*);
-            output
-        }
-    };
-    ($i:ident) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i);
-            output
-        }
-    }
-}

@@ -1,5 +1,5 @@
-use crate::{AkitaError, Params, UpdateWrapper, Wrapper, data::{FromAkita, ToAkita}, information::{GetFields, GetTableName}, value::ToValue};
-use serde::{Deserialize, Serialize};
+use crate::{AkitaError, Wrapper, FromValue, ToValue, Params, GetTableName, GetFields};
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct IPage <T> 
@@ -30,74 +30,69 @@ pub trait BaseMapper{
     type Item;
 
     /// Insert Data.
-    fn insert<M: AkitaMapper, I>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromAkita;
+    fn insert<I, M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Insert Data Batch.
-    fn insert_batch<M: AkitaMapper, I>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromAkita;
+    fn insert_batch<I, M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Update Data With Wrapper.
-    fn update<W: Wrapper,M: AkitaMapper>(&self, wrapper: &mut UpdateWrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
+    fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
 
-    fn list<W: Wrapper,M: AkitaMapper>(wrapper: &mut W, entity_manager: &mut M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita;
+    fn list<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
-    fn page<W: Wrapper,M: AkitaMapper>(page: usize, size: usize, wrapper: &mut W, entity_manager: &mut M) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita;
+    fn page<M: AkitaMapper>(page: usize, size: usize, wrapper: Wrapper, entity_manager: &mut M) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Find One With Wrapper.
-    fn find_one<W: Wrapper,M: AkitaMapper>(wrapper: &mut W, entity_manager: &mut M) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita;
+    fn find_one<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Find Data With Table's Ident.
-    fn find_by_id<I: ToValue,M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromAkita;
+    fn find_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Update Data With Table's Ident.
-    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita ;
+    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete Data With Wrapper.
-    fn delete<W: Wrapper,M: AkitaMapper>(&self, wrapper: &mut W, entity_manager: &mut M) -> Result<(), AkitaError>where Self::Item : GetFields + GetTableName + ToAkita ;
+    fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete Data With Table's Ident.
-    fn delete_by_id<I: ToValue,M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToAkita ;
+    fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Get the Table Count.
-    fn count<T, W: Wrapper,M: AkitaMapper>(&mut self, wrapper: &mut W, entity_manager: &mut M) -> Result<usize, AkitaError>;
+    fn count<M: AkitaMapper>(&mut self, wrapper: Wrapper, entity_manager: &mut M) -> Result<usize, AkitaError>;
 
 }
 
 pub trait AkitaMapper {
     /// Get all the table of records
-    fn list<T, W>(&mut self, wrapper: &mut W) -> Result<Vec<T>, AkitaError>
+    fn list<T>(&mut self, wrapper: Wrapper) -> Result<Vec<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper;
+        T: GetTableName + GetFields + FromValue;
 
     /// Get one the table of records
-    fn select_one<T, W>(&mut self, wrapper: &mut W) -> Result<Option<T>, AkitaError>
+    fn select_one<T>(&mut self, wrapper: Wrapper) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper;
+        T: GetTableName + GetFields + FromValue;
 
     /// Get one the table of records by id
     fn select_by_id<T, I>(&mut self, id: I) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
+        T: GetTableName + GetFields + FromValue,
         I: ToValue;
 
     /// Get table of records with page
-    fn page<T, W>(&mut self, page: usize, size: usize, wrapper: &mut W) -> Result<IPage<T>, AkitaError>
+    fn page<T>(&mut self, page: usize, size: usize, wrapper: Wrapper) -> Result<IPage<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper;
+        T: GetTableName + GetFields + FromValue;
 
     /// Get the total count of records
-    fn count<T, W>(&mut self, wrapper: &mut W) -> Result<usize, AkitaError> 
+    fn count<T>(&mut self, wrapper: Wrapper) -> Result<usize, AkitaError> 
     where
-        T: GetTableName + GetFields,
-        W: Wrapper;
+        T: GetTableName + GetFields;
 
     /// Remove the records by wrapper.
-    fn remove<T, W>(&mut self, wrapper: &mut W) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, wrapper: Wrapper) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields,
-        W: Wrapper;
+        T: GetTableName + GetFields;
 
     /// Remove the records by id.
     fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
@@ -107,26 +102,26 @@ pub trait AkitaMapper {
     
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, wrapper: &mut UpdateWrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita;
+        T: GetTableName + GetFields + ToValue;
 
     /// Update the records by id.
     fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita;
+        T: GetTableName + GetFields + ToValue;
 
     #[allow(unused_variables)]
     fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita;
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue;
 
     /// called multiple times when using database platform that doesn;t support multiple value
     fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita;
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue;
 
     #[allow(clippy::redundant_closure)]
     fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(
@@ -135,7 +130,7 @@ pub trait AkitaMapper {
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
-        R: FromAkita;
+        R: FromValue;
 
     fn execute_drop<'a, S: Into<String>, P: Into<Params>>(
         &mut self,
@@ -149,7 +144,7 @@ pub trait AkitaMapper {
         params: P,
     ) -> Result<R, AkitaError>
     where
-        R: FromAkita;
+        R: FromValue;
 
     fn execute_result_opt<'a, R, S: Into<String>, P: Into<Params>>(
         &mut self,
@@ -157,5 +152,5 @@ pub trait AkitaMapper {
         params: P,
     ) -> Result<Option<R>, AkitaError>
     where
-        R: FromAkita;
+        R: FromValue;
 }

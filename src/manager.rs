@@ -1,5 +1,4 @@
-use crate::{AkitaError, IPage, Params, UpdateWrapper, Wrapper, database::{Database, DatabasePlatform}, information::{DatabaseName, FieldName, FieldType, GetFields, GetTableName, TableDef, TableName}, mapper::AkitaMapper, value::{ToValue, Value}};
-use crate::data::{FromAkita, Rows, AkitaData, ToAkita};
+use crate::{AkitaError, IPage, Wrapper, database::{Database, DatabasePlatform}, mapper::AkitaMapper, GetFields, GetTableName, FromValue, ToValue, Rows, TableName, DatabaseName, FieldName, Params, Value, FieldType, TableDef};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
 #[allow(unused)]
@@ -42,19 +41,19 @@ impl<'a> Drop for AkitaTransaction<'a> {
 impl AkitaMapper for AkitaTransaction <'_> {
 
     /// Get all the table of records
-    fn list<T, W>(&mut self, wrapper: &mut W) -> Result<Vec<T>, AkitaError>
+    fn list<T>(&mut self, wrapper:Wrapper) -> Result<Vec<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,
+        
     {
         self.conn.list(wrapper)
     }
 
     /// Get one the table of records
-    fn select_one<T, W>(&mut self, wrapper: &mut W) -> Result<Option<T>, AkitaError>
+    fn select_one<T>(&mut self, wrapper:Wrapper) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,
+        
     {
         self.conn.select_one(wrapper)
     }
@@ -62,35 +61,35 @@ impl AkitaMapper for AkitaTransaction <'_> {
     /// Get one the table of records by id
     fn select_by_id<T, I>(&mut self, id: I) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
+        T: GetTableName + GetFields + FromValue,
         I: ToValue
     {
         self.conn.select_by_id(id)
     }
 
     /// Get table of records with page
-    fn page<T, W>(&mut self, page: usize, size: usize, wrapper: &mut W) -> Result<IPage<T>, AkitaError>
+    fn page<T>(&mut self, page: usize, size: usize, wrapper:Wrapper) -> Result<IPage<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,
+        
     {
         self.conn.page(page, size, wrapper)
     }
 
     /// Get the total count of records
-    fn count<T, W>(&mut self, wrapper: &mut W) -> Result<usize, AkitaError> 
+    fn count<T>(&mut self, wrapper:Wrapper) -> Result<usize, AkitaError> 
     where
         T: GetTableName + GetFields,
-        W: Wrapper {
-        self.conn.count::<T, W>(wrapper)
+         {
+        self.conn.count::<T>(wrapper)
     }
 
     /// Remove the records by wrapper.
-    fn remove<T, W>(&mut self, wrapper: &mut W) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, wrapper:Wrapper) -> Result<(), AkitaError> 
     where
         T: GetTableName + GetFields,
-        W: Wrapper {
-            self.conn.remove::<T,W>(wrapper)
+         {
+            self.conn.remove::<T>(wrapper)
     }
 
     /// Remove the records by id.
@@ -103,16 +102,16 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, wrapper: &mut UpdateWrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita {
+        T: GetTableName + GetFields + ToValue {
             self.conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
     fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita {
+        T: GetTableName + GetFields + ToValue {
             self.conn.update_by_id(entity)
         
     }
@@ -120,8 +119,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
     #[allow(unused_variables)]
     fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita,
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue,
     {
         self.conn.save_batch(entities)
     }
@@ -129,8 +128,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
     /// called multiple times when using database platform that doesn;t support multiple value
     fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita,
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue,
     {
         self.conn.save(entity)
     }
@@ -142,7 +141,7 @@ impl AkitaMapper for AkitaTransaction <'_> {
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         self.conn.execute_result(sql, params)
     }
@@ -162,7 +161,7 @@ impl AkitaMapper for AkitaTransaction <'_> {
         params: P,
     ) -> Result<R, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         self.conn.execute_first(sql, params)
     }
@@ -173,7 +172,7 @@ impl AkitaMapper for AkitaTransaction <'_> {
         params: P,
     ) -> Result<Option<R>, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         self.conn.execute_result_opt(sql, params)
     }
@@ -212,9 +211,9 @@ impl AkitaManager {
         &mut self,
         sql: S,
         params: P,
-    ) -> Result<Vec<AkitaData>, AkitaError> {
+    ) -> Result<Vec<Value>, AkitaError> {
         let rows = self.0.execute_result(&sql.into(), params.into())?;
-        let datas: Vec<AkitaData> = rows.iter().collect();
+        let datas: Vec<Value> = rows.iter().collect();
         Ok(datas)
     }
 
@@ -222,8 +221,8 @@ impl AkitaManager {
         &mut self,
         sql: S,
         params: P,
-    ) -> Result<AkitaData, AkitaError> {
-        let record: Result<Option<AkitaData>, AkitaError> =
+    ) -> Result<Value, AkitaError> {
+        let record: Result<Option<Value>, AkitaError> =
             self.execute_first_opt(sql, params);
         match record {
             Ok(record) => match record {
@@ -238,8 +237,8 @@ impl AkitaManager {
         &mut self,
         sql: S,
         params: P,
-    ) -> Result<Option<AkitaData>, AkitaError> {
-        let result: Result<Vec<AkitaData>, AkitaError> = self.execute_iter(sql, params);
+    ) -> Result<Option<Value>, AkitaError> {
+        let result: Result<Vec<Value>, AkitaError> = self.execute_iter(sql, params);
         match result {
             Ok(mut result) => match result.len() {
                 0 => Ok(None),
@@ -306,8 +305,8 @@ impl AkitaEntityManager{
 
     fn save_batch_inner<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
@@ -335,7 +334,7 @@ impl AkitaEntityManager{
     /// build an insert clause
     fn build_insert_clause<T>(&self, entities: &[&T]) -> String
     where
-        T: GetTableName + GetFields + ToAkita,
+        T: GetTableName + GetFields + ToValue,
     {
         let table = T::table_name();
         let columns = T::fields();
@@ -380,9 +379,9 @@ impl AkitaEntityManager{
     }
 
     /// build an update clause
-    fn build_update_clause<T>(&self, entity: &T, wrapper: &mut UpdateWrapper) -> String
+    fn build_update_clause<T>(&self, entity: &T, wrapper: &mut Wrapper) -> String
     where
-        T: GetTableName + GetFields + ToAkita 
+        T: GetTableName + GetFields + ToValue 
     {
         let table = T::table_name();
         let columns = T::fields();
@@ -446,10 +445,10 @@ impl AkitaEntityManager{
 impl AkitaMapper for AkitaEntityManager{
 
     /// Get all the table of records
-    fn list<T, W>(&mut self, wrapper: &mut W) -> Result<Vec<T>, AkitaError>
+    fn list<T>(&mut self, mut wrapper:Wrapper) -> Result<Vec<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,
+        
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
@@ -473,17 +472,16 @@ impl AkitaMapper for AkitaEntityManager{
         let rows = self.0.execute_result(&sql, Params::Nil)?;
         let mut entities = vec![];
         for data in rows.iter() {
-            let entity = T::from_data(&data);
+            let entity = T::from_value(&data);
             entities.push(entity)
         }
         Ok(entities)
     }
 
     /// Get one the table of records
-    fn select_one<T, W>(&mut self, wrapper: &mut W) -> Result<Option<T>, AkitaError>
+    fn select_one<T>(&mut self, mut wrapper:Wrapper) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,   
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
@@ -505,13 +503,13 @@ impl AkitaMapper for AkitaEntityManager{
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
         let rows = self.0.execute_result(&sql, Params::Nil)?;
-        Ok(rows.iter().next().map(|data| T::from_data(&data)))
+        Ok(rows.iter().next().map(|data| T::from_value(&data)))
     }
 
     /// Get one the table of records by id
     fn select_by_id<T, I>(&mut self, id: I) -> Result<Option<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
+        T: GetTableName + GetFields + FromValue,
         I: ToValue
     {
         let table = T::table_name();
@@ -538,17 +536,17 @@ impl AkitaMapper for AkitaEntityManager{
                 _ => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
             };
             let rows = self.0.execute_result(&sql, (id.to_value(),).into())?;
-            Ok(rows.iter().next().map(|data| T::from_data(&data)))
+            Ok(rows.iter().next().map(|data| T::from_value(&data)))
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
         }
     }
 
     /// Get table of records with page
-    fn page<T, W>(&mut self, page: usize, size: usize, wrapper: &mut W) -> Result<IPage<T>, AkitaError>
+    fn page<T>(&mut self, page: usize, size: usize, mut wrapper:Wrapper) -> Result<IPage<T>, AkitaError>
     where
-        T: GetTableName + GetFields + FromAkita,
-        W: Wrapper
+        T: GetTableName + GetFields + FromValue,
+        
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
@@ -576,7 +574,7 @@ impl AkitaMapper for AkitaEntityManager{
             let rows = self.0.execute_result(&sql, Params::Nil)?;
             let mut entities = vec![];
             for dao in rows.iter() {
-                let entity = T::from_data(&dao);
+                let entity = T::from_value(&dao);
                 entities.push(entity)
             }
             page.records = entities;
@@ -585,10 +583,10 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     /// Get the total count of records
-    fn count<T, W>(&mut self, wrapper: &mut W) -> Result<usize, AkitaError> 
+    fn count<T>(&mut self, mut wrapper:Wrapper) -> Result<usize, AkitaError> 
     where
         T: GetTableName + GetFields,
-        W: Wrapper {
+         {
         let table = T::table_name();
         if table.complete_name().is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
@@ -604,10 +602,10 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     /// Remove the records by wrapper.
-    fn remove<T, W>(&mut self, wrapper: &mut W) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, mut wrapper:Wrapper) -> Result<(), AkitaError> 
     where
         T: GetTableName + GetFields,
-        W: Wrapper {
+         {
         let table = T::table_name();
         if table.complete_name().is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
@@ -651,26 +649,26 @@ impl AkitaMapper for AkitaEntityManager{
     
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, wrapper: &mut UpdateWrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, mut wrapper: Wrapper) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita {
+        T: GetTableName + GetFields + ToValue {
         let table = T::table_name();
         if table.complete_name().is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
         let columns = T::fields();
-        let sql = self.build_update_clause(entity, wrapper);
-        let update_fields = &wrapper.fields_set;
+        let sql = self.build_update_clause(entity, &mut wrapper);
+        let update_fields = wrapper.fields_set;
         let mut bvalues: Vec<&Value> = Vec::new();
         if update_fields.is_empty() {
-            let data = entity.to_data();
+            let data = entity.to_value();
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
                 let col_name = &col.name;
-                let value = data.get_value(&col_name);
+                let value = data.get_obj_value(&col_name);
                 match value {
                     Some(value) => values.push(value.clone()),
                     None => values.push(Value::Nil),
@@ -686,12 +684,12 @@ impl AkitaMapper for AkitaEntityManager{
     /// Update the records by id.
     fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
     where
-        T: GetTableName + GetFields + ToAkita {
+        T: GetTableName + GetFields + ToValue {
         let table = T::table_name();
         if table.complete_name().is_empty() {
             return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
         }
-        let data = entity.to_data();
+        let data = entity.to_value();
         let columns = T::fields();
         let col_len = columns.len();
         if let Some(field) = T::fields().iter().find(| field| match field.field_type {
@@ -721,13 +719,13 @@ impl AkitaMapper for AkitaEntityManager{
                 _ => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
             };
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-            let id = data.get_value(&field.name);
+            let id = data.get_obj_value(&field.name);
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
                 let col_name = &col.name;
-                let value = data.get_value(col_name);
+                let value = data.get_obj_value(col_name);
                 match value {
                     Some(value) => values.push(value.clone()),
                     None => values.push(Value::Nil),
@@ -750,8 +748,8 @@ impl AkitaMapper for AkitaEntityManager{
     #[allow(unused_variables)]
     fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue
     {
         match self.0 {
             #[cfg(feature = "akita-mysql")]
@@ -764,15 +762,15 @@ impl AkitaMapper for AkitaEntityManager{
     /// called multiple times when using database platform that doesn;t support multiple value
     fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
     where
-        T: GetTableName + GetFields + ToAkita,
-        I: FromAkita,
+        T: GetTableName + GetFields + ToValue,
+        I: FromValue,
     {
         let columns = T::fields();
         let sql = self.build_insert_clause(&[entity]);
-        let data = entity.to_data();
+        let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter() {
-            let value = data.get_value(&col.name);
+            let value = data.get_obj_value(&col.name);
             match value {
                 Some(value) => values.push(value.clone()),
                 None => values.push(Value::Nil),
@@ -786,7 +784,7 @@ impl AkitaMapper for AkitaEntityManager{
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(_) => self.0.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?,
         };
-        let last_insert_id = rows.iter().next().map(|data| I::from_data(&data));
+        let last_insert_id = rows.iter().next().map(|data| I::from_value(&data));
         Ok(last_insert_id)
     }
 
@@ -797,10 +795,10 @@ impl AkitaMapper for AkitaEntityManager{
         params: P,
     ) -> Result<Vec<R>, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         let rows = self.0.execute_result(&sql.into(), params.into())?;
-        Ok(rows.iter().map(|data| R::from_data(&data)).collect())
+        Ok(rows.iter().map(|data| R::from_value(&data)).collect())
     }
 
     fn execute_first<'a, R, S: Into<String>, P: Into<Params>>(
@@ -809,7 +807,7 @@ impl AkitaMapper for AkitaEntityManager{
         params: P,
     ) -> Result<R, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         let sql: String = sql.into();
         let result: Result<Vec<R>, AkitaError> = self.execute_result(&sql, params);
@@ -840,7 +838,7 @@ impl AkitaMapper for AkitaEntityManager{
         params: P,
     ) -> Result<Option<R>, AkitaError>
     where
-        R: FromAkita,
+        R: FromValue,
     {
         let sql: String = sql.into();
         let result: Result<Vec<R>, AkitaError> = self.execute_result(&sql, params);
@@ -857,9 +855,12 @@ impl AkitaMapper for AkitaEntityManager{
 
 #[cfg(test)]
 mod test {
-    use crate::{AkitaConfig, AkitaMapper, BaseMapper, Pool, UpdateWrapper, Wrapper, akita, params};
+    use akita_core::params;
+    // use crate as akita;
 
-    #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+    use crate::{self as akita, AkitaConfig, AkitaMapper, BaseMapper, Pool, Wrapper, FromValue, ToValue, AkitaTable};
+
+    #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
     #[table(name="t_system_user")]
     struct SystemUser {
         id: Option<i32>,
@@ -900,9 +901,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let em = &mut pool.entity_manager().expect("must be ok");
-        let mut wrap = UpdateWrapper::new();
-        wrap.eq("username", "'ussd'");
-        match em.remove::<SystemUser, UpdateWrapper>(&mut wrap) {
+        let mut wrap = Wrapper::new().eq("username", "'ussd'");
+        match em.remove::<SystemUser>(wrap) {
             Ok(res) => {
                 println!("success removed data!");
             }
@@ -917,9 +917,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrap = UpdateWrapper::new();
-        wrap.eq("username", "'ussd'");
-        match em.count::<SystemUser, UpdateWrapper>(&mut wrap) {
+        let mut wrap = Wrapper::new().eq("username", "'ussd'");
+        match em.count::<SystemUser>(wrap) {
             Ok(res) => {
                 println!("success count data!");
             }
@@ -951,9 +950,8 @@ mod test {
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
-        let mut wrap = UpdateWrapper::new();
-        wrap.eq("username", "'ussd'");
-        match em.update(&user, &mut wrap) {
+        let mut wrap = Wrapper::new().eq("username", "'ussd'");
+        match em.update(&user, wrap) {
             Ok(res) => {
                 println!("success update data!");
             }
@@ -1018,7 +1016,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
-        match user.insert::<_, i32>(&mut em) {
+        match user.insert::<i32, _>(&mut em) {
             Ok(res) => {
                 println!("success insert data!");
             }
@@ -1033,7 +1031,7 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
+        let mut wrapper = Wrapper::new();
         wrapper.eq("username", "'ussd'");
         match em.select_by_id::<SystemUser, i32>(1) {
             Ok(res) => {
@@ -1050,9 +1048,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
-        wrapper.eq("username", "'ussd'");
-        match em.select_one::<SystemUser, UpdateWrapper>(&mut wrapper) {
+        let mut wrapper = Wrapper::new().eq("username", "'ussd'");
+        match em.select_one::<SystemUser>(wrapper) {
             Ok(res) => {
                 println!("success select data!");
             }
@@ -1067,9 +1064,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
-        wrapper.eq("username", "'ussd'");
-        match em.list::<SystemUser, UpdateWrapper>(&mut wrapper) {
+        let mut wrapper = Wrapper::new().eq("username", "'ussd'");
+        match em.list::<SystemUser>(wrapper) {
             Ok(res) => {
                 println!("success insert data!");
             }
@@ -1084,9 +1080,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
-        wrapper.eq("username", "'ussd'");
-        match SystemUser::list(&mut wrapper, &mut em) {
+        let mut wrapper = Wrapper::new().eq("username", "'ussd'");
+        match SystemUser::list(wrapper, &mut em) {
             Ok(res) => {
                 println!("success insert data!");
             }
@@ -1102,9 +1097,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
-        wrapper.eq( "username", "'ussd'");
-        match em.page::<SystemUser, UpdateWrapper>(1, 10,&mut wrapper) {
+        let mut wrapper = Wrapper::new().eq( "username", "'ussd'");
+        match em.page::<SystemUser>(1, 10,wrapper) {
             Ok(res) => {
                 println!("success insert data!");
             }
@@ -1119,9 +1113,8 @@ mod test {
         let db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
-        let mut wrapper = UpdateWrapper::new();
-        wrapper.eq("username", "'ussd'");
-        match SystemUser::page(1, 10, &mut wrapper, &mut em) {
+        let mut wrapper = Wrapper::new().eq("username", "'ussd'");
+        match SystemUser::page(1, 10, wrapper, &mut em) {
             Ok(res) => {
                 println!("success insert data!");
             }

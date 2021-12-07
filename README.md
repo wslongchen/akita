@@ -41,7 +41,7 @@ Click to show Cargo.toml.
 [dependencies]
 
 # The core APIs, including the Table traits. Always
-# required when using Akita. using #[derive(Table)] 
+# required when using Akita. using #[derive(AkitaTable)] 
 # to make Akita work with structs defined in your crate.
 akita = { version = "0.3.0"] }
 
@@ -55,7 +55,7 @@ use akita::*;
 use akita::prelude::*;
 
 /// Annotion Support: Table、table_id、field (name, exist)
-#[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+#[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
 #[table(name="t_system_user")]
 struct SystemUser {
     #[field = "name"]
@@ -92,7 +92,7 @@ fn main() {
 
 ## Annotions.
 
-* ```Table``` - to make Akita work with structs
+* ```AkitaTable``` - to make Akita work with structs
 * ```table_id``` - to make Table Ident
 * ```field``` - to make struct field with own database.
 * ```name``` - work with column, make the table's field name. default struct' field name.
