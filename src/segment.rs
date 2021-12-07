@@ -143,7 +143,7 @@ impl Segment {
                     serde_json::Value::Number(val) => format!("{}", val),
                     serde_json::Value::String(val) => format!("{}", val),
                     serde_json::Value::Array(val) => val.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(","),
-                    serde_json::Value::Object(val) => String::default(),
+                    serde_json::Value::Object(_val) => String::default(),
                 }
             },
         }
