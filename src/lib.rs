@@ -1,4 +1,4 @@
-// Copyright (c) 2020 akita contributors
+// Copyright (c) 2021 akita contributors
 //
 // Licensed under the Apache License, Version 2.0
 // <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0> or the MIT
@@ -54,71 +54,120 @@
 //! 
 //! ```rust
 //! use akita::*;
-//! use akita::prelude::*;
+//! use chrono::{NaiveDateTime, NaiveDate};
 //! 
-//! /// Annotion Support: Table、table_id、field (name, exist)
-//! #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
-//! #[table(name="t_system_user")]
-//! struct SystemUser {
-//!     #[field = "name"]
-//!     id: Option<i32>,
-//!     #[table_id]
-//!     username: String,
-//!     #[field(name="ages", exist = "false")]
-//!     age: i32,
+//! /// Annotion Support: AkitaTable、table_id、field (name, exist)
+//! #[derive(AkitaTable, Clone, Default, ToValue, FromValue)]
+//! #[table(name = "t_system_user")]
+//! pub struct User {
+//!     #[table_id(name = "id")]
+//!     pub pk: i64,
+//!     pub id: String,
+//!     pub headline: Option<NaiveDateTime>,
+//!     /// 状态
+//!     pub status: u8,
+//!     /// 用户等级 0.普通会员 1.VIP会员
+//!     pub level: u8,
+//!     /// 生日
+//!     pub birthday: Option<NaiveDate>,
+//!     /// 性别
+//!     pub gender: u8,
+//!     #[field(exist = "false")]
+//!     pub is_org: bool,
+//!     #[field(name = "token")]
+//!     pub url_token: String,
 //! }
-//! 
+//!
+//!
 //! fn main() {
 //!     let db_url = String::from("mysql://root:password@localhost:3306/akita");
-//!     let mut pool = Pool::new(AkitaConfig{ max_size: None, url: db_url, log_level: None }).unwrap();
-//!     let mut em = pool.entity_manager().expect("must be ok");
-//!     let mut wrap = UpdateWrapper::new();
-//!     wrap.eq(true, "username", "'ussd'");
-//!     match em.count::<SystemUser, UpdateWrapper>(&mut wrap) {
-//!         Ok(res) => {
-//!             println!("success count data!");
-//!         }
-//!         Err(err) => {
-//!             println!("error:{:?}",err);
-//!         }
-//!     }
+//!     let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
+//!         .set_log_level(LogLevel::Debug).set_max_size(6);
+//!     let mut pool = Pool::new(cfg).expect("must be ok");
+//!     let mut entity_manager = pool.entity_manager().expect("must be ok");
+//!     // The Wrapper to build query condition
+//!     let wrapper = Wrapper::new()
+//!         .eq("username", "ussd") // username = 'ussd'
+//!         .gt("age", 1) // age > 1
+//!         .lt("age", 10) // age < 10
+//!         .inside("user_type", vec!["admin", "super"]); // user_type in ('admin', 'super')
+//!     // CRUD with EntityManager
+//!    let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
+//!    let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
+//!    // Update with wrapper
+//!    let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Update with primary id
+//!    let res = entity_manager.update_by_id(&User::default());
+//!    // Query return List
+//!    let list: Vec<User> = entity_manager.list(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Query return Page
+//!    let pageNo = 1;
+//!    let pageSize = 10;
+//!    let page: IPage<User> = entity_manager.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Remove with wrapper
+//!    let res = entity_manager.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Remove with primary id
+//!    let res = entity_manager.remove_by_id::<User,_>(0).unwrap();
+//!    // Get the record count
+//!    let count = entity_manager.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Query with original sql
+//!    let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
+//!    // Or
+//!    let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
+//!        "name" => "Jack",
+//!        "id" => 1
+//!    }).unwrap();
+//!    let res = entity_manager.execute_drop("select now()", ()).unwrap();
+//!
+//!     // CRUD with Entity
+//!    let model = User::default();
+//!    // insert
+//!    let insert_id = model.insert::<Option<i32>, _>(&mut entity_manager).unwrap();
+//!    // update
+//!    let res = model.update_by_id::<_>(&mut entity_manager).unwrap();
+//!    // delete
+//!    let res = model.delete_by_id::<i32,_>(&mut entity_manager, 1).unwrap();
+//!    // list
+//!    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+//!    // page
+//!    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+//!
+//!     // Fast with Akita
+//!    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
+//!    .table("t_system_user")
+//!    .wrapper(Wrapper::new().eq("name", "Jack"))
+//!    .list::<User>().unwrap();
+//!
+//!    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
+//!    .table("t_system_user")
+//!    .wrapper(Wrapper::new().eq("name", "Jack"))
+//!    .page::<User>(1, 10).unwrap();
 //! }
-//! 
 //! ```
 //! ## API Documentation
 //! ## Wrapper
 //! ```ignore
 //! 
-//! let mut wrapper = UpdateWrapper::new();
-//! wrapper.like(true, "column1", "ffff");
-//! wrapper.eq(true, "column2", 12);
-//! wrapper.eq(true, "column3", "3333");
-//! wrapper.in_(true, "column4", vec![1,44,3]);
-//! wrapper.not_between(true, "column5", 2, 8);
-//! wrapper.set(true, "column1", 4);
-//! match wrapper.get_target_sql("t_user") {
-//!     Ok(sql) => {println!("ok:{}", sql);}
-//!     Err(err) => {println!("err:{}", err);}
-//! }
+//! let mut wrapper = Wrapper::new().like(true, "column1", "ffff")
+//! .eq(true, "column2", 12)
+//! .eq(true, "column3", "3333")
+//! .inside(true, "column4", vec![1,44,3])
+//! .not_between(true, "column5", 2, 8)
+//! .set(true, "column1", 4);
+//!
 //! ```
-//! Update At 2021.09.05 10:21 
+//! Update At 2021.12.08 10:21
 //! By Mr.Pan
 //! 
 //! 
 //! 
-#[allow(unused)]
-mod comm;
 mod wrapper;
 mod segment;
 mod errors;
 mod mapper;
 mod pool;
-mod information;
-mod value;
-mod types;
 mod database;
 mod platform;
-mod data;
 #[cfg(feature = "akita-auth")]
 mod auth;
 mod manager;
@@ -127,7 +176,7 @@ mod fuse;
 
 
 #[doc(inline)]
-pub use wrapper::{QueryWrapper, UpdateWrapper, Wrapper};
+pub use wrapper::Wrapper;
 #[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
@@ -135,27 +184,15 @@ pub use segment::{Segment, AkitaKeyword};
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]
-pub use value::*;
-#[doc(inline)]
 pub use pool::{AkitaConfig, LogLevel, Pool};
-#[doc(inline)]
-pub use data::*;
-#[doc(inline)]
-pub use information::*;
 #[cfg(feature = "akita-auth")]
 pub use auth::*;
 pub use fuse::*;
-pub use types::SqlType;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
-pub use crate as akita;
-
-pub mod prelude {
-    #[doc(inline)]
-    pub use chrono::{Local, NaiveDate, NaiveDateTime};
-}
-
-// Re-export #[derive(Table)].
+#[doc(inline)]
+pub use chrono::{Local, NaiveDate, NaiveDateTime};
+// Re-export #[derive(AkitaTable)].
 //
 // The reason re-exporting is not enabled by default is that disabling it would
 // be annoying for crates that provide handwritten impls or data formats. They
@@ -165,65 +202,11 @@ pub mod prelude {
 extern crate akita_derive;
 #[doc(hidden)]
 pub use akita_derive::*;
+pub use akita_core as core;
 
+pub use akita_core::*;
+
+pub use crate::core::{FieldName, FieldType, GetFields, GetTableName, Table, ToValue, FromValue};
+
+pub use akita_core::*;
 extern crate log;
-
-
-
-/// This macro is a convenient way to pass named parameters to a statement.
-///
-/// ```ignore
-/// let foo = 42;
-/// params! {
-///     foo,
-///     "foo2x" => foo * 2,
-/// });
-/// ```
-#[macro_export]
-macro_rules! params {
-    () => {};
-    (@to_pair $name:expr => $value:expr) => (
-        (std::string::String::from($name), akita::Value::from($value))
-    );
-    (@to_pair $name:ident) => (
-        (std::string::String::from(stringify!($name)), akita::Value::from($name))
-    );
-    (@expand $vec:expr;) => {};
-    (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {
-        $vec.push(params!(@to_pair $name => $value));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:expr => $value:expr $(, $tail:tt)*) => {
-        $vec.push(params!(@to_pair $name => $value));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:ident, $($tail:tt)*) => {
-        $vec.push(params!(@to_pair $name));
-        params!(@expand $vec; $($tail)*);
-    };
-    (@expand $vec:expr; $name:ident $(, $tail:tt)*) => {
-        $vec.push(params!(@to_pair $name));
-        params!(@expand $vec; $($tail)*);
-    };
-    ($i:ident, $($tail:tt)*) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i, $($tail)*);
-            output
-        }
-    };
-    ($i:expr => $($tail:tt)*) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i => $($tail)*);
-            output
-        }
-    };
-    ($i:ident) => {
-        {
-            let mut output = std::vec::Vec::new();
-            params!(@expand output; $i);
-            output
-        }
-    }
-}

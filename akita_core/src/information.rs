@@ -1,13 +1,11 @@
+use std::hash::{Hasher, Hash};
+
+use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use crate::{types::SqlType, comm::keywords_safe};
 
-use crate::comm::keywords_safe;
-use crate::types::SqlType;
-
+/// Table
 
 pub trait GetTableName {
     /// extract the table name from a struct
@@ -28,10 +26,13 @@ pub trait Table {
 }
 
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableName {
+    /// table name
     pub name: String,
+    /// table of schema
     pub schema: Option<String>,
+    /// table alias
     pub alias: Option<String>,
 }
 
@@ -42,12 +43,11 @@ impl Hash for TableName {
     }
 }
 
-
 impl TableName {
     /// create table with name
-    pub fn from(arg: &str) -> Self {
-        if arg.contains('.') {
-            let splinters = arg.split('.').collect::<Vec<&str>>();
+    pub fn from(name: &str) -> Self {
+        if name.contains('.') {
+            let splinters = name.split('.').collect::<Vec<&str>>();
             assert!(splinters.len() == 2, "There should only be 2 parts");
             let schema = splinters[0].to_owned();
             let table = splinters[1].to_owned();
@@ -59,7 +59,7 @@ impl TableName {
         } else {
             TableName {
                 schema: None,
-                name: arg.to_owned(),
+                name: name.to_owned(),
                 alias: None,
             }
         }
@@ -85,16 +85,19 @@ impl TableName {
     }
 }
 
+/// Field
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct FieldName {
     pub name: String,
     pub table: Option<String>,
     pub alias: Option<String>,
+    /// exist in actual table
     pub exist: bool,
     pub field_type: FieldType,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum FieldType {
     TableId(String),
     TableField
@@ -116,16 +119,16 @@ impl FieldName {
                 name,
                 table: Some(table),
                 alias: None,
-                field_type: FieldType::TableField,
                 exist: true,
+                field_type: FieldType::TableField,
             }
         } else {
             FieldName {
                 name: arg.to_owned(),
                 table: None,
                 alias: None,
-                field_type: FieldType::TableField,
                 exist: true,
+                field_type: FieldType::TableField,
             }
         }
     }
@@ -145,6 +148,9 @@ impl FieldName {
         }
     }
 }
+
+
+
 
 
 #[derive(Debug, PartialEq, Clone)]

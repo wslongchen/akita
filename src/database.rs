@@ -1,11 +1,11 @@
 use std::{convert::TryFrom, ops::Deref};
 
+use crate::{cfg_if, Params, TableName, DatabaseName, SchemaContent, TableDef, Rows};
 use url::Url;
 
 cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::SqliteDatabase;
 }}
-use crate::Params;
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
     use crate::platform::mysql::MysqlDatabase;
 }}
@@ -14,7 +14,7 @@ cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 
-use crate::{AkitaError, cfg_if, data::Rows, information::{DatabaseName, SchemaContent, TableDef, TableName}};
+use crate::{AkitaError};
 
 
 pub trait Database {

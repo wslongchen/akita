@@ -10,19 +10,19 @@ mod table_derive;
 mod convert_derive;
 
 
-// #[proc_macro_derive(Table, attributes(column, table, id, exist))]
+// #[proc_macro_derive(AkitaTable, attributes(column, table, id, exist))]
 // pub fn table(input: TokenStream) -> TokenStream {
 //     table_derive::impl_to_table(input)
 // }
 
 /// Generate table info data
-#[proc_macro_derive(FromAkita)]
+#[proc_macro_derive(FromValue)]
 pub fn from_akita(input: TokenStream) -> TokenStream {
     convert_derive::impl_from_akita(input)
 }
 
 /// Format table info data
-#[proc_macro_derive(ToAkita)]
+#[proc_macro_derive(ToValue)]
 pub fn to_akita(input: TokenStream) -> TokenStream {
     convert_derive::impl_to_akita(input)
 }
@@ -30,7 +30,7 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
 /// Generate table info
 /// ```rust
 /// /// Annotion Support: Table、table_id、field (name, exist)
-/// #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+/// #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
 /// #[table(name="t_system_user")]
 /// struct SystemUser {
 ///     #[field = "name"]
@@ -42,7 +42,7 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// 
-#[proc_macro_derive(Table, attributes(field, table, table_id))]
+#[proc_macro_derive(AkitaTable, attributes(field, table, table_id))]
 pub fn to_table(input: TokenStream) -> TokenStream {
     table_derive::impl_get_table(input)
 }

@@ -1,10 +1,8 @@
 //! 
 //! SQL Segments.
 //! 
+use crate::{comm::*};
 use chrono::{NaiveDate, NaiveDateTime};
-use serde_json::Value;
-
-use crate::comm::*;
 
 /// Segment are generally not used directly unless you are using the
 /// more low level functionality in the library.  For the most part
@@ -16,7 +14,7 @@ pub enum Segment{
     Float(f64),
     ColumnField(String),
     Extenssion(String),
-    JsonValue(Value),
+    JsonValue(serde_json::Value),
     Text(String),
     Int32(i32),
     Int16(i16),
@@ -96,6 +94,7 @@ pub enum SqlLike {
 }
 
 
+#[derive(Debug, Clone)]
 pub struct MergeSegments{
     pub normal: SegmentList,
     pub group_by: SegmentList,
@@ -104,6 +103,7 @@ pub struct MergeSegments{
 }
 
 
+#[derive(Debug, Clone)]
 pub struct SegmentList {
     pub seg_type: SegmentType,
     pub last_value: Option<Segment>,
@@ -136,7 +136,16 @@ impl Segment {
             Segment::U16(val) => format!("{}", val),
             Segment::DateTime(val) => format!("'{}'", val.format("%Y-%m-%d %H:%M:%S").to_string()),
             Segment::Date(val) => format!("'{}'", val.format("%Y-%m-%d").to_string()),
-            Segment::JsonValue(val) => format!("{}", val.to_string()),
+            Segment::JsonValue(val) => {
+                match val {
+                    serde_json::Value::Null => String::default(),
+                    serde_json::Value::Bool(val) => format!("{}", val),
+                    serde_json::Value::Number(val) => format!("{}", val),
+                    serde_json::Value::String(val) => format!("{}", val),
+                    serde_json::Value::Array(val) => val.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(","),
+                    serde_json::Value::Object(_val) => String::default(),
+                }
+            },
         }
     }
 }
@@ -223,7 +232,7 @@ impl ToSegment for NaiveDate
     }
 }
 
-impl ToSegment for Value
+impl ToSegment for serde_json::Value
 {
     fn to_segment(&self) -> Segment {
         Segment::JsonValue(self.to_owned())

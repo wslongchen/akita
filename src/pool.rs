@@ -1,4 +1,5 @@
 use std::{convert::TryFrom, time::Duration};
+use akita_core::cfg_if;
 use log::*;
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
@@ -8,7 +9,7 @@ cfg_if! {if #[cfg(feature = "akita-mysql")]{
 cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::{self, SqliteConnectionManager, SqliteDatabase};
 }}
-use crate::{AkitaError, cfg_if, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
+use crate::{AkitaError, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -44,7 +45,7 @@ impl AkitaConfig {
         }
     }
 
-    pub fn set_url(&mut self, url: String) -> &mut Self {
+    pub fn set_url(mut self, url: String) -> Self {
         self.url = url;
         self
     }
@@ -53,7 +54,7 @@ impl AkitaConfig {
         self.url.to_owned()
     }
 
-    pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
+    pub fn set_max_size(mut self, max_size: u32) -> Self {
         self.max_size = max_size;
         self
     }
@@ -62,7 +63,7 @@ impl AkitaConfig {
         self.max_size
     }
     
-    pub fn set_connection_timeout(&mut self, connection_timeout: Duration) -> &mut Self {
+    pub fn set_connection_timeout(mut self, connection_timeout: Duration) -> Self {
         self.connection_timeout = connection_timeout;
         self
     }
@@ -71,7 +72,7 @@ impl AkitaConfig {
         self.connection_timeout
     }
 
-    pub fn set_min_idle(&mut self, min_idle: Option<u32>) -> &mut Self {
+    pub fn set_min_idle(mut self, min_idle: Option<u32>) -> Self {
         self.min_idle = min_idle;
         self
     }
@@ -80,7 +81,7 @@ impl AkitaConfig {
         self.min_idle
     }
 
-    pub fn set_log_level(&mut self, level: LogLevel) -> &mut Self {
+    pub fn set_log_level(mut self, level: LogLevel) -> Self {
         self.log_level = level.into();
         self
     }

@@ -15,14 +15,9 @@ cfg_if! {if #[cfg(feature = "akita-auth")]{
 }}
 
 use crate::{AkitaConfig, Params, ToValue};
-use crate::comm::{extract_datatype_with_capacity, maybe_trim_parenthesis};
 use crate::database::Database;
-use crate::information::{Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey};
 use crate::pool::LogLevel;
-use crate::types::SqlType;
-use crate::value::{Value};
-use crate::{self as akita, cfg_if, AkitaError, information::{ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent}};
-use crate::data::{Rows};
+use crate::{comm::{extract_datatype_with_capacity, maybe_trim_parenthesis}, Rows, Value, SqlType, cfg_if, Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent};
 type R2d2Pool = Pool<SqliteConnectionManager>;
 
 pub struct SqliteDatabase(r2d2::PooledConnection<SqliteConnectionManager>, AkitaConfig);
@@ -340,18 +335,18 @@ impl Database for SqliteDatabase {
         let mut primary_columns = vec![];
         let mut columns = vec![];
         for data in result.iter() {
-            let name: Result<Option<String>, _> = data.get("name");
+            let name: Result<Option<String>, _> = data.get_obj("name");
             let name = unwrap_ok_some!(name);
-            let data_type: Result<Option<String>, _> = data.get("type");
+            let data_type: Result<Option<String>, _> = data.get_obj("type");
             let data_type = unwrap_ok_some!(data_type).to_lowercase();
-            let not_null: Result<Option<i64>, _> = data.get("notnull");
+            let not_null: Result<Option<i64>, _> = data.get_obj("notnull");
             let not_null = unwrap_ok_some!(not_null) != 0;
-            let pk: Result<Option<i64>, _> = data.get("pk");
+            let pk: Result<Option<i64>, _> = data.get_obj("pk");
             let pk = unwrap_ok_some!(pk) != 0;
             if pk {
                 primary_columns.push(FieldName::from(&name));
             }
-            let default = data.get_value("dflt_value").map(|v| match *v {
+            let default = data.get_obj_value("dflt_value").map(|v| match *v {
                 Value::Text(ref v) => v.to_owned(),
                 Value::Nil => "null".to_string(),
                 _ => panic!("Expecting a text value, got: {:?}", v),
@@ -408,7 +403,7 @@ impl Database for SqliteDatabase {
     }
 
     fn get_tablenames(&mut self, _shema: &str) -> Result<Vec<TableName>, AkitaError> {
-        #[derive(Debug, FromAkita)]
+        #[derive(Debug, FromValue)]
         struct TableNameSimple {
             tbl_name: String,
         }
@@ -417,7 +412,7 @@ impl Database for SqliteDatabase {
             .execute_result(sql, ().into())?
             .iter()
             .map(|row| TableNameSimple {
-                tbl_name: row.get("tbl_name").expect("tbl_name"),
+                tbl_name: row.get_obj("tbl_name").expect("tbl_name"),
             })
             .collect();
         let tablenames = result
@@ -449,7 +444,7 @@ impl Database for SqliteDatabase {
         let result: Vec<Option<i64>> = self
             .execute_result(sql, (table_name.complete_name(),).into())?
             .iter()
-            .filter_map(|row| row.get("seq").ok())
+            .filter_map(|row| row.get_obj("seq").ok())
             .collect();
 
         if let Some(first) = result.get(0) {
@@ -533,7 +528,7 @@ impl Database for SqliteDatabase {
             self.execute_result(&sql, ().into()).map(|rows| {
                 rows.iter()
                     .map(|row| {
-                        row.get_opt("name")
+                        row.get_obj_opt("name")
                             .expect("must not error")
                             .map(|name| DatabaseName {
                                 name,
@@ -553,7 +548,7 @@ impl Database for SqliteDatabase {
 
 #[allow(unused)]
 fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, AkitaError> {
-    #[derive(Debug, FromAkita)]
+    #[derive(Debug, FromValue)]
     struct TableNameSimple {
         tbl_name: String,
     }
@@ -562,7 +557,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
         .execute_result(sql, kind.to_value().into())?
         .iter()
         .map(|row| TableNameSimple {
-            tbl_name: row.get("tbl_name").expect("tbl_name"),
+            tbl_name: row.get_obj("tbl_name").expect("tbl_name"),
         })
         .collect();
     let mut table_names = vec![];
@@ -576,7 +571,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
 /// get the foreign keys of table
 fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<ForeignKey>, AkitaError> {
     let sql = format!("PRAGMA foreign_key_list({});", table.complete_name());
-    #[derive(Debug, FromAkita)]
+    #[derive(Debug, FromValue)]
     struct ForeignSimple {
         id: i64,
         table: String,
@@ -587,10 +582,10 @@ fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<Fore
         .execute_result(&sql, ().into())?
         .iter()
         .map(|row| ForeignSimple {
-            id: row.get("id").expect("id"),
-            table: row.get("table").expect("table"),
-            from: row.get("from").expect("from"),
-            to: row.get("to").expect("to"),
+            id: row.get_obj("id").expect("id"),
+            table: row.get_obj("table").expect("table"),
+            from: row.get_obj("from").expect("from"),
+            to: row.get_obj("to").expect("to"),
         })
         .collect();
     let mut foreign_tables: Vec<(i64, TableName)> = result
@@ -769,9 +764,9 @@ fn test_connection(database_url: &str) -> Result<(), AkitaError> {
 
 #[cfg(test)]
 mod test {
-    use crate::{self as akita, AkitaConfig, AkitaMapper, FromAkita, Pool, QueryWrapper, Table, ToAkita, types::SqlType::{Int, Text, Timestamp}};
+    use crate::{AkitaConfig, AkitaMapper, FromValue, Pool, QueryWrapper, AkitaTable, ToValue, types::SqlType::{Int, Text, Timestamp}};
 
-    #[derive(Debug, FromAkita, ToAkita, Table, Clone)]
+    #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
     #[table(name="test")]
     struct TestSqlite {
         #[table_id]
