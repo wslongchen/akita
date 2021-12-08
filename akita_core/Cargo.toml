@@ -3,6 +3,13 @@ name = "akita_core"
 version = "0.3.3"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
+description = "Akita - Mini orm for rust."
+readme = "README.md"
+keywords = ["akita", "mysql", "sql"]
+categories = ["data-structures", "database-implementations"]
+homepage = "https://github.com/wslongchen/akita"
+repository = "https://github.com/wslongchen/akita"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
