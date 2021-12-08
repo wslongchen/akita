@@ -109,19 +109,19 @@ fn main() {
     let pageSize = 10;
     let page: IPage<User> = entity_manager.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
     // Remove with wrapper
-    let res = entity_manager.remove(Wrapper::new().eq("name", "Jack")).unwrap();
+    let res = entity_manager.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
     // Remove with primary id
-    let res = entity_manager.remove_by_id(0).unwrap();
+    let res = entity_manager.remove_by_id::<User,_>(0).unwrap();
     // Get the record count
-    let count = entity_manager.count(Wrapper::new().eq("name", "Jack")).unwrap();
+    let count = entity_manager.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
     // Query with original sql
     let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
     // Or
     let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
         "name" => "Jack",
-        "id" = 1
+        "id" => 1
     }).unwrap();
-    let res = entity_manager.execute_drop("select now()").unwrap();
+    let res = entity_manager.execute_drop("select now()", ()).unwrap();
 }
 ```
  ### CRUD with Entity
@@ -141,11 +141,11 @@ fn main() {
     // update
     let res = model.update_by_id::<_>(&mut entity_manager).unwrap();
     // delete
-    let res = model.delete_by_id::<i32,_>(0, &mut entity_manager).unwrap();
+    let res = model.delete_by_id::<i32,_>(&mut entity_manager, 1).unwrap();
     // list
-    let list = model.list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
     // page
-    let page = model.page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
 }
 ```
  ### Fast with Akita
@@ -159,13 +159,12 @@ fn main() {
     let mut pool = Pool::new(cfg).expect("must be ok");
     let mut entity_manager = pool.entity_manager().expect("must be ok");
     // Fast with Akita
-    let mut akita = Akita::new();
-    let list: Vec<User> = akita.conn(pool.database().unwrap())
+    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
         .table("t_system_user")
         .wrapper(Wrapper::new().eq("name", "Jack"))
         .list::<User>().unwrap();
 
-    let page: IPage<User> = akita.conn(pool.database().unwrap())
+    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
         .table("t_system_user")
         .wrapper(Wrapper::new().eq("name", "Jack"))
         .page::<User>(1, 10).unwrap();

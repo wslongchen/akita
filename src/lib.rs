@@ -1,4 +1,4 @@
-// Copyright (c) 2020 akita contributors
+// Copyright (c) 2021 akita contributors
 //
 // Licensed under the Apache License, Version 2.0
 // <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0> or the MIT
@@ -92,59 +92,56 @@
 //!         .lt("age", 10) // age < 10
 //!         .inside("user_type", vec!["admin", "super"]); // user_type in ('admin', 'super')
 //!     // CRUD with EntityManager
-//!     let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
-//!     let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
-//!     // Update with wrapper
-//!     let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Update with primary id
-//!     let res = entity_manager.update_by_id(&User::default());
-//!     // Query return List
-//!     let list: Vec<User> = entity_manager.list(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Query return Page
-//!     let pageNo = 1;
-//!     let pageSize = 10;
-//!     let page: IPage<User> = entity_manager.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Remove with wrapper
-//!     let res = entity_manager.remove(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Remove with primary id
-//!     let res = entity_manager.remove_by_id(0).unwrap();
-//!     // Get the record count
-//!     let count = entity_manager.count(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Query with original sql
-//!     let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
-//!     // Or
-//!     let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
-//!         "name" => "Jack",
-//!         "id" = 1
-//!     }).unwrap();
-//!     let res = entity_manager.execute_drop("select now()").unwrap();
+//!    let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
+//!    let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
+//!    // Update with wrapper
+//!    let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Update with primary id
+//!    let res = entity_manager.update_by_id(&User::default());
+//!    // Query return List
+//!    let list: Vec<User> = entity_manager.list(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Query return Page
+//!    let pageNo = 1;
+//!    let pageSize = 10;
+//!    let page: IPage<User> = entity_manager.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Remove with wrapper
+//!    let res = entity_manager.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Remove with primary id
+//!    let res = entity_manager.remove_by_id::<User,_>(0).unwrap();
+//!    // Get the record count
+//!    let count = entity_manager.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+//!    // Query with original sql
+//!    let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
+//!    // Or
+//!    let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
+//!        "name" => "Jack",
+//!        "id" => 1
+//!    }).unwrap();
+//!    let res = entity_manager.execute_drop("select now()", ()).unwrap();
 //!
 //!     // CRUD with Entity
-//!     let model = User::default();
-//!     // insert
-//!     let insert_id = model.insert::<Option<i32>, _>(&mut entity_manager).unwrap();
-//!     // update
-//!     let res = model.update_by_id::<_>(&mut entity_manager).unwrap();
-//!     // delete
-//!     let res = model.delete_by_id::<i32,_>(0, &mut entity_manager).unwrap();
-//!     // list
-//!     let list = model.list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
-//!     // page
-//!     let page = model.page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+//!    let model = User::default();
+//!    // insert
+//!    let insert_id = model.insert::<Option<i32>, _>(&mut entity_manager).unwrap();
+//!    // update
+//!    let res = model.update_by_id::<_>(&mut entity_manager).unwrap();
+//!    // delete
+//!    let res = model.delete_by_id::<i32,_>(&mut entity_manager, 1).unwrap();
+//!    // list
+//!    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+//!    // page
+//!    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
 //!
 //!     // Fast with Akita
-//!     let mut akita = Akita::new();
-//!     let list: Vec<User> = akita.conn(pool.database().unwrap())
-//!         .table("t_system_user")
-//!         .wrapper(Wrapper::new().eq("name", "Jack"))
-//!         .list::<User>().unwrap();
+//!    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
+//!    .table("t_system_user")
+//!    .wrapper(Wrapper::new().eq("name", "Jack"))
+//!    .list::<User>().unwrap();
 //!
-//!     let page: IPage<User> = akita.conn(pool.database().unwrap())
-//!         .table("t_system_user")
-//!         .wrapper(Wrapper::new().eq("name", "Jack"))
-//!         .page::<User>(1, 10).unwrap();
-//!
-//!     // ...
+//!    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
+//!    .table("t_system_user")
+//!    .wrapper(Wrapper::new().eq("name", "Jack"))
+//!    .page::<User>(1, 10).unwrap();
 //! }
 //! ```
 //! ## API Documentation
@@ -159,7 +156,7 @@
 //! .set(true, "column1", 4);
 //!
 //! ```
-//! Update At 2021.12.07 10:21
+//! Update At 2021.12.08 10:21
 //! By Mr.Pan
 //! 
 //! 
@@ -193,13 +190,9 @@ pub use auth::*;
 pub use fuse::*;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager, AkitaManager};
-
-pub mod prelude {
-    #[doc(inline)]
-    pub use chrono::{Local, NaiveDate, NaiveDateTime};
-}
-
-// Re-export #[derive(Table)].
+#[doc(inline)]
+pub use chrono::{Local, NaiveDate, NaiveDateTime};
+// Re-export #[derive(AkitaTable)].
 //
 // The reason re-exporting is not enabled by default is that disabling it would
 // be annoying for crates that provide handwritten impls or data formats. They
