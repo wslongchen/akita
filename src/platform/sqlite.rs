@@ -10,6 +10,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 
+
 cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
@@ -17,7 +18,7 @@ cfg_if! {if #[cfg(feature = "akita-auth")]{
 use crate::{AkitaConfig, Params, ToValue};
 use crate::database::Database;
 use crate::pool::LogLevel;
-use crate::{comm::{extract_datatype_with_capacity, maybe_trim_parenthesis}, Rows, Value, SqlType, cfg_if, Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent};
+use crate::{self as akita, comm::{extract_datatype_with_capacity, maybe_trim_parenthesis}, Rows, Value, SqlType, cfg_if, Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent};
 type R2d2Pool = Pool<SqliteConnectionManager>;
 
 pub struct SqliteDatabase(r2d2::PooledConnection<SqliteConnectionManager>, AkitaConfig);

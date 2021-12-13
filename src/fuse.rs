@@ -4,6 +4,7 @@
 
 use akita_core::Table;
 
+use crate::segment::ISegment;
 use crate::{AkitaError, AkitaMapper, IPage, Pool, Wrapper, database::DatabasePlatform};
 use crate::{cfg_if, Params, TableName, DatabaseName, SchemaContent, TableDef, Rows, FromValue, Value, ToValue, GetFields};
 pub struct Akita {
@@ -481,7 +482,7 @@ impl Akita {
 
     /// build an update clause
     pub fn build_update_clause(&mut self) -> Result<String, AkitaError> {
-        let set_fields = &self.wrapper.fields_set;
+        let set_fields = &mut self.wrapper.fields_set;
         let mut sql = String::new();
         sql += &format!("update {} ", &self.table);
         if self.db.is_none() {
@@ -493,7 +494,7 @@ impl Akita {
             sql += &format!(
                 "set {}",
                 set_fields
-                    .iter()
+                    .iter_mut()
                     .enumerate()
                     .map(|(x, (col, value))| {
                         #[allow(unreachable_patterns)]
