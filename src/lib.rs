@@ -142,6 +142,16 @@
 //!    .table("t_system_user")
 //!    .wrapper(Wrapper::new().eq("name", "Jack"))
 //!    .page::<User>(1, 10).unwrap();
+//!
+//!
+//!     // Transaction
+//!     let result = entity_manager.start_transaction().and_then(|mut transaction| {
+//!         let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
+//!         let insert_id: Option<i32> = transaction.save(&User::default())?;
+//!         transaction.commit()
+//!     }).unwrap();
+//!
+//!
 //! }
 //! ```
 //! ## API Documentation

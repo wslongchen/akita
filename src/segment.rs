@@ -1,7 +1,7 @@
 //! 
 //! SQL Segments.
 //! 
-use crate::{comm::*};
+use crate::{comm::*, Wrapper};
 use chrono::{NaiveDate, NaiveDateTime};
 
 /// Segment are generally not used directly unless you are using the
@@ -29,6 +29,7 @@ pub enum Segment{
     U32(u32),
     U16(u16),
     U64(u64),
+    Wrapper(Box<Wrapper>),
     Str(&'static str),
     Nil,
 }
@@ -42,7 +43,7 @@ pub enum AkitaKeyword{
     SqlExtenssion(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SegmentType{
     GroupBy,
     Having,
@@ -71,6 +72,7 @@ pub enum SqlKeyword {
     GROUP_BY,
     HAVING,
     APPLY,
+    BRACKET,
     ORDER_BY,
     EXISTS,
     BETWEEN,
@@ -94,7 +96,7 @@ pub enum SqlLike {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MergeSegments{
     pub normal: SegmentList,
     pub group_by: SegmentList,
@@ -103,18 +105,31 @@ pub struct MergeSegments{
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SegmentList {
     pub seg_type: SegmentType,
+    /// 最后一个值
     pub last_value: Option<Segment>,
+    /// 是否处理了的上个 not
     pub execute_not: bool,
+    /// 刷新 lastValue
     pub flush_last_value: bool,
     pub sql_segment: String,
     pub segments: Vec<Segment>,
 }
 
-impl Segment {
-    pub fn get_sql_segment(&self) -> String {
+pub trait ISegment: Sized {
+    fn get_sql_segment(&mut self) -> String;
+}
+
+impl ISegment for String {
+    fn get_sql_segment(&mut self) -> String {
+        self.to_string()
+    }
+}
+
+impl ISegment for Segment {
+    fn get_sql_segment(&mut self) -> String {
         match self {
             Segment::Keyword(keyword) => keyword.get_sql_segment(),
             Segment::ColumnField(val) => format!("{}", val),
@@ -141,11 +156,12 @@ impl Segment {
                     serde_json::Value::Null => String::default(),
                     serde_json::Value::Bool(val) => format!("{}", val),
                     serde_json::Value::Number(val) => format!("{}", val),
-                    serde_json::Value::String(val) => format!("{}", val),
+                    serde_json::Value::String(val) => format!("'{}'", val),
                     serde_json::Value::Array(val) => val.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(","),
                     serde_json::Value::Object(_val) => String::default(),
                 }
             },
+            Segment::Wrapper(w) => w.get_sql_segment(),
         }
     }
 }
@@ -208,14 +224,21 @@ where
 impl ToSegment for &'static str
 {
     fn to_segment(&self) -> Segment {
-        Segment::Extenssion(format!("'{}'", self))
+        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
+    }
+}
+
+impl ToSegment for Wrapper
+{
+    fn to_segment(&self) -> Segment {
+        Segment::Wrapper(Box::new(self.to_owned()))
     }
 }
 
 impl ToSegment for String
 {
     fn to_segment(&self) -> Segment {
-        Segment::Extenssion(format!("'{}'", self))
+        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
 
@@ -267,7 +290,8 @@ pub enum MatchSegment {
     AND_OR,
     EXISTS,
     HAVING,
-    APPLY
+    APPLY,
+    BRACKET
 }
 
 impl MatchSegment {
@@ -285,6 +309,7 @@ impl MatchSegment {
                     MatchSegment::EXISTS => keyword.eq("exists"),
                     MatchSegment::HAVING => keyword.eq("having"),
                     MatchSegment::APPLY => keyword.eq("apply"),
+                    MatchSegment::BRACKET => keyword.eq("bracket"),
                 }
             },
             _ => {
@@ -294,29 +319,12 @@ impl MatchSegment {
     }
 }
 
-impl SegmentList {
-    pub fn get_sql_segment(&mut self) -> String {
+impl ISegment for SegmentList {
+    fn get_sql_segment(&mut self) -> String {
         if self.is_empty() {
             return String::default();
         }
-        match self.seg_type {
-            SegmentType::GroupBy => {
-                SPACE.to_string() + SqlKeyword::GROUP_BY.get_sql_segment().as_str() + SPACE  + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str()
-            },
-            SegmentType::Having => {
-                SPACE.to_string() + SqlKeyword::HAVING.get_sql_segment().as_str() + SPACE + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
-            },
-            SegmentType::OrderBy => {
-                SPACE.to_string() + SqlKeyword::ORDER_BY.get_sql_segment().as_str() + SPACE + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
-            },
-            SegmentType::Normal => {
-                if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Nil)) {
-                    self.remove_and_flush_last();
-                }
-                LEFT_BRACKET.to_string() + self.segments.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str() + RIGHT_BRACKET
-            },
-        }
-        
+        self.children_sql_segment()
     }
 }
 
@@ -330,7 +338,7 @@ impl SegmentList {
         let goon = self.transform_list(&seg_type, &mut segments, first, last);
         if goon {
             if self.flush_last_value {
-                self.remove_and_flush_last()
+                self.flush_last_value(&mut segments)
             }
             self.segments.extend_from_slice(segments.as_slice());
             true
@@ -340,8 +348,8 @@ impl SegmentList {
     /**
      * 刷新属性 lastValue
      */
-    fn _flush_last_value(&mut self) {
-        self.last_value = self.segments.last().map(|seg| seg.to_owned());
+    fn flush_last_value(&mut self, segs: &mut Vec<Segment>) {
+        self.last_value = segs.last().map(|seg| seg.to_owned());
     }
 
     fn clear(&mut self) {
@@ -355,7 +363,7 @@ impl SegmentList {
     }
 
     fn new(seg_type: SegmentType) -> Self {
-        Self { seg_type, last_value: None, execute_not: true, flush_last_value: false, sql_segment: String::default(), segments: Vec::new() }
+        Self { seg_type, last_value: None, execute_not: true, flush_last_value: true, sql_segment: String::default(), segments: Vec::new() }
     }
 
     /**
@@ -367,7 +375,7 @@ impl SegmentList {
         self.last_value = self.segments.last().map(|seg| seg.to_owned());
     }
 
-    fn transform_list(&mut self, seg_type: &SegmentType, list: &mut Vec<Segment>, first: Option<&Segment>, last: Option<&Segment>) -> bool {
+    fn transform_list(&mut self, seg_type: &SegmentType, list: &mut Vec<Segment>, first_segment: Option<&Segment>, _last_segment: Option<&Segment>) -> bool {
         match seg_type {
             SegmentType::GroupBy => { list.remove(0); true },
             SegmentType::Having => { if !list.is_empty() { list.push(SqlKeyword::AND.into()); } list.remove(0); true },
@@ -382,8 +390,8 @@ impl SegmentList {
                 true
             },
             SegmentType::Normal => {
-                let first = first.unwrap_or(&Segment::Nil);
-                let last = last.unwrap_or(&Segment::Nil);
+                let first = first_segment.unwrap_or(&Segment::Nil);
+                let last = self.last_value.as_ref().unwrap_or(&Segment::Nil);
                 if list.len() == 1 {
                     /* 只有 and() 以及 or() 以及 not() 会进入 */
                     if !MatchSegment::NOT.matches(first) {
@@ -417,6 +425,9 @@ impl SegmentList {
                     if MatchSegment::APPLY.matches(first) {
                         list.remove(0);
                     }
+                    if MatchSegment::BRACKET.matches(first) {
+                        list.remove(0);
+                    }
                     if !MatchSegment::AND_OR.matches(last) && !self.segments.is_empty() {
                         self.segments.push(SqlKeyword::AND.into());
                     }
@@ -424,11 +435,43 @@ impl SegmentList {
                 true
             },
         }
+    }
+
+    pub fn children_sql_segment(&mut self) -> String {
+        match self.seg_type {
+            SegmentType::GroupBy => {
+                SPACE.to_string() + SqlKeyword::GROUP_BY.get_sql_segment().as_str() + SPACE  + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str()
+            },
+            SegmentType::Having => {
+                SPACE.to_string() + SqlKeyword::HAVING.get_sql_segment().as_str() + SPACE + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
+            },
+            SegmentType::OrderBy => {
+                SPACE.to_string() + SqlKeyword::ORDER_BY.get_sql_segment().as_str() + SPACE + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
+            },
+            SegmentType::Normal => {
+                if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Nil)) {
+                    self.remove_and_flush_last();
+                }
+                LEFT_BRACKET.to_string() + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str() + RIGHT_BRACKET
+            },
+        }
         
     }
 }
 
-
+impl ISegment for MergeSegments {
+    fn get_sql_segment(&mut self) -> String {
+        if self.normal.is_empty() {
+            if !self.group_by.is_empty() || !self.order_by.is_empty() {
+                "(1 = 1)".to_string() + self.having.get_sql_segment().as_str() + self.order_by.get_sql_segment().as_str()
+            } else {
+                "".to_string()
+            }
+        } else {
+            self.normal.get_sql_segment() + self.group_by.get_sql_segment().as_str() + self.having.get_sql_segment().as_str() + self.order_by.get_sql_segment().as_str()
+        }
+    }
+}
 
 impl MergeSegments {
     pub fn add(&mut self, segments: Vec<Segment>) {
@@ -448,6 +491,13 @@ impl MergeSegments {
         }        
     }
 
+    pub fn get_normal(self) -> Vec<Segment> {
+        let mut segs = self.normal.segments;
+        segs.insert(0, Segment::Extenssion(LEFT_BRACKET.to_string()));
+        segs.insert(segs.len(), Segment::Extenssion(RIGHT_BRACKET.to_string()));
+        segs
+    }
+
     pub fn default() -> Self {
         Self { normal: SegmentList::new(SegmentType::Normal), group_by: SegmentList::new(SegmentType::GroupBy), order_by: SegmentList::new(SegmentType::OrderBy), having: SegmentList::new(SegmentType::Having) }
     }
@@ -458,25 +508,11 @@ impl MergeSegments {
         self.order_by.clear();
         self.having.clear();
     }
-}
 
-impl MergeSegments {
-    pub fn get_sql_segment(&mut self) -> String {
-        if self.normal.is_empty() {
-            if !self.group_by.is_empty() || !self.order_by.is_empty() {
-                "(1 = 1)".to_string() + self.having.get_sql_segment().as_str() + self.order_by.get_sql_segment().as_str()
-            } else {
-                "".to_string()
-            }
-        } else {
-            self.normal.get_sql_segment() + self.group_by.get_sql_segment().as_str() + self.having.get_sql_segment().as_str() + self.order_by.get_sql_segment().as_str()
-        }
-    }
 }
-
 
 impl SqlLike {
-    pub fn concat_like(&self, val:Segment) -> Segment {
+    pub fn concat_like(&self, mut val:Segment) -> Segment {
         if val.eq(&Segment::Nil) {
             return Segment::Nil;
         }
@@ -489,8 +525,8 @@ impl SqlLike {
     }
 }
 
-impl SqlKeyword  {
-    fn get_sql_segment(&self) -> String {
+impl ISegment for SqlKeyword {
+    fn get_sql_segment(&mut self) -> String {
         match *self {
             Self::AND => "and",
             Self::OR => "or",
@@ -515,6 +551,7 @@ impl SqlKeyword  {
             Self::ASC => "asc",
             Self::DESC => "desc",
             Self::APPLY => "apply",
+            Self::BRACKET => "bracket",
         }.to_string()
     }
 }
@@ -545,6 +582,7 @@ impl SqlKeyword {
             Self::ASC => "asc",
             Self::DESC => "desc",
             Self::APPLY => "apply",
+            Self::BRACKET => "bracket",
         }
     }
 }

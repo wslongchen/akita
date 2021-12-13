@@ -1,4 +1,4 @@
-use crate::{AkitaError, IPage, Wrapper, database::{Database, DatabasePlatform}, mapper::AkitaMapper, GetFields, GetTableName, FromValue, ToValue, Rows, TableName, DatabaseName, FieldName, Params, Value, FieldType, TableDef};
+use crate::{AkitaError, IPage, Wrapper, database::{Database, DatabasePlatform}, mapper::AkitaMapper, GetFields, GetTableName, FromValue, ToValue, Rows, TableName, DatabaseName, FieldName, Params, Value, FieldType, TableDef, segment::ISegment};
 /// an interface executing sql statement and getting the results as generic Akita values
 /// without any further conversion.
 #[allow(unused)]
@@ -386,7 +386,7 @@ impl AkitaEntityManager{
         let table = T::table_name();
         let columns = T::fields();
         let columns_len = columns.len();
-        let set_fields = &wrapper.fields_set;
+        let set_fields = &mut wrapper.fields_set;
         let mut sql = String::new();
         sql += &format!("update {} ", table.complete_name());
         
@@ -415,7 +415,7 @@ impl AkitaEntityManager{
             sql += &format!(
                 "set {}",
                 set_fields
-                    .iter()
+                    .iter_mut()
                     .enumerate()
                     .map(|(x, (col, value))| {
                         #[allow(unreachable_patterns)]

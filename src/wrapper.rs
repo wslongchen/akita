@@ -16,9 +16,9 @@
 //! ```
 //!
 //!
-use crate::{segment::{MergeSegments, Segment, SqlKeyword, SqlLike, ToSegment}, comm::*};
+use crate::{segment::{MergeSegments, Segment, SqlKeyword, SqlLike, ToSegment, ISegment}, comm::*};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Wrapper{
     /// 必要度量
     pub param_name_seq: i32,
@@ -37,8 +37,13 @@ pub struct Wrapper{
     pub expression: MergeSegments,
 }
 
+impl ISegment for Wrapper {
+    fn get_sql_segment(&mut self) -> String {
+        format!("{} {} {}", self.sql_first.to_owned().unwrap_or_default(), self.expression.get_sql_segment(), self.last_sql.to_owned().unwrap_or_default()) 
+    }
+}
 
-impl Wrapper {
+impl Wrapper{
 
     pub fn new() -> Self {
         Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: 0, sql_first: None, last_sql: None, sql_comment: None, sql_select: None, fields_set: Vec::new() }
@@ -46,6 +51,19 @@ impl Wrapper {
 
     pub fn set<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self {
         self.set_condition(true, column, val)
+    }
+
+    pub fn sets<S: Into<String>, U: ISegment>(self, column: S, val: U) -> Self {
+        self.set_conditions(true, column, val)
+    }
+
+    pub fn set_conditions<S: Into<String>, U: ISegment>(mut self,condition: bool, column: S, mut val: U) -> Self {
+        if condition {
+            let col: String = column.into();
+            self.sql_set.push(col.to_owned() + EQUALS + val.get_sql_segment().as_str());
+            // self.fields_set.push((col.to_owned(), val.to_segment()));
+        }
+        self
     }
 
     pub fn set_condition<S: Into<String>, U: ToSegment>(mut self,condition: bool, column: S, val: U) -> Self {
@@ -122,8 +140,12 @@ impl Wrapper {
     pub fn not_in_condition<S: Into<String>, U: ToSegment + Clone>(self, condition: bool, column: S, vals: Vec<U>) -> Self { self.not_condition(condition).in_condition(condition, column, vals) }
     pub fn in_condition<S: Into<String>, U: ToSegment + Clone>(mut self, condition: bool, column: S, vals: Vec<U>) -> Self { let segs: Vec<Segment> = vals.iter().map(|val|val.to_owned().into()).collect::<Vec<Segment>>(); if condition { self.append_sql_segments(vec![Segment::ColumnField(column.into()), SqlKeyword::IN.into(), Self::in_expression(segs)]) }; self }
     pub fn append_sql_segments(&mut self, sql_segments: Vec<Segment>) { self.expression.add(sql_segments); }
-    pub fn do_it(mut self, condition: bool, segments: Vec<Segment>) -> Self { if condition { self.expression.add(segments); } self }
-    pub fn get_sql_segment(&mut self) -> String { format!("{} {} {}", self.sql_first.to_owned().unwrap_or_default(), self.expression.get_sql_segment(), self.last_sql.to_owned().unwrap_or_default()) }
+    pub fn do_it(mut self, condition: bool, segments: Vec<Segment>) -> Self { 
+        if condition { 
+            self.expression.add(segments); 
+        } 
+        self 
+    }
     pub fn comment<S: Into<String>>(self, comment: S) -> Self { self.comment_condition(true, comment) }
     pub fn comment_condition<S: Into<String>>(mut self, condition: bool, comment: S) -> Self { if condition { self.sql_comment = comment.into().into(); } self }
     pub fn get_select_sql(&mut self) -> String { if let Some(select) = &self.sql_select { select.to_owned() } else { "*".to_string() } }
@@ -136,16 +158,43 @@ impl Wrapper {
     pub fn like_left_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val: U) -> Self { self.like_value(condition, Segment::ColumnField(column.into()), SqlLike::LEFT, val.into()) }
     pub fn like_right<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self { self.like_value(true, Segment::ColumnField(column.into()), SqlLike::RIGHT, val.into()) }
     pub fn like_right_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val: U) -> Self { self.like_value(condition, Segment::ColumnField(column.into()), SqlLike::RIGHT, val.into()) }
-    pub fn in_expression(vals: Vec<Segment>) -> Segment { if vals.is_empty() { Segment::Str("()") } else {  Segment::Text(LEFT_BRACKET.to_string() + vals.iter().map(|val| val.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str() + RIGHT_BRACKET) } }
+    pub fn in_expression(mut vals: Vec<Segment>) -> Segment { 
+        if vals.is_empty() { 
+            Segment::Str("()") 
+        } 
+        else {  
+            Segment::Text(LEFT_BRACKET.to_string() + vals.iter_mut().map(|val| val.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str() + RIGHT_BRACKET) 
+        } 
+    }
     pub fn between<S: Into<String>, U: ToSegment>(self, column: S, val1: U, val2: U) -> Self { self.do_it(true, vec![column.into().into(), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
     pub fn between_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val1: U, val2: U) -> Self { self.do_it(condition, vec![column.into().into(), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
     pub fn not_between<S: Into<String>, U: ToSegment>(self, column: S, val1: U, val2: U) -> Self { self.not().between(column, val1, val2) }
     pub fn not_between_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val1: U, val2: U) -> Self { self.not_condition(condition).between_condition(condition, column, val1, val2) }
-    pub fn add_condition(self, condition: bool, column: Segment, sql_keword: SqlKeyword, val: Segment) -> Self { self.do_it(condition, vec![column, sql_keword.into(), val]) }
+    pub fn add_condition(self, condition: bool, column: Segment, sql_keword: SqlKeyword, val: Segment) -> Self { 
+        self.do_it(condition, vec![column, sql_keword.into(), val]) 
+    }
     pub fn like_value(self, condition: bool, column: Segment, sql_like: SqlLike, val: Segment) -> Self { self.do_it(condition, vec![column, SqlKeyword::LIKE.into(), sql_like.concat_like(val)]) }
     pub fn not(self) -> Self { self.do_it(true, vec![ SqlKeyword::NOT.into() ]) }
-    pub fn and(self) -> Self { self.do_it(true, vec![SqlKeyword::AND.into()]) }
-    pub fn or(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
+    pub fn and<F: FnOnce(Self) -> Self>(self, f: F) -> Self {
+        self.and_inner().add_nested_condition(true, f)
+    }
+    pub fn or<F: FnOnce(Self) -> Self>(self, f: F) -> Self {
+        self.or_inner().add_nested_condition(true, f)
+    }
+
+    fn add_nested_condition<F: FnOnce(Self) -> Self>(self, condition: bool, f: F) -> Self {
+        if condition {
+            let instance = f(Self::new());
+            //let mut segs = instance.expression.get_normal();
+            // segs.insert(0, SqlKeyword::BRACKET.into());
+            self.do_it(true, vec![SqlKeyword::BRACKET.into(), instance.into()])
+        } else {
+            self
+        }
+    }
+
+    fn and_inner(self) -> Self { self.do_it(true, vec![SqlKeyword::AND.into()]) }
+    fn or_inner(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
     pub fn not_condition(self, condition: bool) -> Self { self.do_it(condition, vec![ SqlKeyword::NOT.into() ]) }
     pub fn and_condition(self, condition: bool) -> Self { self.do_it(condition, vec![SqlKeyword::AND.into()]) }
     pub fn or_condition(self, condition: bool) -> Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
@@ -179,9 +228,12 @@ fn basic_test() {
     let s : Option<String> = Some("ffffa".to_string());
     let d: Option<i32> = None;
     let mut wrapper = Wrapper::new()
-        .like("fffff", &s)
-        .eq("dddd", &s)
-        .eq("ff", d)
-        .not_in("vecs", vec!["a","f","g"]);
+        // .like("fffff", &s)
+        // .eq("dddd", &s)
+        .eq("ff", "d")
+        // .and(|wrapper| wrapper.eq("innert_1", "1").eq("inner_2", "2"))
+        .or(|wrapper| wrapper.eq("or_innert_1", "1").eq("or_inner_2", "2"))
+        ;
+        //.not_in("vecs", vec!["a","f","g"]);
     println!("{}", wrapper.get_sql_segment());
 }

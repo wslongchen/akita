@@ -18,6 +18,12 @@ impl From<Vec<Value>> for Params {
     }
 }
 
+impl <T: ToValue> From<T> for Params {
+    fn from(x: T) -> Params {
+        Params::Vector(vec![x.to_value()])
+    }
+}
+
 impl<'a> From<&'a [&'a dyn ToValue]> for Params {
     fn from(x: &'a [&'a dyn ToValue]) -> Params {
         let values = x.iter().map(|p| p.to_value()).collect::<Vec<Value>>();
@@ -52,12 +58,6 @@ impl From<Value> for Params {
     }
 }
 
-impl From<String> for Params {
-    fn from(x: String) -> Params {
-        Params::Vector(vec![x.into()])
-    }
-}
-
 impl <'a> From<&'a dyn ToValue> for Params {
     fn from(x: &'a dyn ToValue) -> Params {
         Params::Vector(vec![x.to_value().to_owned()])
@@ -75,12 +75,6 @@ macro_rules! into_params_impl {
             }
         }
     );
-}
-
-impl<'a, T: Into<Params> + Clone> From<&'a T> for Params {
-    fn from(x: &'a T) -> Params {
-        x.clone().into()
-    }
 }
 
 into_params_impl!([A, a]);
