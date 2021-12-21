@@ -119,7 +119,9 @@ impl Wrapper{
         }
     }
 
-    pub fn eq<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self { self.add_condition(true, Segment::ColumnField(column.into()), SqlKeyword::EQ, val.into()) }
+    pub fn eq<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self {
+        self.add_condition(true, Segment::ColumnField(column.into()), SqlKeyword::EQ, val.into())
+    }
     pub fn ne<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self { self.add_condition(true, Segment::ColumnField(column.into()), SqlKeyword::NE, val.into()) }
     pub fn gt<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self { self.add_condition(true, Segment::ColumnField(column.into()), SqlKeyword::GT, val.into()) }
     pub fn ge<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self { self.add_condition(true, Segment::ColumnField(column.into()), SqlKeyword::GE, val.into()) }
@@ -140,8 +142,8 @@ impl Wrapper{
     pub fn not_in_condition<S: Into<String>, U: ToSegment + Clone>(self, condition: bool, column: S, vals: Vec<U>) -> Self { self.not_condition(condition).in_condition(condition, column, vals) }
     pub fn in_condition<S: Into<String>, U: ToSegment + Clone>(mut self, condition: bool, column: S, vals: Vec<U>) -> Self { let segs: Vec<Segment> = vals.iter().map(|val|val.to_owned().into()).collect::<Vec<Segment>>(); if condition { self.append_sql_segments(vec![Segment::ColumnField(column.into()), SqlKeyword::IN.into(), Self::in_expression(segs)]) }; self }
     pub fn append_sql_segments(&mut self, sql_segments: Vec<Segment>) { self.expression.add(sql_segments); }
-    pub fn do_it(mut self, condition: bool, segments: Vec<Segment>) -> Self { 
-        if condition { 
+    pub fn do_it(mut self, condition: bool, segments: Vec<Segment>) -> Self {
+        if condition {
             self.expression.add(segments); 
         } 
         self 

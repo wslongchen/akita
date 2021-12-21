@@ -1,4 +1,5 @@
 #![deny(clippy::all)]
+#![feature(associated_type_bounds)]
 
 mod information;
 mod error;

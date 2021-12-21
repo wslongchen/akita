@@ -2,12 +2,14 @@
 //! Generate Database Methods.
 //! 
 use proc_macro::TokenStream;
-
+use proc_macro_error::{ proc_macro_error};
 
 #[macro_use]
 mod table_derive;
 #[macro_use]
 mod convert_derive;
+mod util;
+mod comm;
 
 
 // #[proc_macro_derive(AkitaTable, attributes(column, table, id, exist))]
@@ -42,19 +44,8 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// 
-#[proc_macro_derive(AkitaTable, attributes(field, table, table_id))]
+#[proc_macro_derive(AkitaTable, attributes(field, table, table_id, fill))]
+#[proc_macro_error]
 pub fn to_table(input: TokenStream) -> TokenStream {
     table_derive::impl_get_table(input)
-}
-
-/// Generate table name
-#[proc_macro_derive(GetTableName)]
-pub fn to_table_name(input: TokenStream) -> TokenStream {
-    table_derive::impl_get_table_name(input)
-}
-
-/// Generate table fields
-#[proc_macro_derive(GetFields)]
-pub fn to_column_names(input: TokenStream) -> TokenStream {
-    table_derive::impl_get_column_names(input)
 }

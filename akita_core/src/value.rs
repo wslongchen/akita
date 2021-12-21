@@ -433,8 +433,13 @@ where
     }
 }
 
+impl ToValue for () {
+    fn to_value(&self) -> Value {
+        Value::Nil
+    }
+}
 
-impl<T> ToValue for &T
+impl <T> ToValue for &T
 where
     T: ToValue,
 {

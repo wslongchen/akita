@@ -155,10 +155,44 @@ impl ISegment for Segment {
                 match val {
                     serde_json::Value::Null => String::default(),
                     serde_json::Value::Bool(val) => format!("{}", val),
-                    serde_json::Value::Number(val) => format!("{}", val),
+                    serde_json::Value::Number(val) =>  {
+                        if val.is_f64() {
+                            format!("{}", val.as_f64().unwrap_or_default())
+                        } else if val.is_i64() {
+                            format!("{}", val.as_i64().unwrap_or_default())
+                        } else if val.is_u64() {
+                            format!("{}", val.as_u64().unwrap_or_default())
+                        } else {
+                            format!("{}", val.to_string())
+                        }
+                    },
                     serde_json::Value::String(val) => format!("'{}'", val),
                     serde_json::Value::Array(val) => val.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(","),
-                    serde_json::Value::Object(_val) => String::default(),
+                    serde_json::Value::Object(val) => {
+
+                        if let Some((_k,v)) = val.into_iter().last() {
+                            match v {
+                                serde_json::Value::Null => String::default(),
+                                serde_json::Value::Bool(val) => format!("{}", val),
+                                serde_json::Value::Number(val) =>  {
+                                    if val.is_f64() {
+                                        format!("{}", val.as_f64().unwrap_or_default())
+                                    } else if val.is_i64() {
+                                        format!("{}", val.as_i64().unwrap_or_default())
+                                    } else if val.is_u64() {
+                                        format!("{}", val.as_u64().unwrap_or_default())
+                                    } else {
+                                        format!("{}", val.to_string())
+                                    }
+                                },
+                                serde_json::Value::String(val) => format!("'{}'", val),
+                                serde_json::Value::Array(val) => val.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(","),
+                                serde_json::Value::Object(_val) => String::default(),
+                            }
+                        } else {
+                            String::default()
+                        }
+                    },
                 }
             },
             Segment::Wrapper(w) => w.get_sql_segment(),
