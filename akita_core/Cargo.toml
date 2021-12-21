@@ -1,6 +1,6 @@
 [package]
 name = "akita_core"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
 description = "Akita - Mini orm for rust."
@@ -22,3 +22,7 @@ chrono = { version = "0.4", features = ["serde"]}
 uuid = {version = "0.8.2", features = ["serde", "v4"]}
 base64 = "0.9"
 indexmap = "1.7.0"
+syn = { version = "1.0", features = ["extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0.12"
+heck = "^0.3"

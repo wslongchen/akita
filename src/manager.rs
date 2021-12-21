@@ -92,6 +92,10 @@ impl AkitaMapper for AkitaTransaction <'_> {
             self.conn.remove::<T>(wrapper)
     }
 
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError> where I: ToValue, T: GetTableName + GetFields {
+        self.conn.remove_by_ids::<T,I>(ids)
+    }
+
     /// Remove the records by id.
     fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
     where
@@ -132,6 +136,10 @@ impl AkitaMapper for AkitaTransaction <'_> {
         I: FromValue,
     {
         self.conn.save(entity)
+    }
+
+    fn save_or_update<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError> where T: GetTableName + GetFields + ToValue, I: FromValue {
+        self.conn.save_or_update(entity)
     }
 
     #[allow(clippy::redundant_closure)]
@@ -644,7 +652,37 @@ impl AkitaMapper for AkitaEntityManager{
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
         }
-        
+    }
+
+
+    /// Remove the records by wrapper.
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError>
+        where
+            I: ToValue,
+            T: GetTableName + GetFields {
+        let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        }
+        let cols = T::fields();
+        let col_len = cols.len();
+        if let Some(field) = cols.iter().find(| field| match field.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }) {
+            let sql = match self.0 {
+                #[cfg(feature = "akita-mysql")]
+                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` in (?)", &table.name, &field.name),
+                #[cfg(feature = "akita-sqlite")]
+                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` in (${})", &table.name, &field.name, col_len + 1),
+                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
+            };
+            let ids = ids.iter().map(|v| v.to_value().to_string()).collect::<Vec<String>>().join(",");
+            let _ = self.0.execute_result(&sql, (ids,).into())?;
+            Ok(())
+        } else {
+            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
+        }
     }
     
 
@@ -725,7 +763,18 @@ impl AkitaMapper for AkitaEntityManager{
                     continue;
                 }
                 let col_name = &col.name;
-                let value = data.get_obj_value(col_name);
+                let mut value = data.get_obj_value(col_name);
+                match &col.fill {
+                    None => {}
+                    Some(v) => {
+                        match v.mode.as_ref() {
+                            "update" => {
+                                value = v.value.as_ref();
+                            }
+                            _=> {}
+                        }
+                    }
+                }
                 match value {
                     Some(value) => values.push(value.clone()),
                     None => values.push(Value::Nil),
@@ -770,7 +819,18 @@ impl AkitaMapper for AkitaEntityManager{
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter() {
-            let value = data.get_obj_value(&col.name);
+            let mut value = data.get_obj_value(&col.name);
+            match &col.fill {
+                None => {}
+                Some(v) => {
+                    match v.mode.as_ref() {
+                        "insert" => {
+                            value = v.value.as_ref();
+                        }
+                        _=> {}
+                    }
+                }
+            }
             match value {
                 Some(value) => values.push(value.clone()),
                 None => values.push(Value::Nil),
@@ -786,6 +846,29 @@ impl AkitaMapper for AkitaEntityManager{
         };
         let last_insert_id = rows.iter().next().map(|data| I::from_value(&data));
         Ok(last_insert_id)
+    }
+
+    /// save or update
+    fn save_or_update<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
+        where
+            T: GetTableName + GetFields + ToValue,
+            I: FromValue {
+        let data = entity.to_value();
+        let id = if let Some(field) = T::fields().iter().find(| field| match field.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }) {
+            data.get_obj_value(&field.name).unwrap_or(&Value::Nil)
+        } else { &Value::Nil };
+        match id {
+            Value::Nil => {
+                self.save(entity)
+            },
+            _ => {
+                self.update_by_id(entity)?;
+                Ok(I::from_value(id).into())
+            }
+        }
     }
 
     #[allow(clippy::redundant_closure)]
@@ -860,13 +943,17 @@ mod test {
 
     use crate::{self as akita, AkitaConfig, AkitaMapper, BaseMapper, Pool, Wrapper, FromValue, ToValue, AkitaTable};
 
-    #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
+    fn fffff() {
+
+    }
+
+    #[derive(Debug,AkitaTable, Clone)]
     #[table(name="t_system_user")]
     struct SystemUser {
         id: Option<i32>,
-        #[table_id]
+        #[table_id(name="ffff", id_type="none")]
         username: String,
-        #[field(name="ages", exist = "false")]
+        #[field(name = "ssss", fill( function = "fffff", mode = "default"))]
         age: i32,
     }
 
@@ -879,13 +966,12 @@ mod test {
             let key = format!(":{}", param.0);
             let index = sql.find(&key).unwrap_or(len);
             sql = sql.replace(&key, "?");
-            println!("key: {}, index: {}",key, index);
             (index, &param.1)
         }).collect::<Vec<_>>();
         values.sort_by(|a, b| a.0.cmp(&b.0));
         let params = values.iter().map(|v| v.1).collect::<Vec<_>>();
         let params = params.as_slice();
-        // let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        // let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         // let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         // let mut em = pool.entity_manager().expect("must be ok");
         // let table = em
@@ -898,7 +984,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let em = &mut pool.entity_manager().expect("must be ok");
         let mut wrap = Wrapper::new().eq("username", "'ussd'");
@@ -914,7 +1000,7 @@ mod test {
 
     #[test]
     fn count() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrap = Wrapper::new().eq("username", "'ussd'");
@@ -931,7 +1017,7 @@ mod test {
 
     #[test]
     fn remove_by_id() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         match em.remove_by_id::<SystemUser, String>("'fffsd'".to_string()) {
@@ -946,7 +1032,7 @@ mod test {
 
     #[test]
     fn update() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -963,7 +1049,7 @@ mod test {
 
     #[test]
     fn update_by_id() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -980,7 +1066,7 @@ mod test {
 
     #[test]
     fn save() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -996,7 +1082,7 @@ mod test {
 
     #[test]
     fn save_batch() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -1012,7 +1098,7 @@ mod test {
 
     #[test]
     fn self_insert() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
@@ -1028,7 +1114,7 @@ mod test {
 
     #[test]
     fn select_by_id() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new();
@@ -1045,7 +1131,7 @@ mod test {
 
     #[test]
     fn select_one() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new().eq("username", "'ussd'");
@@ -1061,7 +1147,7 @@ mod test {
 
     #[test]
     fn list() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new().eq("username", "'ussd'");
@@ -1077,7 +1163,7 @@ mod test {
 
     #[test]
     fn self_list() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new().eq("username", "'ussd'");
@@ -1094,7 +1180,7 @@ mod test {
 
     #[test]
     fn page() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new().eq( "username", "'ussd'");
@@ -1110,7 +1196,7 @@ mod test {
 
     #[test]
     fn self_page() {
-        let db_url = String::from("mysql://root:password@localhost:3306/akita");
+        let _db_url = String::from("mysql://root:password@localhost:3306/akita");
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let mut wrapper = Wrapper::new().eq("username", "'ussd'");

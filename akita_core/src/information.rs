@@ -3,7 +3,7 @@ use std::hash::{Hasher, Hash};
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
-use crate::{types::SqlType, comm::keywords_safe};
+use crate::{types::SqlType, comm::keywords_safe, Value};
 
 /// Table
 
@@ -94,8 +94,17 @@ pub struct FieldName {
     pub alias: Option<String>,
     /// exist in actual table
     pub exist: bool,
+    pub select: bool,
+    pub fill: Option<Fill>,
     pub field_type: FieldType,
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Fill {
+    pub mode: String,
+    pub value: Option<Value>,
+}
+
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum FieldType {
@@ -120,6 +129,8 @@ impl FieldName {
                 table: Some(table),
                 alias: None,
                 exist: true,
+                select: true,
+                fill: None,
                 field_type: FieldType::TableField,
             }
         } else {
@@ -128,6 +139,8 @@ impl FieldName {
                 table: None,
                 alias: None,
                 exist: true,
+                select: true,
+                fill: None,
                 field_type: FieldType::TableField,
             }
         }

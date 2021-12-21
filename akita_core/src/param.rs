@@ -46,12 +46,6 @@ where
     }
 }
 
-impl From<()> for Params {
-    fn from(_: ()) -> Params {
-        Params::Nil
-    }
-}
-
 impl From<Value> for Params {
     fn from(x: Value) -> Params {
         Params::Vector(vec![x])

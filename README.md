@@ -57,7 +57,7 @@ use akita::*;
 use akita::prelude::*;
 
 /// Annotion Support: AkitaTable、table_id、field (name, exist)
-#[derive(AkitaTable, Clone, Default, ToValue, FromValue)]
+#[derive(AkitaTable, Clone, Default)]
 #[table(name = "t_system_user")]
 pub struct User {
     #[table_id(name = "id")]

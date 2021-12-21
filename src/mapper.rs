@@ -29,7 +29,7 @@ where T: Sized {
 pub trait BaseMapper{
     type Item;
 
-    /// Insert Data.
+    /// Insert a record
     fn insert<I, M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Insert Data Batch.
@@ -38,8 +38,10 @@ pub trait BaseMapper{
     /// Update Data With Wrapper.
     fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
 
+    /// Query all records according to the entity condition
     fn list<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
+    /// Query all records (and turn the page) according to the entity condition
     fn page<M: AkitaMapper>(page: usize, size: usize, wrapper: Wrapper, entity_manager: &mut M) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Find One With Wrapper.
@@ -54,7 +56,7 @@ pub trait BaseMapper{
     /// Delete Data With Wrapper.
     fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
 
-    /// Delete Data With Table's Ident.
+    /// Delete by ID
     fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Get the Table Count.
@@ -94,6 +96,12 @@ pub trait AkitaMapper {
     where
         T: GetTableName + GetFields;
 
+    /// Remove the records by wrapper.
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError>
+        where
+            I: ToValue,
+            T: GetTableName + GetFields;
+
     /// Remove the records by id.
     fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
     where
@@ -122,6 +130,12 @@ pub trait AkitaMapper {
     where
         T: GetTableName + GetFields + ToValue,
         I: FromValue;
+
+    /// save or update
+    fn save_or_update<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
+        where
+            T: GetTableName + GetFields + ToValue,
+            I: FromValue;
 
     #[allow(clippy::redundant_closure)]
     fn execute_result<'a, R, S: Into<String>, P: Into<Params>>(
