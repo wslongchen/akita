@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.3.3?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.3.6?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -56,7 +56,7 @@ akita = { version = "0.3.0", features = ["akita-mysql"] }
 use akita::*;
 use akita::prelude::*;
 
-/// Annotion Support: AkitaTable、table_id、field (name, exist)
+/// Annotion Support: AkitaTable、table_id、field (name, exist, fill(function, mode))
 #[derive(AkitaTable, Clone, Default)]
 #[table(name = "t_system_user")]
 pub struct User {
@@ -72,10 +72,21 @@ pub struct User {
     pub birthday: Option<NaiveDate>,
     /// 性别
     pub gender: u8,
-    #[field(exist = "false")]
+    #[field(exist = "false", fill="is_org_build")]
     pub is_org: bool,
-    #[field(name = "token")]
+    #[field(name = "token", fill(function = "token_build", mode="default"))]
     pub url_token: String,
+}
+
+static area: &str = "china"; 
+
+fn is_org_build() -> bool {
+    area.eq("china")
+}
+
+fn token_build() -> String {
+    // generate the token
+    todo!()
 }
 
 ```

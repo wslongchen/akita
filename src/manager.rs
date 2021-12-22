@@ -706,7 +706,18 @@ impl AkitaMapper for AkitaEntityManager{
                     continue;
                 }
                 let col_name = &col.name;
-                let value = data.get_obj_value(&col_name);
+                let mut value = data.get_obj_value(&col_name);
+                match &col.fill {
+                    None => {}
+                    Some(v) => {
+                        match v.mode.as_ref() {
+                            "update" | "default" => {
+                                value = v.value.as_ref();
+                            }
+                            _=> {}
+                        }
+                    }
+                }
                 match value {
                     Some(value) => values.push(value.clone()),
                     None => values.push(Value::Nil),
@@ -768,7 +779,7 @@ impl AkitaMapper for AkitaEntityManager{
                     None => {}
                     Some(v) => {
                         match v.mode.as_ref() {
-                            "update" => {
+                            "update" | "default" => {
                                 value = v.value.as_ref();
                             }
                             _=> {}
@@ -824,7 +835,7 @@ impl AkitaMapper for AkitaEntityManager{
                 None => {}
                 Some(v) => {
                     match v.mode.as_ref() {
-                        "insert" => {
+                        "insert" | "default" => {
                             value = v.value.as_ref();
                         }
                         _=> {}

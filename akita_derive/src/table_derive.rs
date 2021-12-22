@@ -57,18 +57,19 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
             }
 
             let field_type = if identify { quote!(akita::FieldType::TableId("none".to_string())) } else { quote!(akita::FieldType::TableField) };
-            let fill = if fill_function.is_empty() { quote! (None) } else { let fn_ident: syn::Path = syn::parse_str(&fill_function).unwrap(); quote! (Some(#fn_ident().to_value())) };
             let fill_mode = fill_mode.unwrap_or(String::from("default")).to_lowercase();
+            let fill = if fill_function.is_empty() { quote! (None) } else { let fn_ident: syn::Path = syn::parse_str(&fill_function).unwrap(); quote! (akita::core::Fill {
+                        value: Some(#fn_ident().to_value()),
+                        mode: #fill_mode.to_string()
+                    }.into()) };
+
             quote!(
                 akita::core::FieldName {
                     name: #name.to_string(),
                     table: #table_name.to_string().into(),
                     alias: #name.to_string().into(),
                     field_type: #field_type,
-                    fill: akita::core::Fill {
-                        value: #fill,
-                        mode: #fill_mode.to_string()
-                    }.into(),
+                    fill: #fill,
                     select: #select,
                     exist: #exist,
                 },
