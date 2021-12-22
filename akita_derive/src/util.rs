@@ -329,7 +329,7 @@ pub fn find_extra_for_field(
                                     }
                                     v => abort!(
                                         path.span(),
-                                        "unexpected name value annotion1111: {:?}",
+                                        "unexpected name value annotion: {:?}",
                                         v
                                     ),
                                 };
