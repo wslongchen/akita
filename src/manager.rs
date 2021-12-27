@@ -215,6 +215,15 @@ impl AkitaManager {
         Ok(rows)
     }
 
+    pub fn execute_drop<S: Into<String>, P: Into<Params>>(
+        &mut self,
+        sql: S,
+        params: P,
+    ) -> Result<(), AkitaError> {
+        let rows = self.0.execute_drop(&sql.into(), params.into())?;
+        Ok(())
+    }
+
     pub fn execute_iter<S: Into<String>, P: Into<Params>>(
         &mut self,
         sql: S,
@@ -922,8 +931,7 @@ impl AkitaMapper for AkitaEntityManager{
     ) -> Result<(), AkitaError>
     {
         let sql: String = sql.into();
-        let _result: Result<Vec<()>, AkitaError> = self.execute_result(&sql, params);
-        Ok(())
+        self.0.execute_drop(&sql, params.into())
     }
 
     fn execute_result_opt<'a, R, S: Into<String>, P: Into<Params>>(
