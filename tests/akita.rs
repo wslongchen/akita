@@ -5,7 +5,7 @@ use std::time::Duration;
 use akita::*;
 use chrono::NaiveDateTime;
 
-#[derive(AkitaTable, Clone, Default, ToValue, FromValue)]
+#[derive(AkitaTable, Clone, Default)]
 #[table(name = "t_system_user")]
 pub struct User {
     #[table_id(name = "id")]
@@ -20,7 +20,7 @@ pub struct User {
     pub birthday: Option<NaiveDate>,
     /// 性别
     pub gender: u8,
-    #[field(exist = "false")]
+    #[field(exist = false)]
     pub is_org: bool,
     #[field(name = "token")]
     pub url_token: String,

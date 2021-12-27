@@ -18,9 +18,15 @@ impl From<Vec<Value>> for Params {
     }
 }
 
+
 impl <T: ToValue> From<T> for Params {
     fn from(x: T) -> Params {
-        Params::Vector(vec![x.to_value()])
+        let v = x.to_value();
+        match v {
+            Value::Nil => Params::Nil,
+            _ => Params::Vector(vec![v.to_owned()]),
+        }
+        
     }
 }
 
@@ -48,13 +54,21 @@ where
 
 impl From<Value> for Params {
     fn from(x: Value) -> Params {
-        Params::Vector(vec![x])
+        match x {
+            Value::Nil => Params::Nil,
+            _ => Params::Vector(vec![x]),
+        }
     }
 }
 
 impl <'a> From<&'a dyn ToValue> for Params {
     fn from(x: &'a dyn ToValue) -> Params {
-        Params::Vector(vec![x.to_value().to_owned()])
+        
+        let v = x.to_value();
+        match v {
+            Value::Nil => Params::Nil,
+            _ => Params::Vector(vec![v.to_owned()]),
+        }
     }
 }
 
