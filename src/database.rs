@@ -74,7 +74,22 @@ pub trait Database {
     fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError>;
 
     #[cfg(feature = "akita-auth")]
+    fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError>;
+
+    #[cfg(feature = "akita-auth")]
+    fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError>;
+
+    #[cfg(feature = "akita-auth")]
+    fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError>;
+
+    #[cfg(feature = "akita-auth")]
+    fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError>;
+
+    #[cfg(feature = "akita-auth")]
     fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError>;
+
+    #[cfg(feature = "akita-auth")]
+    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError>;
 
     #[cfg(feature = "akita-auth")]
     fn flush_privileges(&mut self) -> Result<(), AkitaError>;

@@ -28,15 +28,37 @@ pub struct Role {
 ///  and which columns it has privilege
 #[allow(unused)]
 pub enum Privilege {
-    Select,
-    Insert,
-    Update,
-    Delete,
+    Unknown,
+    Alter,
+    AlterRoutine,
     Create,
+    CreateRoutine,
+    CreateTemporaryTables,
+    CreateUser,
+    CreateView,
+    Delete,
     Drop,
+    Event,
+    Execute,
+    File,
+    GrantOption,
+    Index,
+    Insert,
+    LockTables,
+    Process,
+    References,
+    Reload,
+    ReplicationClient,
+    ReplicationSalve,
+    Select,
+    ShowDatabases,
+    ShowView,
+    Shutdown,
+    Super,
+    Trigger,
+    Update,
     Truncate,
     Connect,
-    Execute,
 }
 
 impl ToString for Privilege {
@@ -51,6 +73,67 @@ impl ToString for Privilege {
             Privilege::Truncate => String::from("Truncate"),
             Privilege::Connect => String::from("Connect"),
             Privilege::Execute => String::from("Execute"),
+            Privilege::Unknown => String::from(""),
+            Privilege::Alter => String::from("Alter"),
+            Privilege::AlterRoutine => String::from("AlterRoutine"),
+            Privilege::CreateRoutine => String::from("CreateRoutine"),
+            Privilege::CreateTemporaryTables => String::from("CreateTemporaryTables"),
+            Privilege::CreateUser => String::from("CreateUser"),
+            Privilege::CreateView => String::from("CreateView"),
+            Privilege::Event => String::from("Event"),
+            Privilege::File => String::from("File"),
+            Privilege::GrantOption => String::from("GrantOption"),
+            Privilege::Index => String::from("Index"),
+            Privilege::LockTables => String::from("LockTables"),
+            Privilege::Process => String::from("Process"),
+            Privilege::References => String::from("References"),
+            Privilege::Reload => String::from("Reload"),
+            Privilege::ReplicationClient => String::from("ReplicationClient"),
+            Privilege::ReplicationSalve => String::from("ReplicationSalve"),
+            Privilege::ShowDatabases => String::from("ShowDatabases"),
+            Privilege::ShowView => String::from("ShowView"),
+            Privilege::Shutdown => String::from("Shutdown"),
+            Privilege::Super => String::from("Super"),
+            Privilege::Trigger => String::from("Trigger"),
+            
+        }
+    }
+}
+
+impl From<String> for Privilege {
+    fn from(privilege: String) -> Self {
+        match privilege.as_str() {
+            "Select" => Self::Select,
+            "Insert" => Self::Insert,
+            "Update" => Self::Update,
+            "Delete" => Self::Delete,
+            "Create" => Self::Create,
+            "Drop" => Self::Drop,
+            "Truncate" => Self::Truncate,
+            "Connect" => Self::Connect,
+            "Execute" => Self::Execute,
+            "Alter" => Self::Alter,
+            "AlterRoutine" => Self::AlterRoutine,
+            "CreateRoutine" => Self::CreateRoutine,
+            "CreateTemporaryTables" => Self::CreateTemporaryTables,
+            "CreateUser" => Self::CreateUser,
+            "CreateView" => Self::CreateView,
+            "Event" => Self::Event,
+            "File" => Self::File,
+            "GrantOption" => Self::GrantOption,
+            "Index" => Self::Index,
+            "LockTables" => Self::LockTables,
+            "Process" => Self::Process,
+            "References" => Self::References,
+            "Reload" => Self::Reload,
+            "ReplicationClient" => Self::ReplicationClient,
+            "ReplicationSalve" => Self::ReplicationSalve,
+            "ShowDatabases" => Self::ShowDatabases,
+            "ShowView" => Self::ShowView,
+            "Shutdown" => Self::Shutdown,
+            "Super" => Self::Super,
+            "Trigger" => Self::Trigger,
+            _=> Self::Unknown
         }
     }
 }
@@ -77,16 +160,18 @@ pub struct UserInfo {
     pub username: String,
     pub password: Option<String>,
     pub host: Option<String>,
+    pub is_lock: Option<bool>,
     pub privileges: Option<Vec<Privilege>>,
 }
 
 impl UserInfo {
-    pub fn new(username: String, password: Option<String>, host: Option<String>, privileges: Option<Vec<Privilege>>) -> Self {
+    pub fn new(username: String, password: Option<String>, host: Option<String>, privileges: Option<Vec<Privilege>>, is_lock: Option<bool>) -> Self {
         UserInfo {
             username,
             password,
             host,
             privileges,
+            is_lock,
         }
     }
 }
