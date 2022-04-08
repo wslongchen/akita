@@ -6,7 +6,6 @@ use mysql::prelude::Protocol;
 use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
-use std::collections::HashMap;
 use std::result::Result;
 
 use crate::{AkitaConfig, Params, self as akita};
@@ -336,7 +335,7 @@ impl Database for MysqlDatabase {
         let mut schema_contents: Vec<SchemaContent> = Vec::new();
         for table in table_names.iter() {
             let schema = table.schema.to_owned().unwrap_or_default();
-            if let Some(mut t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
                 t.tablenames.push(table.to_owned());
             } else {
                 schema_contents.push(SchemaContent {
@@ -349,7 +348,7 @@ impl Database for MysqlDatabase {
         
         for table in view_names.iter() {
             let schema = table.schema.to_owned().unwrap_or_default();
-            if let Some(mut t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
                 t.tablenames.push(table.to_owned());
             } else {
                 schema_contents.push(SchemaContent {
@@ -537,23 +536,23 @@ impl Database for MysqlDatabase {
 
     #[cfg(feature = "akita-auth")]
     fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
-        if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
+        if user.username.is_empty() || user.host.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
             ))
         }
-        let sql = format!("alter user {}@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
+        let sql = format!("alter user '{}'@'{}' account lock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
         self.execute_drop(&sql, ().into())
     }
 
     #[cfg(feature = "akita-auth")]
     fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
-        if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
+        if user.username.is_empty() || user.host.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
             ))
         }
-        let sql = format!("alter user {}@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
+        let sql = format!("alter user '{}'@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
         self.execute_drop(&sql, ().into())
     }
 
