@@ -143,7 +143,7 @@ impl Value {
         V: ToValue,
     {
         match self {
-            Value::Object(data) => {data.insert(k.to_string(), v.to_value());},
+            Value::Object(data) => {data.insert(k.to_string().replace("r#",""), v.to_value());},
             _ => (),
         }
     }
@@ -163,7 +163,7 @@ impl Value {
         T: FromValue,
     {
         match self {
-            Value::Object(data) => match data.get(s) {
+            Value::Object(data) => match data.get(&s.replace("r#","")) {
                 Some(v) => FromValue::from_value_opt(v),
                 None => Err(AkitaDataError::NoSuchValueError(s.into())),
             },
@@ -184,7 +184,7 @@ impl Value {
         T: FromValue,
     {
         match self {
-            Value::Object(data) => match data.get(s) {
+            Value::Object(data) => match data.get(&s.replace("r#","")) {
                 Some(v) => {
                     match v {
                         Value::Nil => Ok(None),
