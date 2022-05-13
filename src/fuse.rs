@@ -7,8 +7,9 @@ use akita_core::Table;
 use crate::segment::ISegment;
 use crate::{AkitaError, AkitaMapper, IPage, Pool, Wrapper, database::DatabasePlatform};
 use crate::{cfg_if, Params, TableName, DatabaseName, SchemaContent, TableDef, Rows, FromValue, Value, ToValue, GetFields};
-pub struct Akita {
-    db: Option<DatabasePlatform>,
+
+pub struct Akita <'b> {
+    db: Option<&'b mut DatabasePlatform>,
     akita_type: AkitaType,
     wrapper: Wrapper,
     table: String,
@@ -19,7 +20,7 @@ pub enum AkitaType {
     Update,
 }
 
-impl Akita {
+impl <'b> Akita<'b> {
     
     pub fn new() -> Self {
         Akita { wrapper: Wrapper::new(), table: String::default(), akita_type: AkitaType::Query, db:None }
@@ -30,7 +31,7 @@ impl Akita {
         self
     }
 
-    pub fn conn(mut self, db: DatabasePlatform) -> Self {
+    pub fn conn(mut self, db: &'b mut DatabasePlatform) -> Self {
         self.db = db.into();
         self
     }
@@ -38,6 +39,22 @@ impl Akita {
     pub fn table<S: Into<String>>(mut self, table: S) -> Self {
         self.table = table.into();
         self
+    }
+
+    pub fn affected_rows(&self) -> u64 {
+        if let Some(db) = &self.db {
+            db.affected_rows()
+        } else {
+            0
+        }
+    }
+
+    pub fn last_insert_id(&self) -> u64 {
+        if let Some(db) = &self.db {
+            db.last_insert_id()
+        } else {
+            0
+        }
     }
 
     pub fn list<T>(&mut self) -> Result<Vec<T>, AkitaError>
@@ -235,7 +252,7 @@ impl Akita {
         let columns = if let Some(columns) = columns.as_object() {
             columns.keys().collect::<Vec<&String>>()
         } else { Vec::new() };
-        let sql = self.build_insert_clause_map(entity)?;
+        let sql = self.build_insert_clause_map(&[entity])?;
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter() {
@@ -244,6 +261,39 @@ impl Akita {
                 Some(value) => values.push(value.clone()),
                 None => values.push(Value::Nil),
             }
+        }
+        let bvalues: Vec<&Value> = values.iter().collect();
+        if self.db.is_none() {
+            return Err(AkitaError::DataError("Missing database connection".to_string()))
+        }
+        let db = self.db.as_mut().expect("Missing database connection");
+        db.execute_result(&sql,values.into())?;
+        Ok(())
+    }
+
+    /// called multiple times when using database platform that doesn;t support multiple value
+    pub fn save_map_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
+        where
+            T: ToValue,
+    {
+        if entities.len() == 0 {
+            return Err(AkitaError::DataError("data cannot be empty".to_string()))
+        }
+        let columns = entities[0].to_value();
+        let columns = if let Some(columns) = columns.as_object() {
+            columns.keys().collect::<Vec<&String>>()
+        } else { Vec::new() };
+        let sql = self.build_insert_clause_map(entities)?;
+        let mut values: Vec<Value> = Vec::with_capacity(columns.len());
+        for entity in entities.iter() {
+           for col in columns.iter() {
+               let data = entity.to_value();
+               let value = data.get_obj_value(col);
+               match value {
+                   Some(value) => values.push(value.clone()),
+                   None => values.push(Value::Nil),
+               }
+           }
         }
         let bvalues: Vec<&Value> = values.iter().collect();
         if self.db.is_none() {
@@ -517,18 +567,20 @@ impl Akita {
     }
 
     /// build an insert clause
-    pub fn build_insert_clause_map<T>(&mut self, entity: &T) -> Result<String, AkitaError>
+    pub fn build_insert_clause_map<T>(&mut self, entities: &[T]) -> Result<String, AkitaError>
     where
         T: ToValue,
     {
         let table = &self.table;
-        let columns = entity.to_value();
+        if entities.len() == 0 {
+            return Err(AkitaError::DataError("data cannot be empty".to_string()))
+        }
+        let columns = entities[0].to_value();
         let columns = if let Some(columns) = columns.as_object() {
             columns.keys().collect::<Vec<&String>>()
         } else { Vec::new() };
         let columns_len = columns.len();
         let mut sql = String::new();
-        let entities = &[entity];
         if self.db.is_none() {
             return Err(AkitaError::DataError("Missing database connection".to_string()))
         }

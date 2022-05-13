@@ -49,6 +49,10 @@ pub trait Database {
         table_name: &TableName,
     ) -> Result<Option<i64>, AkitaError>;
 
+    fn affected_rows(&self) -> u64;
+
+    fn last_insert_id(&self) -> u64;
+
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError>;
 
     fn create_database(&mut self, database: &str) -> Result<(), AkitaError>;

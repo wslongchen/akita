@@ -121,10 +121,9 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     #[allow(unused_variables)]
-    fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
+    fn save_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
     where
-        T: GetTableName + GetFields + ToValue,
-        I: FromValue,
+        T: GetTableName + GetFields + ToValue
     {
         self.conn.save_batch(entities)
     }
@@ -320,20 +319,38 @@ impl AkitaEntityManager{
         self.0.get_database_name()
     }
 
-    fn save_batch_inner<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
+    fn save_batch_inner<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
     where
-        T: GetTableName + GetFields + ToValue,
-        I: FromValue
+        T: GetTableName + GetFields + ToValue
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
+        let columns = T::fields();
+        let sql = self.build_insert_clause(entities);
+
+        let mut values: Vec<Value> = Vec::with_capacity(entities.len() * columns.len());
+        for entity in entities.iter() {
+            for col in columns.iter() {
+                let data = entity.to_value();
+                let mut value = data.get_obj_value(&col.name);
+                match &col.fill {
+                    None => {}
+                    Some(v) => {
+                        match v.mode.as_ref() {
+                            "insert" | "default" => {
+                                value = v.value.as_ref();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                match value {
+                    Some(value) => values.push(value.clone()),
+                    None => values.push(Value::Nil),
+                }
+            }
         }
-        let mut result = Vec::new();
-        for entity in entities.into_iter() {
-            result.push(self.save(*entity)?);
-        }
-        Ok(result)
+        let bvalues: Vec<&Value> = values.iter().collect();
+        self.0.execute_result(&sql,values.into())?;
+        Ok(())
     }
 
     /// build the returning clause
@@ -815,10 +832,9 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     #[allow(unused_variables)]
-    fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
+    fn save_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
     where
-        T: GetTableName + GetFields + ToValue,
-        I: FromValue
+        T: GetTableName + GetFields + ToValue
     {
         match self.0 {
             #[cfg(feature = "akita-mysql")]
@@ -1105,7 +1121,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
-        match em.save_batch::<_, i32>(&vec![&user]) {
+        match em.save_batch::<_>(&vec![&user]) {
             Ok(res) => {
                 println!("success update data!");
             }

@@ -455,6 +455,14 @@ impl Database for SqliteDatabase {
         }
     }
 
+    fn affected_rows(&self) -> u64 {
+        todo!()
+    }
+
+    fn last_insert_id(&self) -> u64 {
+        todo!()
+    }
+
     fn create_database(&mut self, _database: &str) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't need to created database".to_string(),

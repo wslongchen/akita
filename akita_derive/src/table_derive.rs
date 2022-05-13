@@ -117,8 +117,8 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
                 entity_manager.save(&data)
             }
 
-            fn insert_batch<I, M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields, I: akita::core::FromValue {
-                entity_manager.save_batch::<Self::Item, I>(datas)
+            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
+                entity_manager.save_batch::<Self::Item>(datas)
             }
 
             fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
