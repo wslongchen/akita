@@ -238,6 +238,7 @@ impl <'b> Akita<'b> {
             DatabasePlatform::Mysql(_) => db.execute_result("SELECT LAST_INSERT_ID();", Params::Nil)?,
             #[cfg(feature = "akita-sqlite")]
             DatabasePlatform::Sqlite(_) => db.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?,
+            _=> panic!("the database platform must setup!")
         };
         let last_insert_id = rows.iter().next().map(|data| I::from_value(&data));
         Ok(last_insert_id)
