@@ -33,7 +33,7 @@ pub trait BaseMapper{
     fn insert<I, M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Insert Data Batch.
-    fn insert_batch<I, M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<Vec<Option<I>>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
+    fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Update Data With Wrapper.
     fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
@@ -120,10 +120,9 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToValue;
 
     #[allow(unused_variables)]
-    fn save_batch<T, I>(&mut self, entities: &[&T]) -> Result<Vec<Option<I>>, AkitaError>
+    fn save_batch<T>(&mut self, entities: &[&T]) -> Result<(), AkitaError>
     where
-        T: GetTableName + GetFields + ToValue,
-        I: FromValue;
+        T: GetTableName + GetFields + ToValue;
 
     /// called multiple times when using database platform that doesn;t support multiple value
     fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>

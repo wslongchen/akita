@@ -407,6 +407,14 @@ impl Database for MysqlDatabase {
         todo!()
     }
 
+    fn affected_rows(&self) -> u64 {
+        self.0.affected_rows()
+    }
+
+    fn last_insert_id(&self) -> u64 {
+        self.0.last_insert_id()
+    }
+
     fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
@@ -769,6 +777,7 @@ pub fn from_long_row<T: FromRowExt + Default>(row: Row) -> T {
     FromRowExt::from_long_row(row)
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub struct MysqlConnectionManager {
     params: Opts,

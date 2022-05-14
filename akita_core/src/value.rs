@@ -294,8 +294,8 @@ pub enum Array {
     Tinyint(Vec<i8>),
     Smallint(Vec<i16>),
     */
-    Int(Vec<i32>),
-    Float(Vec<f32>),
+    Int(Vec<i64>),
+    Float(Vec<f64>),
     /*
     Bigint(Vec<i64>),
 
@@ -400,7 +400,7 @@ impl ToValue for serde_json::Value {
                 }
             },
             serde_json::Value::String(v) => Value::Text(v.to_owned()),
-            serde_json::Value::Array(_v) => Value::SerdeJson(self.to_owned()),
+            serde_json::Value::Array(v) => v.to_value(),
             serde_json::Value::Object(data) => {
                 let mut map: IndexMap<String, Value> = IndexMap::new();
                 for key in data.keys() {
@@ -417,6 +417,35 @@ impl ToValue for serde_json::Value {
 impl ToValue for Vec<String> {
     fn to_value(&self) -> Value {
         Value::Array(Array::Text(self.to_owned()))
+    }
+}
+
+impl ToValue for Vec<serde_json::Value> {
+    fn to_value(&self) -> Value {
+        if self.is_empty() {
+            return Value::Nil
+        }
+        let mut int_values = Vec::new();
+        let mut float_values = Vec::new();
+        let mut text_values = Vec::new();
+        for v in self {
+            if v.is_f64() {
+                float_values.push(v.as_f64().unwrap_or_default());
+            } else if v.is_i64() {
+                int_values.push(v.as_i64().unwrap_or_default());
+            } else if v.is_u64() {
+                int_values.push(v.as_i64().unwrap_or_default());
+            } else if v.is_string() {
+                text_values.push(v.as_str().unwrap_or_default().to_string());
+            }
+        }
+        if !int_values.is_empty() {
+            Value::Array(Array::Int(int_values))
+        } else if !float_values.is_empty() {
+            Value::Array(Array::Float(float_values))
+        } else{
+            Value::Array(Array::Text(text_values))
+        }
     }
 }
 
@@ -627,7 +656,7 @@ impl FromValue for serde_json::Value {
                 }
                 Ok(serde_json::Value::Object(data))
             },
-            // Value::Array(v) => serde_json::to_value(v).map_err(|err| AkitaDataError::from(err)),
+            Value::Array(v) => serde_json::to_value(v).map_err(|err| AkitaDataError::from(err)),
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "SerdeJson".to_string(),
