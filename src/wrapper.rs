@@ -199,7 +199,9 @@ impl Wrapper{
     fn or_inner(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
     pub fn not_condition(self, condition: bool) -> Self { self.do_it(condition, vec![ SqlKeyword::NOT.into() ]) }
     pub fn and_condition(self, condition: bool) -> Self { self.do_it(condition, vec![SqlKeyword::AND.into()]) }
+    pub fn and_direct(self) -> Self { self.do_it(true, vec![SqlKeyword::AND.into()]) }
     pub fn or_condition(self, condition: bool) -> Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
+    pub fn or_direct(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
     pub fn apply<S: Into<String>>(self, apply_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
     pub fn apply_condition<S: Into<String>>(self, condition: bool, apply_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
     pub fn is_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }

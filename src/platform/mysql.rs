@@ -332,12 +332,34 @@ impl Database for MysqlDatabase {
     fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError> {
         let table_names = get_table_names(&mut *self, &"BASE TABLE".to_string())?;
         let view_names = get_table_names(&mut *self, &"VIEW".to_string())?;
-        let schema_content = SchemaContent {
-            schema: "".to_string(),
-            tablenames: table_names,
-            views: view_names,
-        };
-        Ok(vec![schema_content])
+        let mut schema_contents: Vec<SchemaContent> = Vec::new();
+        for table in table_names.iter() {
+            let schema = table.schema.to_owned().unwrap_or_default();
+            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+                t.tablenames.push(table.to_owned());
+            } else {
+                schema_contents.push(SchemaContent {
+                    schema,
+                    tablenames: vec![table.to_owned()],
+                    views: vec![],
+                });
+            }
+        }
+        
+        for table in view_names.iter() {
+            let schema = table.schema.to_owned().unwrap_or_default();
+            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+                t.tablenames.push(table.to_owned());
+            } else {
+                schema_contents.push(SchemaContent {
+                    schema,
+                    tablenames: vec![table.to_owned()],
+                    views: vec![],
+                });
+            }
+        }
+            
+        Ok(schema_contents)
     }
 
     fn get_all_tables(&mut self, schema: &str) -> Result<Vec<TableDef>, AkitaError> {
@@ -475,10 +497,14 @@ impl Database for MysqlDatabase {
     fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         let mut sql = format!("create user '{}'@'{}'", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
         if let Some(password) = user.password.to_owned() { 
-            sql.push_str(&format!("identified by '{}';", password));
-        } else {
-            sql.push_str(";");
+            sql.push_str(&format!("identified by '{}'", password));
         }
+        if let Some(is_lock) = user.is_lock {
+            if is_lock {
+                sql.push_str("account lock")
+            }
+        }
+        sql.push_str(";");
         // 创建用户
         self.execute_drop(&sql, ().into())
         
@@ -492,6 +518,52 @@ impl Database for MysqlDatabase {
             ))
         }
         let sql = format!("drop user '{}'@'{}';", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
+        self.execute_drop(&sql, ().into())
+    }
+
+
+
+    #[cfg(feature = "akita-auth")]
+    fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
+            return Err(AkitaError::UnsupportedOperation(
+                "Some param is empty.".to_string(),
+            ))
+        }
+        let sql = format!("alter user '{}'@'{}' identified by '{}'", user.username, user.host.to_owned().unwrap_or("localhost".to_string()), user.password.to_owned().unwrap_or_default());
+        self.execute_drop(&sql, ().into())
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        if user.username.is_empty() || user.host.is_none() {
+            return Err(AkitaError::UnsupportedOperation(
+                "Some param is empty.".to_string(),
+            ))
+        }
+        let sql = format!("alter user '{}'@'{}' account lock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
+        self.execute_drop(&sql, ().into())
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        if user.username.is_empty() || user.host.is_none() {
+            return Err(AkitaError::UnsupportedOperation(
+                "Some param is empty.".to_string(),
+            ))
+        }
+        let sql = format!("alter user '{}'@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
+        self.execute_drop(&sql, ().into())
+    }
+
+    #[cfg(feature = "akita-auth")]
+    fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
+            return Err(AkitaError::UnsupportedOperation(
+                "Some param is empty.".to_string(),
+            ))
+        }
+        let sql = format!("alter user '{}'@'{}' password expire;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
         self.execute_drop(&sql, ().into())
     }
 
@@ -518,6 +590,28 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
+    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+        // 回收权限
+        if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
+            return Err(AkitaError::UnsupportedOperation(
+                "Some param is empty.".to_string(),
+            ))
+        }
+        let privileges = if user.privileges.len() > 0 { 
+            user.privileges.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",") 
+        } else {
+            "all".to_string()
+        };
+        if user.schema.eq("*") {
+            return Err(AkitaError::UnsupportedOperation(
+                "You are not allow this operation to use schema with *".to_string(),
+            ))
+        }
+        let sql = format!("revoke {} on {}.{} from '{}'@'{}';", privileges, user.schema, user.table, user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
+        self.execute_drop(&sql, ().into())
+    }
+
+    #[cfg(feature = "akita-auth")]
     fn flush_privileges(&mut self) -> Result<(), AkitaError> {
         let sql = "flush privileges;";
         self.execute_drop(&sql, ().into())
@@ -529,18 +623,21 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
     #[derive(Debug, FromValue)]
     struct TableNameSimple {
         table_name: String,
+        schema_name: String,
     }
-    let sql = "SELECT TABLE_NAME as table_name FROM information_schema.tables WHERE table_type= ?";
+    let sql = "SELECT TABLE_NAME as table_name, TABLE_SCHEMA as schema_name FROM information_schema.tables WHERE table_type= ?";
     let result: Vec<TableNameSimple> = db
         .execute_result(sql, (kind.to_value(),).into())?
         .iter()
         .map(|row| TableNameSimple {
             table_name: row.get_obj("table_name").expect("must have a table name"),
+            schema_name: row.get_obj("schema_name").expect("must have a schema name"),
         })
         .collect();
     let mut table_names = vec![];
     for r in result {
-        let table_name = TableName::from(&r.table_name);
+        let mut table_name = TableName::from(&r.table_name);
+        table_name.schema = r.schema_name.into();
         table_names.push(table_name);
     }
     Ok(table_names)
