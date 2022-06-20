@@ -190,7 +190,7 @@ pub use wrapper::Wrapper;
 #[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
-pub use segment::{Segment, AkitaKeyword};
+pub use segment::{Segment, AkitaKeyword, ISegment};
 #[doc(inline)]
 pub use errors::AkitaError;
 #[doc(inline)]
@@ -219,4 +219,8 @@ pub use akita_core::*;
 pub use crate::core::{FieldName, FieldType, GetFields, GetTableName, Table, ToValue, FromValue};
 
 pub use akita_core::*;
+
+#[cfg(feature = "akita-logging")]
 extern crate log;
+#[cfg(feature = "akita-tracing")]
+extern crate tracing;
