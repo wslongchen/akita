@@ -23,8 +23,7 @@ chrono = { version = "0.4", features = ["serde"]}
 uuid = {version = "0.8.2", features = ["serde", "v4"]}
 base64 = "0.9"
 log = {version = "0.4", optional = true}
-tracing = { verion = "0.1", optional = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] , optional = true}
+tracing = { version = "0.1.35", optional = true }
 twox-hash = "1"
 url = "2.2.2"
 serde = { version = "1.0", features = ["derive"] }
@@ -42,7 +41,7 @@ features = ["akita-mysql"]
 
 [features]
 # default = []
-akita-tracing = ["tracing", "tracing-subscriber"]
+akita-tracing = ["tracing"]
 akita-logging = ["log"]
 # Provide mysql pool with r2d2.
 akita-mysql = ["mysql"]
