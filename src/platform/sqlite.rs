@@ -2,7 +2,6 @@
 //! SQLite modules.
 //! 
 use bigdecimal::ToPrimitive;
-use log::{debug, error, info};
 use r2d2::{ManageConnection, Pool};
 use rusqlite::{Connection, Error, OpenFlags};
 use uuid::Uuid;
@@ -47,9 +46,24 @@ impl Database for SqliteDatabase {
     fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
-                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
-                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
-                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
             }
         }
         let stmt = self.0.prepare(&sql);
@@ -117,9 +131,24 @@ impl Database for SqliteDatabase {
     fn execute_drop(&mut self, sql: &str, params: Params) -> Result<(), AkitaError> {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
-                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
-                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
-                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, params),
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
             }
         }
         let stmt = self.0.prepare(&sql);
@@ -552,6 +581,26 @@ impl Database for SqliteDatabase {
         } else {
             Ok(None)
         }
+    }
+
+    fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        todo!()
+    }
+
+    fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        todo!()
+    }
+
+    fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        todo!()
+    }
+
+    fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+        todo!()
+    }
+
+    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+        todo!()
     }
 }
 

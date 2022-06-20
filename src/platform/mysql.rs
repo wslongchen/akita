@@ -1,7 +1,6 @@
 //! 
 //! MySQL modules.
-//! 
-use log::{debug, error, info};
+//!
 use mysql::prelude::Protocol;
 use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
@@ -13,7 +12,6 @@ use crate::{AkitaConfig, Params, self as akita};
 cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
-
 use crate::database::Database;
 use crate::pool::LogLevel;
 use serde_json::Map;
@@ -47,9 +45,24 @@ impl Database for MysqlDatabase {
     fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
-                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
-                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
-                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
             }
         }
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
@@ -126,9 +139,24 @@ impl Database for MysqlDatabase {
     fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
-                LogLevel::Debug => debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
-                LogLevel::Info => info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
-                LogLevel::Error => error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param),
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
+                },
             }
         }
         match param {

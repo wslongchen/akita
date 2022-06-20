@@ -1,6 +1,5 @@
 use std::{convert::TryFrom, time::Duration};
 use akita_core::cfg_if;
-use log::*;
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
     use crate::platform::{mysql::{self, MysqlConnectionManager, MysqlDatabase}};
@@ -134,7 +133,6 @@ impl Pool {
                     Ok(Pool(PlatformPool::SqlitePool(pool_sqlite), cfg))
                 }
                 Platform::Unsupported(scheme) => {
-                    info!("unsupported");
                     Err(AkitaError::UnknownDatabase(scheme))
                 }
             },
