@@ -30,7 +30,6 @@ impl MysqlDatabase {
 impl Database for MysqlDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
         self.execute_result("BEGIN", Params::Nil).map(|_| ()).map_err(AkitaError::from)
-        // Ok(())
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
@@ -38,8 +37,7 @@ impl Database for MysqlDatabase {
     }
 
     fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK", Params::Nil)?;
-        Ok(())
+        self.execute_result("ROLLBACK", Params::Nil).map(|_| ()).map_err(AkitaError::from)
     }
     
     fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
@@ -311,6 +309,7 @@ impl Database for MysqlDatabase {
                             "date" => SqlType::Date,
                             "datetime" | "timestamp" => SqlType::Timestamp,
                             "time" => SqlType::Time,
+                            "json" => SqlType::Json,
                             _ => panic!("not yet handled: {}", dtype),
                         };
 

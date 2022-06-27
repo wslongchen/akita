@@ -258,6 +258,9 @@ where
 impl ToSegment for &'static str
 {
     fn to_segment(&self) -> Segment {
+        if self.is_empty() {
+            return Segment::Nil
+        }
         Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
@@ -272,6 +275,9 @@ impl ToSegment for Wrapper
 impl ToSegment for String
 {
     fn to_segment(&self) -> Segment {
+        if self.is_empty() {
+            return Segment::Nil
+        }
         Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
