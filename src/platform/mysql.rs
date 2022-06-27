@@ -311,6 +311,7 @@ impl Database for MysqlDatabase {
                             "date" => SqlType::Date,
                             "datetime" | "timestamp" => SqlType::Timestamp,
                             "time" => SqlType::Time,
+                            "json" => SqlType::Json,
                             _ => panic!("not yet handled: {}", dtype),
                         };
 
