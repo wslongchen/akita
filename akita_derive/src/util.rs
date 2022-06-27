@@ -65,8 +65,8 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
             "bool" => quote!(false),
             "str" => quote!(""),
             "String" => quote!(String::default()),
-            "NaiveDate"  => quote!(chrono::Local::now().naive_local().date()),
-            "NaiveDateTime" => quote!(chrono::Local::now().naive_local()),
+            "NaiveDate"  => quote!(Local::now().naive_local().date()),
+            "NaiveDateTime" => quote!(Local::now().naive_local()),
             "Vec" => quote!(Vec::new()),
             _ => quote!(None)
         }

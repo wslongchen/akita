@@ -113,8 +113,7 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
             type Item = #name;
 
             fn insert<I, M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue, I: akita::core::FromValue {
-                let data: Self::Item = self.clone();
-                entity_manager.save(&data)
+                entity_manager.save(self)
             }
 
             fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
@@ -122,8 +121,7 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
             }
 
             fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                let data: Self::Item = self.clone();
-                entity_manager.update(&data, wrapper)
+                entity_manager.update(self, wrapper)
             }
 
             fn list<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
@@ -131,8 +129,7 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
             }
 
             fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                let data: Self::Item = self.clone();
-                entity_manager.update_by_id::<Self::Item>(&data)
+                entity_manager.update_by_id::<Self::Item>(self)
             }
 
             fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
