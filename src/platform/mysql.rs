@@ -24,6 +24,31 @@ impl MysqlDatabase {
     pub fn new(pool: r2d2::PooledConnection<MysqlConnectionManager>, cfg: AkitaConfig) -> Self {
         MysqlDatabase(pool, cfg)
     }
+
+    pub fn log(&self, fmt: String) {
+        if let Some(log_level) = &self.1.log_level() {
+            match log_level {
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: {}", &fmt);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: {}", &fmt);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: {}", &fmt);
+                },
+            }
+        }
+    }
 }
 
 /// MYSQL数据操作
@@ -41,28 +66,7 @@ impl Database for MysqlDatabase {
     }
     
     fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-            }
-        }
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
             let fields = rows
@@ -89,7 +93,9 @@ impl Database for MysqlDatabase {
                 .0
                 .query_iter(&sql)
                 .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-                collect(rows)
+                let rows = collect(rows)?;
+                self.log(format!("AffectRows: {}", self.0.affected_rows()));
+                Ok(rows)
             },
             Params::Vector(param) => {
                 let stmt = self
@@ -103,8 +109,9 @@ impl Database for MysqlDatabase {
                     .collect::<Vec<_>>()
                     .into();
                 let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-                
-                collect(rows)
+                let rows = collect(rows)?;
+                self.log(format!("AffectRows: {} records: {:?}", self.0.affected_rows(), rows));
+                Ok(rows)
             },
             Params::Custom(param) => {
                 let mut format_sql = sql.to_owned();
@@ -128,35 +135,15 @@ impl Database for MysqlDatabase {
                     .collect::<Vec<_>>()
                     .into();
                 let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-                
-                collect(rows)
+                let rows = collect(rows)?;
+                self.log(format!("AffectRows: {} records: {:?}", self.0.affected_rows(), rows));
+                Ok(rows)
             },
         }
     }
     
     fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-            }
-        }
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         match param {
             Params::Nil => {
                 self
