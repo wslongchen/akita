@@ -26,6 +26,31 @@ impl SqliteDatabase {
     pub fn new(pool: r2d2::PooledConnection<SqliteConnectionManager>, cfg: AkitaConfig) -> Self {
         SqliteDatabase(pool, cfg)
     }
+
+    pub fn log(&self, fmt: String) {
+        if let Some(log_level) = &self.1.log_level() {
+            match log_level {
+                LogLevel::Debug => {
+                    #[cfg(feature = "akita-logging")]
+                    log::debug!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::debug!("[Akita]: {}", &fmt);
+                },
+                LogLevel::Info => {
+                    #[cfg(feature = "akita-logging")]
+                    log::info!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::info!("[Akita]: {}", &fmt);
+                },
+                LogLevel::Error => {
+                    #[cfg(feature = "akita-logging")]
+                    log::error!("[Akita]: {}", &fmt);
+                    #[cfg(feature = "akita-tracing")]
+                    tracing::error!("[Akita]: {}", &fmt);
+                },
+            }
+        }
+    }
 }
 
 /// SQLite数据操作
@@ -44,28 +69,7 @@ impl Database for SqliteDatabase {
     }
     
     fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-            }
-        }
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         let stmt = self.0.prepare(&sql);
         let column_names = if let Ok(ref stmt) = stmt {
             stmt.column_names()
@@ -122,6 +126,7 @@ impl Database for SqliteDatabase {
                         records.push(record);
                     }
                 }
+                self.log(format!("AffectRows: {} records: {:?}", records.len(), rows));
                 Ok(records)
             }
             Err(e) => Err(AkitaError::from(e)),
@@ -129,28 +134,7 @@ impl Database for SqliteDatabase {
     }
 
     fn execute_drop(&mut self, sql: &str, params: Params) -> Result<(), AkitaError> {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: Prepare SQL: {} params: {:?}", &sql, param);
-                },
-            }
-        }
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         let stmt = self.0.prepare(&sql);
         match stmt {
             Ok(mut stmt) => {
