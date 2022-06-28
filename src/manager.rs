@@ -85,19 +85,19 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     /// Remove the records by wrapper.
-    fn remove<T>(&mut self, wrapper:Wrapper) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, wrapper:Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields,
          {
             self.conn.remove::<T>(wrapper)
     }
 
-    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError> where I: ToValue, T: GetTableName + GetFields {
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<u64, AkitaError> where I: ToValue, T: GetTableName + GetFields {
         self.conn.remove_by_ids::<T,I>(ids)
     }
 
     /// Remove the records by id.
-    fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
+    fn remove_by_id<T, I>(&mut self, id: I) -> Result<u64, AkitaError>
     where
         I: ToValue,
         T: GetTableName + GetFields {
@@ -106,14 +106,14 @@ impl AkitaMapper for AkitaTransaction <'_> {
     }
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
             self.conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
-    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
             self.conn.update_by_id(entity)
@@ -636,7 +636,7 @@ impl AkitaMapper for AkitaEntityManager{
     }
 
     /// Remove the records by wrapper.
-    fn remove<T>(&mut self, mut wrapper:Wrapper) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, mut wrapper:Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields,
          {
@@ -648,11 +648,11 @@ impl AkitaMapper for AkitaEntityManager{
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
         let sql = format!("delete from {} {}", &table.complete_name(), where_condition);
         let _ = self.0.execute_result(&sql, Params::Nil)?;
-        Ok(())
+        Ok(self.0.affected_rows())
     }
 
     /// Remove the records by id.
-    fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
+    fn remove_by_id<T, I>(&mut self, id: I) -> Result<u64, AkitaError>
     where
         I: ToValue,
         T: GetTableName + GetFields {
@@ -674,7 +674,7 @@ impl AkitaMapper for AkitaEntityManager{
                 _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
             };
             let _ = self.0.execute_result(&sql, (id.to_value(),).into())?;
-            Ok(())
+            Ok(self.0.affected_rows())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
         }
@@ -682,7 +682,7 @@ impl AkitaMapper for AkitaEntityManager{
 
 
     /// Remove the records by wrapper.
-    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError>
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<u64, AkitaError>
         where
             I: ToValue,
             T: GetTableName + GetFields {
@@ -705,7 +705,7 @@ impl AkitaMapper for AkitaEntityManager{
             };
             let ids = ids.iter().map(|v| v.to_value().to_string()).collect::<Vec<String>>().join(",");
             let _ = self.0.execute_result(&sql, (ids,).into())?;
-            Ok(())
+            Ok(self.0.affected_rows())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
         }
@@ -713,7 +713,7 @@ impl AkitaMapper for AkitaEntityManager{
     
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, mut wrapper: Wrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, mut wrapper: Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
         let table = T::table_name();
@@ -753,11 +753,11 @@ impl AkitaMapper for AkitaEntityManager{
         } else {
             self.0.execute_result(&sql, Params::Nil)?;
         }
-        Ok(())
+        Ok(self.0.affected_rows())
     }
 
     /// Update the records by id.
-    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
         let table = T::table_name();
@@ -824,7 +824,7 @@ impl AkitaMapper for AkitaEntityManager{
                 }
             }
             let _ = self.0.execute_result(&sql, values.into())?;
-            Ok(())
+            Ok(self.0.affected_rows())
         } else {
             Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
         }

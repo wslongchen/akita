@@ -120,7 +120,7 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
                 entity_manager.save_batch::<Self::Item>(datas)
             }
 
-            fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.update(self, wrapper)
             }
 
@@ -128,15 +128,15 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
                 entity_manager.list(wrapper)
             }
 
-            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.update_by_id::<Self::Item>(self)
             }
 
-            fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.remove::<Self::Item>(wrapper)
             }
 
-            fn delete_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn delete_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.remove_by_id::<Self::Item, I>(id)
             }
 

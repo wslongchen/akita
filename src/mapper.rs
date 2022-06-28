@@ -36,7 +36,7 @@ pub trait BaseMapper{
     fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Update Data With Wrapper.
-    fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
+    fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<u64, AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Query all records according to the entity condition
     fn list<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
@@ -51,13 +51,13 @@ pub trait BaseMapper{
     fn find_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Update Data With Table's Ident.
-    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
+    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete Data With Wrapper.
-    fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<(), AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
+    fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<u64, AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete by ID
-    fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<(), AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
+    fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Get the Table Count.
     fn count<M: AkitaMapper>(&mut self, wrapper: Wrapper, entity_manager: &mut M) -> Result<usize, AkitaError>;
@@ -92,30 +92,30 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields;
 
     /// Remove the records by wrapper.
-    fn remove<T>(&mut self, wrapper: Wrapper) -> Result<(), AkitaError> 
+    fn remove<T>(&mut self, wrapper: Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields;
 
     /// Remove the records by wrapper.
-    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<(), AkitaError>
+    fn remove_by_ids<T, I>(&mut self, ids: Vec<I>) -> Result<u64, AkitaError>
         where
             I: ToValue,
             T: GetTableName + GetFields;
 
     /// Remove the records by id.
-    fn remove_by_id<T, I>(&mut self, id: I) -> Result<(), AkitaError> 
+    fn remove_by_id<T, I>(&mut self, id: I) -> Result<u64, AkitaError>
     where
         I: ToValue,
         T: GetTableName + GetFields;
     
 
     /// Update the records by wrapper.
-    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<(), AkitaError> 
+    fn update<T>(&mut self, entity: &T, wrapper: Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue;
 
     /// Update the records by id.
-    fn update_by_id<T>(&mut self, entity: &T) -> Result<(), AkitaError> 
+    fn update_by_id<T>(&mut self, entity: &T) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue;
 
