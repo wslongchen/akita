@@ -25,7 +25,7 @@ pub enum Value {
     Blob(Vec<u8>),
     Char(char),
     Text(String),
-    Json(String),
+    Json(serde_json::Value),
 
     Uuid(Uuid),
     Date(NaiveDate),
@@ -33,7 +33,7 @@ pub enum Value {
     DateTime(NaiveDateTime),
     Timestamp(DateTime<Utc>),
     Interval(Interval),
-    SerdeJson(serde_json::Value),
+    // SerdeJson(serde_json::Value),
     Object(IndexMap<String, Value>),
     Array(Array),
 }
@@ -268,11 +268,11 @@ impl fmt::Display for Value {
             Value::BigDecimal(v) => write!(f, "{}", v),
             Value::Char(v) => write!(f, "{}", v),
             Value::Text(v) => write!(f, "{}", v),
-            Value::Json(v) => write!(f, "{}", v),
+            Value::Json(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::Uuid(v) => write!(f, "{}", v),
             Value::Date(v) => write!(f, "{}", v),
             Value::Time(v) => write!(f, "{}", v),
-            Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
+            // Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::DateTime(v) => write!(f, "{}", v.format("%Y-%m-%d %H:%M:%S").to_string()),
             Value::Timestamp(v) => write!(f, "{}", v.to_rfc3339()),
             Value::Array(array) => array.fmt(f),
@@ -642,13 +642,13 @@ impl FromValue for serde_json::Value {
             Value::Blob(v) => serde_json::to_value(String::from_utf8_lossy(&v)).map_err(AkitaDataError::from),
             Value::Char(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Text(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
-            Value::Json(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
+            Value::Json(v) => Ok(v.clone()), //serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Uuid(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Date(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Time(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::DateTime(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Timestamp(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
-            Value::SerdeJson(v) => Ok(v.clone()),
+            // Value::SerdeJson(v) => Ok(v.clone()),
             Value::Object(v) => {
                 let mut data = Map::new();
                 for (k, v) in v.into_iter() {

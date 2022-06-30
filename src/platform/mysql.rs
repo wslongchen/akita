@@ -691,7 +691,7 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Json(ref v) => v.into(),
             Value::Nil => mysql::Value::NULL,
             Value::Array(_) => unimplemented!("unsupported type"),
-            Value::SerdeJson(ref v) => v.into(),
+            // Value::SerdeJson(ref v) => v.into(),
             Value::Object(ref v) => {
                 let mut data = Map::new();
                 for (k, v) in v.into_iter() {
