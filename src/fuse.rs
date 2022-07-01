@@ -769,7 +769,7 @@ mod test {
     use crate::{Akita, AkitaTable, self as akita, AkitaConfig, LogLevel, AkitaMapper};
 
     pub static AK:Lazy<Akita> = Lazy::new(|| {
-        let mut cfg = AkitaConfig::new("mysql://longchen:Zhengtayigeyi@1@139.196.111.46:3306/dc_pay".to_string());
+        let mut cfg = AkitaConfig::new("xxxx".to_string());
         cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
         let mut akita = Akita::new(cfg).unwrap();
         akita
