@@ -1,8 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use proc_macro_error::{abort};
-use syn::{DeriveInput, spanned::Spanned};
-use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{ FieldExtra},util::{ find_struct_annotions, collect_field_info}};
+use syn::{DeriveInput};
+use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{ FieldExtra},util::{ find_struct_annotions, collect_field_info, to_snake_name}};
 
 pub fn impl_get_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
@@ -18,10 +17,10 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
     let struct_info = &ast.ident;
     let struct_name = &ast.ident.to_string();
     let structs = find_struct_annotions(&ast.attrs);
-    let table_name = structs.iter().find(|st| match st { FieldExtra::Table(_) => true, _ => false })
+    let mut table_name = structs.iter().find(|st| match st { FieldExtra::Table(_) => true, _ => false })
         .map(|extra| match extra { FieldExtra::Table(name) => name.clone(), _ => String::default() }).unwrap_or_default();
    if table_name.is_empty() {
-       abort!(ast.span(), "Missing table name annotion: {}");
+       table_name = to_snake_name(struct_name);
    }
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()

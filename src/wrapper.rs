@@ -228,6 +228,7 @@ impl Wrapper{
 
 
 #[test]
+#[allow(unused)]
 fn basic_test() {
     let s : Option<String> = Some("ffffa".to_string());
     let d: Option<i32> = None;

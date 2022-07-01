@@ -199,7 +199,7 @@ pub use pool::{AkitaConfig, LogLevel, Pool};
 pub use auth::*;
 pub use fuse::*;
 #[doc(inline)]
-pub use manager::{AkitaEntityManager, AkitaManager};
+pub use manager::{AkitaEntityManager};
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
 // Re-export #[derive(AkitaTable)].

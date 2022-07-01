@@ -8,7 +8,7 @@ cfg_if! {if #[cfg(feature = "akita-mysql")]{
 cfg_if! {if #[cfg(feature = "akita-sqlite")]{
     use crate::platform::sqlite::{self, SqliteConnectionManager, SqliteDatabase};
 }}
-use crate::{AkitaError, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager, AkitaManager}};
+use crate::{AkitaError, database::{DatabasePlatform, Platform}, manager::{AkitaEntityManager}};
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -114,6 +114,40 @@ pub enum PooledConnection {
     PooledSqlite(Box<r2d2::PooledConnection<SqliteConnectionManager>>),
 }
 
+impl PlatformPool {
+    /// get a usable database connection from
+    pub fn acquire(&self) -> Result<PooledConnection, AkitaError> {
+        match *self {
+            #[cfg(feature = "akita-mysql")]
+            PlatformPool::MysqlPool(ref pool_mysql) => {
+                let pooled_conn = pool_mysql.get();
+                match pooled_conn {
+                    Ok(pooled_conn) => Ok(PooledConnection::PooledMysql(Box::new(pooled_conn))),
+                    Err(e) => Err(AkitaError::MySQLError(e.to_string())),
+                }
+            }
+            #[cfg(feature = "akita-sqlite")]
+            PlatformPool::SqlitePool(ref pool_sqlite) => {
+                let pooled_conn = pool_sqlite.get();
+                match pooled_conn {
+                    Ok(pooled_conn) => Ok(PooledConnection::PooledSqlite(Box::new(pooled_conn))),
+                    Err(e) => Err(AkitaError::MySQLError(e.to_string())),
+                }
+            }
+        }
+    }
+
+    pub fn database(&self, cfg: &AkitaConfig) -> Result<DatabasePlatform, AkitaError> {
+        let conn = self.acquire()?;
+        match conn {
+            #[cfg(feature = "akita-mysql")]
+            PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, cfg.to_owned())))),
+            #[cfg(feature = "akita-sqlite")]
+            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, cfg.to_owned())))),
+        }
+    }
+}
+
 #[allow(unused)]
 impl Pool {
     pub fn new(mut cfg: AkitaConfig) -> Result<Self, AkitaError>  {
@@ -140,8 +174,12 @@ impl Pool {
         }
     }
 
-    fn get_pool(&self) -> Result<&PlatformPool, AkitaError> {
+    pub fn get_pool(&self) -> Result<&PlatformPool, AkitaError> {
         Ok(&self.0)
+    }
+
+    pub fn config(&self) -> &AkitaConfig {
+        &self.1
     }
 
     /// get a usable database connection from
@@ -166,20 +204,15 @@ impl Pool {
         }
     }
 
-    /// returns a akita manager which provides api which data is already converted into
-    /// Data, Rows and Value
-    pub fn akita_manager(&self) -> Result<AkitaManager, AkitaError> {
-        let db = self.database()?;
-        Ok(AkitaManager::new(db))
-    }
-
-    fn get_pool_mut(&self) -> Result<&PlatformPool, AkitaError> {
-        Ok(&self.0)
+    /// return an entity manager which provides a higher level api
+    pub fn entity_manager(&self) -> Result<AkitaEntityManager, AkitaError> {
+        let db = self.get_pool()?;
+        Ok(AkitaEntityManager::new(db.clone(), self.1.to_owned()))
     }
 
     /// get a usable database connection from
     pub fn connect_mut(&self) -> Result<PooledConnection, AkitaError> {
-        let pool = self.get_pool_mut()?;
+        let pool = self.get_pool()?;
         match *pool {
             #[cfg(feature = "akita-mysql")]
             PlatformPool::MysqlPool(ref pool_mysql) => {
@@ -209,11 +242,5 @@ impl Pool {
             #[cfg(feature = "akita-sqlite")]
             PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.1.to_owned())))),
         }
-    }
-
-    /// return an entity manager which provides a higher level api
-    pub fn entity_manager(&self) -> Result<AkitaEntityManager, AkitaError> {
-        let db = self.database()?;
-        Ok(AkitaEntityManager::new(db))
     }
 }
