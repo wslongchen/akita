@@ -796,12 +796,12 @@ mod test {
     #[test]
     #[cfg(feature = "akita-mysql")]
     fn test_akita() {
-        let mut cfg = AkitaConfig::new("mysql://longchen:Zhengtayigeyi@1@139.196.111.46:3306/dc_pay".to_string());
+        let mut cfg = AkitaConfig::new("xxxxx".to_string());
         cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
         let mut akita = Akita::new(cfg).unwrap();
         let wrapper = akita.new_wrapper();
-        let data = akita.select_by_id::<MchInfo, _>("23234234").unwrap();
-        // let s = select("23234234");
+        // let data = akita.select_by_id::<MchInfo, _>("23234234").unwrap();
+        let s = select("23234234");
         println!("ssssssss{:?}",data);
         // let s = select("i");
     }
