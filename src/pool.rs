@@ -114,6 +114,7 @@ pub enum PooledConnection {
     PooledSqlite(Box<r2d2::PooledConnection<SqliteConnectionManager>>),
 }
 
+#[allow(unused)]
 impl PlatformPool {
     /// get a usable database connection from
     pub fn acquire(&self) -> Result<PooledConnection, AkitaError> {
@@ -174,8 +175,8 @@ impl Pool {
         }
     }
 
-    pub fn get_pool(&self) -> Result<&PlatformPool, AkitaError> {
-        Ok(&self.0)
+    pub fn get_pool(&self) -> Result<PlatformPool, AkitaError> {
+        Ok(self.0.clone())
     }
 
     pub fn config(&self) -> &AkitaConfig {
@@ -213,7 +214,7 @@ impl Pool {
     /// get a usable database connection from
     pub fn connect_mut(&self) -> Result<PooledConnection, AkitaError> {
         let pool = self.get_pool()?;
-        match *pool {
+        match pool {
             #[cfg(feature = "akita-mysql")]
             PlatformPool::MysqlPool(ref pool_mysql) => {
                 let pooled_conn = pool_mysql.get();

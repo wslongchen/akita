@@ -26,7 +26,7 @@ pub struct User {
     pub url_token: String,
 }
 
-
+#[allow(unused, non_snake_case, dead_code)]
 fn main() {
     let db_url = String::from("mysql://root:password@localhost:3306/akita");
     let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
@@ -41,7 +41,7 @@ fn main() {
         .inside("user_type", vec!["admin", "super"]); // user_type in ('admin', 'super')
     // CRUD with EntityManager
     let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
-    let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
+    let insert_ids= entity_manager.save_batch(&[&User::default()]).unwrap();
     // Update with wrapper
     let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
     // Update with primary id
@@ -59,13 +59,13 @@ fn main() {
     // Get the record count
     let count = entity_manager.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
     // Query with original sql
-    let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
+    let user: User = entity_manager.exec_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
     // Or
-    let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
+    let user: User = entity_manager.exec_first("select * from t_system_user where name = :name and id = :id", params! {
         "name" => "Jack",
         "id" => 1
     }).unwrap();
-    let res = entity_manager.execute_drop("select now()", ()).unwrap();
+    let res = entity_manager.exec_drop("select now()", ()).unwrap();
 
     // CRUD with Entity
     let model = User::default();
@@ -81,22 +81,13 @@ fn main() {
     let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
 
     // Fast with Akita
-    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
-        .table("t_system_user")
-        .wrapper(Wrapper::new().eq("name", "Jack"))
-        .list::<User>().unwrap();
-
-    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
-        .table("t_system_user")
-        .wrapper(Wrapper::new().eq("name", "Jack"))
-        .page::<User>(1, 10).unwrap();
 
     // ...
 
     // Transaction
-    entity_manager.start_transaction().and_then(|mut transaction| {
-        let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
-        let insert_id: Option<i32> = transaction.save(&User::default())?;
-        transaction.commit()
-    }).unwrap();
+    // start_transaction().and_then(|mut transaction| {
+    //     let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
+    //     let insert_id: Option<i32> = transaction.save(&User::default())?;
+    //     transaction.commit()
+    // }).unwrap();
 }

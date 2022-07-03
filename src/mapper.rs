@@ -31,37 +31,37 @@ pub trait BaseMapper{
     type Item;
 
     /// Insert a record
-    fn insert<I, M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
+    fn insert<I, M: AkitaMapper>(&self, entity_manager: &M) -> Result<Option<I>, AkitaError> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Insert Data Batch.
-    fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
+    fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &M) -> Result<(), AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Update Data With Wrapper.
-    fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<u64, AkitaError> where Self::Item : GetTableName + GetFields;
+    fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &M) -> Result<u64, AkitaError> where Self::Item : GetTableName + GetFields;
 
     /// Query all records according to the entity condition
-    fn list<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
+    fn list<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &M) -> Result<Vec<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Query all records (and turn the page) according to the entity condition
-    fn page<M: AkitaMapper>(page: usize, size: usize, wrapper: Wrapper, entity_manager: &mut M) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
+    fn page<M: AkitaMapper>(page: usize, size: usize, wrapper: Wrapper, entity_manager: &M) -> Result<IPage<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Find One With Wrapper.
-    fn find_one<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &mut M) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
+    fn find_one<M: AkitaMapper>(wrapper: Wrapper, entity_manager: &M) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Find Data With Table's Ident.
-    fn find_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
+    fn find_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &M, id: I) -> Result<Option<Self::Item>, AkitaError> where Self::Item : GetTableName + GetFields + FromValue;
 
     /// Update Data With Table's Ident.
-    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &mut M) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
+    fn update_by_id<M: AkitaMapper>(&self, entity_manager: &M) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete Data With Wrapper.
-    fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &mut M) -> Result<u64, AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
+    fn delete<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &M) -> Result<u64, AkitaError>where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Delete by ID
-    fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
+    fn delete_by_id<I: ToValue, M: AkitaMapper>(&self, entity_manager: &M, id: I) -> Result<u64, AkitaError> where Self::Item : GetFields + GetTableName + ToValue ;
 
     /// Get the Table Count.
-    fn count<M: AkitaMapper>(&mut self, wrapper: Wrapper, entity_manager: &mut M) -> Result<usize, AkitaError>;
+    fn count<M: AkitaMapper>(&mut self, wrapper: Wrapper, entity_manager: &M) -> Result<usize, AkitaError>;
 
 }
 

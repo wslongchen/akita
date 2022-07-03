@@ -55,7 +55,7 @@
 //! ```rust
 //! use akita::*;
 //! use chrono::{NaiveDateTime, NaiveDate};
-//! 
+//!
 //! /// Annotion Support: AkitaTable、table_id、field (name, exist)
 //! #[derive(AkitaTable, Clone, Default)]
 //! #[table(name = "t_system_user")]
@@ -80,7 +80,8 @@
 //!
 //!
 //! fn main() {
-//!     let db_url = String::from("mysql://root:password@localhost:3306/akita");
+//!     use std::time::Duration;
+//! let db_url = String::from("mysql://root:password@localhost:3306/akita");
 //!     let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
 //!         .set_log_level(LogLevel::Debug).set_max_size(6);
 //!     let mut pool = Pool::new(cfg).expect("must be ok");
@@ -93,7 +94,7 @@
 //!         .inside("user_type", vec!["admin", "super"]); // user_type in ('admin', 'super')
 //!     // CRUD with EntityManager
 //!    let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
-//!    let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
+//!    let insert_ids= entity_manager.save_batch(&[&User::default()]).unwrap();
 //!    // Update with wrapper
 //!    let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
 //!    // Update with primary id
@@ -132,16 +133,6 @@
 //!    // page
 //!    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
 //!
-//!     // Fast with Akita
-//!    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
-//!    .table("t_system_user")
-//!    .wrapper(Wrapper::new().eq("name", "Jack"))
-//!    .list::<User>().unwrap();
-//!
-//!    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
-//!    .table("t_system_user")
-//!    .wrapper(Wrapper::new().eq("name", "Jack"))
-//!    .page::<User>(1, 10).unwrap();
 //!
 //!
 //!     // Transaction
@@ -182,7 +173,9 @@ mod platform;
 mod auth;
 mod manager;
 #[allow(unused)]
+#[cfg(feature = "akita-fuse")]
 mod fuse;
+mod akita;
 
 
 #[doc(inline)]
@@ -197,7 +190,9 @@ pub use errors::AkitaError;
 pub use pool::{AkitaConfig, LogLevel, Pool};
 #[cfg(feature = "akita-auth")]
 pub use auth::*;
+#[cfg(feature = "akita-fuse")]
 pub use fuse::*;
+pub use akita::*;
 #[doc(inline)]
 pub use manager::{AkitaEntityManager};
 #[doc(inline)]

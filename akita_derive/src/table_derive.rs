@@ -111,48 +111,48 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
 
             type Item = #name;
 
-            fn insert<I, M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<Option<I>, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue, I: akita::core::FromValue {
+            fn insert<I, M: akita::AkitaMapper>(&self, entity_manager: &M) -> Result<Option<I>, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue, I: akita::core::FromValue {
                 entity_manager.save(self)
             }
 
-            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &mut M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
+            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &M) -> Result<(), akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
                 entity_manager.save_batch::<Self::Item>(datas)
             }
 
-            fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.update(self, wrapper)
             }
 
-            fn list<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<Vec<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
+            fn list<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &M) -> Result<Vec<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
                 entity_manager.list(wrapper)
             }
 
-            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.update_by_id::<Self::Item>(self)
             }
 
-            fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &M) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.remove::<Self::Item>(wrapper)
             }
 
-            fn delete_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
+            fn delete_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &M, id: I) -> Result<u64, akita::AkitaError> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.remove_by_id::<Self::Item, I>(id)
             }
 
-            fn page<M: akita::AkitaMapper>(page: usize, size: usize, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<akita::IPage<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
+            fn page<M: akita::AkitaMapper>(page: usize, size: usize, wrapper: akita::Wrapper, entity_manager: &M) -> Result<akita::IPage<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
                 entity_manager.page::<Self::Item>(page, size, wrapper)
             }
 
-            fn count<M: akita::AkitaMapper>(&mut self, wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<usize, akita::AkitaError> {
+            fn count<M: akita::AkitaMapper>(&mut self, wrapper: akita::Wrapper, entity_manager: &M) -> Result<usize, akita::AkitaError> {
                 entity_manager.count::<Self::Item>(wrapper)
             }
 
-            fn find_one<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &mut M) -> Result<Option<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
+            fn find_one<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &M) -> Result<Option<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
                 entity_manager.select_one(wrapper)
             }
 
             /// Find Data With Table's Ident.
-            fn find_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &mut M, id: I) -> Result<Option<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
+            fn find_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &M, id: I) -> Result<Option<Self::Item>, akita::AkitaError> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
                 entity_manager.select_by_id(id)
             }
         }

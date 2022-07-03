@@ -337,11 +337,11 @@ pub fn build_update_clause<T>(platform: &DatabasePlatform, _entity: &T, wrapper:
             set_fields
                 .iter_mut()
                 .enumerate()
-                .map(|(x, (col, value))| {
+                .map(|(x, (col, _value))| {
                     #[allow(unreachable_patterns)]
                     match platform {
                         #[cfg(feature = "akita-mysql")]
-                        DatabasePlatform::Mysql(_) => format!("`{}` = {}", col, value.get_sql_segment()),
+                        DatabasePlatform::Mysql(_) => format!("`{}` = {}", col, _value.get_sql_segment()),
                         #[cfg(feature = "akita-sqlite")]
                         DatabasePlatform::Sqlite(_) => format!("`{}` = ${}", col, x + 1),
                         _ => format!("`{}` = ${}", col, x + 1),

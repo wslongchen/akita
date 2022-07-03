@@ -50,3 +50,4 @@ akita-mysql = ["mysql"]
 akita-sqlite = ["rusqlite"]
 # Database with authentication
 akita-auth = []
+akita-fuse = []

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::result::Result;
 
 
-cfg_if! {if #[cfg(feature = "akita-auth")]{
+cfg_if! {if #[cfg(feature = "auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 
@@ -488,56 +488,56 @@ impl Database for SqliteDatabase {
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn get_users(&mut self) -> Result<Vec<DataBaseUser>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to extract users".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn exist_user(&mut self, user: &UserInfo) -> Result<bool, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to exist user".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to user details".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to extract roles".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to create_user".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to drop_user".to_string(),
         ))
     }
     
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to grant_privileges".to_string(),
         ))
     }
 
-    #[cfg(feature = "akita-auth")]
+    #[cfg(feature = "auth")]
     fn flush_privileges(&mut self) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to flush_privileges".to_string(),
