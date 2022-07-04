@@ -68,6 +68,7 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
             "NaiveDate"  => quote!(Local::now().naive_local().date()),
             "NaiveDateTime" => quote!(Local::now().naive_local()),
             "Vec" => quote!(Vec::new()),
+            "Value" => quote!(serde_json::Value::default()),
             _ => quote!(None)
         }
     }
