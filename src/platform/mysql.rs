@@ -6,6 +6,7 @@ use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
+use akita_core::Array;
 
 use crate::{AkitaConfig, Params, self as akita};
 
@@ -691,14 +692,31 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Interval(ref _v) => panic!("storing interval in DB is not supported"),
             Value::Json(ref v) => v.into(),
             Value::Nil => mysql::Value::NULL,
-            Value::Array(_) => unimplemented!("unsupported type"),
+            Value::Array(ref v) => {
+                match v {
+                    Array::Int(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Float(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Text(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                }
+            },
             // Value::SerdeJson(ref v) => v.into(),
             Value::Object(ref v) => {
                 let mut data = Map::new();
                 for (k, v) in v.into_iter() {
                     data.insert(k.to_owned(), serde_json::Value::from_value(&v));
                 }
-                serde_json::Value::Object(data).into()
+                // serde_json::Value::Object(data).into()
+                let value = serde_json::to_string(&data).unwrap_or_default();
+                value.into()
             },
             Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
