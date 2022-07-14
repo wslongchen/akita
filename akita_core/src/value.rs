@@ -164,7 +164,10 @@ impl Value {
     {
         match self {
             Value::Object(data) => match data.get(&s.replace("r#","")) {
-                Some(v) => FromValue::from_value_opt(v),
+                Some(v) => {
+                    let s = FromValue::from_value_opt(v);
+                    s
+                },
                 None => Err(AkitaDataError::NoSuchValueError(s.into())),
             },
             _ => Err(AkitaDataError::ObjectValidError("Unsupported type".to_string())),
@@ -580,10 +583,32 @@ impl FromValue for String {
             Value::Blob(ref v) => String::from_utf8(v.to_owned()).map_err(|e| {
                 AkitaDataError::ConvertError(ConvertError::NotSupported(format!("{:?}", v), format!("String: {}", e)))
             }),
+            Value::Bool(ref v) => Ok(v.to_string()),
+            Value::Tinyint(ref v) => Ok(v.to_string()),
+            Value::Smallint(ref v) => Ok(v.to_string()),
+            Value::Int(ref v) => Ok(v.to_string()),
+            Value::Bigint(ref v) => Ok(v.to_string()),
+            Value::Float(ref v) => Ok(v.to_string()),
+            Value::Double(ref v) => Ok(v.to_string()),
+            Value::BigDecimal(ref v) => Ok(v.to_string()),
+            Value::Json(ref v) => Ok(serde_json::to_string(v).unwrap_or_default()),
+            Value::Uuid(ref v) => Ok(v.to_string()),
+            Value::Date(ref v) => Ok(v.to_string()),
+            Value::Time(ref v) => Ok(v.to_string()),
+            Value::DateTime(ref v) => Ok(v.to_string()),
+            Value::Timestamp(ref v) => Ok(v.to_string()),
+            Value::Array(ref v) => {
+                match v {
+                    Array::Int(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Float(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                }
+            }
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "String".to_string(),
             ))),
+
         }
     }
 }
