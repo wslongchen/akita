@@ -131,7 +131,9 @@ impl std::ops::DerefMut for DatabasePlatform {
     }
 }
 
-pub(crate) enum Platform {
+
+#[derive(Debug, Clone)]
+pub enum Platform {
     #[cfg(feature = "akita-mysql")]
     Mysql,
     #[cfg(feature = "akita-sqlite")]

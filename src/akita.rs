@@ -2,7 +2,6 @@
 //! Akita
 //!
 
-use std::convert::TryFrom;
 use akita_core::{FieldType, GetTableName};
 use once_cell::sync::OnceCell;
 
@@ -54,24 +53,19 @@ impl Akita {
 
     /// get a database instance with a connection, ready to send sql statements
     fn init_pool(cfg: &AkitaConfig) -> Result<PlatformPool, AkitaError> {
-        let database_url = cfg.url();
-        let platform: Result<Platform, _> = TryFrom::try_from(database_url.as_str());
-        match platform {
-            Ok(platform) => match platform {
-                #[cfg(feature = "akita-mysql")]
-                Platform::Mysql => {
-                    let pool_mysql = mysql::init_pool(&cfg)?;
-                    Ok(PlatformPool::MysqlPool(pool_mysql))
-                }
-                #[cfg(feature = "akita-sqlite")]
-                Platform::Sqlite(path) => {
-                    cfg.set_url(path);
-                    let pool_sqlite = sqlite::init_pool(&cfg)?;
-                    Ok(PlatformPool::SqlitePool(pool_sqlite))
-                }
-                Platform::Unsupported(scheme) => Err(AkitaError::UnknownDatabase(scheme))
-            },
-            Err(e) => Err(AkitaError::UrlParseError(e.to_string())),
+        match cfg.platform() {
+            #[cfg(feature = "akita-mysql")]
+            Platform::Mysql => {
+                let pool_mysql = mysql::init_pool(&cfg)?;
+                Ok(PlatformPool::MysqlPool(pool_mysql))
+            }
+            #[cfg(feature = "akita-sqlite")]
+            Platform::Sqlite(path) => {
+                cfg.set_url(path);
+                let pool_sqlite = sqlite::init_pool(&cfg)?;
+                Ok(PlatformPool::SqlitePool(pool_sqlite))
+            }
+            Platform::Unsupported(scheme) => Err(AkitaError::UnknownDatabase(scheme))
         }
     }
 

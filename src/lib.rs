@@ -181,6 +181,8 @@ mod akita;
 #[doc(inline)]
 pub use wrapper::Wrapper;
 #[doc(inline)]
+pub use database::Platform;
+#[doc(inline)]
 pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
 pub use segment::{Segment, AkitaKeyword, ISegment};

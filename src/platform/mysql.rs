@@ -848,20 +848,15 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
 /// cfg 配置信息
 /// 
 pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
-    let database_url = &cfg.url();
-    test_connection(&database_url, cfg)?;
-    let opts = Opts::from_url(&database_url)?;
-    let builder = OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
+    test_connection(cfg)?;
+    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
     let pool = Pool::builder().connection_timeout(cfg.connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size()).build(manager)?;
     Ok(pool)
 }
 
 /// 测试连接池连接
-fn test_connection(database_url: &str, cfg: &AkitaConfig) -> Result<(), AkitaError> {
-    let opts = mysql::Opts::from_url(&database_url)?;
-    let builder = mysql::OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
+fn test_connection(cfg: &AkitaConfig) -> Result<(), AkitaError> {
+    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
     let mut conn = manager.connect()?;
     manager.is_valid(&mut conn)?;
     Ok(())

@@ -255,7 +255,17 @@ where
     }
 }
 
-impl ToSegment for &'static str
+impl ToSegment for str
+{
+    fn to_segment(&self) -> Segment {
+        if self.is_empty() {
+            return Segment::Nil
+        }
+        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
+    }
+}
+
+impl ToSegment for &str
 {
     fn to_segment(&self) -> Segment {
         if self.is_empty() {
