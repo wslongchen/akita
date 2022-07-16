@@ -604,6 +604,9 @@ impl FromValue for String {
                     Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                 }
             }
+            Value::Object(ref _obj) => {
+                Ok(String::default())
+            }
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "String".to_string(),
