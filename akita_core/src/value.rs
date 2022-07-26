@@ -604,8 +604,14 @@ impl FromValue for String {
                     Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                 }
             }
-            Value::Object(ref _obj) => {
-                Ok(String::default())
+            Value::Object(ref obj) => {
+                let data: IndexMap<String, Value> = obj.to_owned();
+                if data.len() > 0 {
+                    let (_k, v) = data.get_index(0).unwrap();
+                    Ok(v.as_str().to_owned().unwrap_or_default().to_string())
+                } else {
+                    Ok(String::default())
+                }
             }
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
