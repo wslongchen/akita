@@ -88,7 +88,7 @@ impl Wrapper{
 
     pub fn set_sql<S: Into<String>>(mut self, condition: bool, sql: S) -> Self {
         let sql: String = sql.into();
-        if condition && !&sql.is_empty() {
+        if condition && !sql.is_empty() {
             self.sql_set.push(sql);
         }
         self

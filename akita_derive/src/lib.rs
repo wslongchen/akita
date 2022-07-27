@@ -49,6 +49,7 @@ pub fn to_table(input: TokenStream) -> TokenStream {
 }
 
 /// auto create sql macro,this macro use RB.fetch_prepare and RB.exec_prepare
+/// <pre>
 /// for example:
 ///     pub static AK:Lazy<Akita> = Lazy::new(|| {
 ///         let mut cfg = AkitaConfig::new("xxxx".to_string()).set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
@@ -60,7 +61,7 @@ pub fn to_table(input: TokenStream) -> TokenStream {
 /// or:
 ///    #[sql(AK,"select * from mch_info where mch_no = ?")]
 ///     fn select(ak: &AKita, name: &str) -> Vec<MchInfo> { todo!() }
-///
+/// </pre>
 #[proc_macro_attribute]
 pub fn sql(args: TokenStream, func: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as AttributeArgs);
