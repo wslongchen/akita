@@ -1,6 +1,6 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.3.0?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.4.0?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -11,7 +11,7 @@
 
 ```Akita - Mini orm for rust ```
 
-This create offers:
+This Crate offers:
 * MySql database's helper in pure rust;
 * SQLite database's helper in pure rust;
 * A mini orm framework (With MySQL/SQLite)。
@@ -25,8 +25,8 @@ Features:
 You may be looking for:
 
 - [An overview of Akita](https://crates.io/crates/akita)
-- [Examples](https://github.com/wslongchen/akita/blob/0.3.0/example/simple.rs)
-- [API documentation](https://docs.rs/akita/0.3.0/akita/)
+- [Examples](https://github.com/wslongchen/akita/blob/0.4.0/example/simple.rs)
+- [API documentation](https://docs.rs/akita/0.4.0/akita/)
 - [Release notes](https://github.com/wslongchen/akita/releases)
 
 ## Akita in action
@@ -43,7 +43,7 @@ Click to show Cargo.toml.
 # The core APIs, including the Table traits. Always
 # required when using Akita. using #[derive(AkitaTable)] 
 # to make Akita work with structs defined in your crate.
-akita = { version = "0.3.0", features = ["akita-mysql"] }
+akita = { version = "0.4.0", features = ["akita-mysql"] }
 
 ```
 
@@ -54,7 +54,6 @@ akita = { version = "0.3.0", features = ["akita-mysql"] }
 
 ```rust
 use akita::*;
-use akita::prelude::*;
 
 /// Annotion Support: AkitaTable、table_id、field (name, exist, fill(function, mode))
 #[derive(AkitaTable, Clone, Default)]
@@ -90,107 +89,106 @@ fn token_build() -> String {
 }
 
 ```
- ### CRUD with EntityManager
+ ### CRUD with Akita
 ```rust
 
 
 fn main() {
-    let db_url = String::from("mysql://root:password@localhost:3306/akita");
-    let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
-        .set_log_level(LogLevel::Debug).set_max_size(6);
-    let mut pool = Pool::new(cfg).expect("must be ok");
-    let mut entity_manager = pool.entity_manager().expect("must be ok");
+    let cfg = AkitaConfig::new(String::from("mysql://root:password@localhost:3306/akita"))
+        .set_connection_timeout(Duration::from_secs(6))
+        .set_log_level(LogLevel::Info).set_max_size(6);
+    let akita = Akita::new(cfg).expect("must be ok");
     // The Wrapper to build query condition
     let wrapper = Wrapper::new()
         .eq("username", "ussd") // username = 'ussd'
         .gt("age", 1) // age > 1
         .lt("age", 10) // age < 10
-        .inside("user_type", vec!["admin", "super"]); // user_type in ('admin', 'super')
-    // CRUD with EntityManager
-    let insert_id: Option<i32> = entity_manager.save(&User::default()).unwrap();
-    let insert_ids: Vec<Option<i32>>= entity_manager.save_batch(&[&User::default()]).unwrap();
+        .inside("user_type", vec!["admin", "super"]) // user_type in ('admin', 'super')
+        .and(|wrapper| { // or
+            wrapper.like("username", &name)
+                .or_direct().like("username", &name)
+        });
+    // CRUD with Akita
+    let insert_id: Option<i32> = akita.save(&User::default()).unwrap();
+    let _ = akita.save_batch(&[&User::default()]).unwrap();
     // Update with wrapper
-    let res = entity_manager.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
+    let res = akita.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
     // Update with primary id
-    let res = entity_manager.update_by_id(&User::default());
+    let res = akita.update_by_id(&User::default());
     // Query return List
-    let list: Vec<User> = entity_manager.list(Wrapper::new().eq("name", "Jack")).unwrap();
+    let list: Vec<User> = akita.list(Wrapper::new().eq("name", "Jack")).unwrap();
     // Query return Page
     let pageNo = 1;
     let pageSize = 10;
-    let page: IPage<User> = entity_manager.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
+    let page: IPage<User> = akita.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
     // Remove with wrapper
-    let res = entity_manager.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+    let res = akita.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
     // Remove with primary id
-    let res = entity_manager.remove_by_id::<User,_>(0).unwrap();
+    let res = akita.remove_by_id::<User,_>(0).unwrap();
     // Get the record count
-    let count = entity_manager.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
+    let count = akita.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
     // Query with original sql
-    let user: User = entity_manager.execute_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
+    let user: User = akita.exec_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
     // Or
-    let user: User = entity_manager.execute_first("select * from t_system_user where name = :name and id = :id", params! {
+    let user: User = akita.exec_first("select * from t_system_user where name = :name and id = :id", params! {
         "name" => "Jack",
         "id" => 1
     }).unwrap();
-    let res = entity_manager.execute_drop("select now()", ()).unwrap();
+    let res = akita.exec_drop("select now()", ()).unwrap();
+
+    // Transaction
+    akita.start_transaction().and_then(|mut transaction| {
+        let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
+        let insert_id: Option<i32> = transaction.save(&User::default())?;
+        transaction.commit()
+    }).unwrap();
 }
+
 ```
  ### CRUD with Entity
 ```rust
 
 
 fn main() {
-    let db_url = String::from("mysql://root:password@localhost:3306/akita");
-    let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
-        .set_log_level(LogLevel::Debug).set_max_size(6);
-    let mut pool = Pool::new(cfg).expect("must be ok");
-    let mut entity_manager = pool.entity_manager().expect("must be ok");
+    let cfg = AkitaConfig::new(String::from("mysql://root:password@localhost:3306/akita"))
+        .set_connection_timeout(Duration::from_secs(6))
+        .set_log_level(LogLevel::Info).set_max_size(6);
+    let akita = Akita::new(cfg).expect("must be ok");
     // CRUD with Entity
     let model = User::default();
     // insert
-    let insert_id = model.insert::<Option<i32>, _>(&mut entity_manager).unwrap();
+    let insert_id = model.insert::<Option<i32>, _>(&akita).unwrap();
     // update
-    let res = model.update_by_id::<_>(&mut entity_manager).unwrap();
+    let res = model.update_by_id::<_>(&akita).unwrap();
     // delete
-    let res = model.delete_by_id::<i32,_>(&mut entity_manager, 1).unwrap();
+    let res = model.delete_by_id::<i32,_>(&akita, 1).unwrap();
     // list
-    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &akita).unwrap();
     // page
-    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &mut entity_manager).unwrap();
+    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &akita).unwrap();
 }
 ```
- ### Fast with Akita
+ ### Fast with sql
 ```rust
 
 
 fn main() {
-    let db_url = String::from("mysql://root:password@localhost:3306/akita");
-    let cfg = AkitaConfig::new(db_url).set_connection_timeout(Duration::from_secs(6))
-        .set_log_level(LogLevel::Debug).set_max_size(6);
-    let mut pool = Pool::new(cfg).expect("must be ok");
-    let mut entity_manager = pool.entity_manager().expect("must be ok");
-    // Fast with Akita
-    let list: Vec<User> = Akita::new().conn(pool.database().unwrap())
-        .table("t_system_user")
-        .wrapper(Wrapper::new().eq("name", "Jack"))
-        .list::<User>().unwrap();
-
-    let page: IPage<User> = Akita::new().conn(pool.database().unwrap())
-        .table("t_system_user")
-        .wrapper(Wrapper::new().eq("name", "Jack"))
-        .page::<User>(1, 10).unwrap();
-
+    pub static AK:Lazy<Akita> = Lazy::new(|| {
+        let mut cfg = AkitaConfig::new("xxxx".to_string()).set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
+        Akita::new(cfg).unwrap()
+    });
+    
+    #[sql(AK,"select * from mch_info where mch_no = ?")]
+    fn select_example(name: &str) -> Vec<MchInfo> { todo!() }
+        
+    // or:
+    #[sql(AK,"select * from mch_info where mch_no = ?")]
+    fn select_example2(ak: &AKita, name: &str) -> Vec<MchInfo> { todo!() }
     // ...
-
-    // Transaction
-    entity_manager.start_transaction().and_then(|mut transaction| {
-        let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
-        let insert_id: Option<i32> = transaction.save(&User::default())?;
-        transaction.commit()
-    }).unwrap();
+    
 }
-```
 
+```
  ### Wrapper
  ```ignore
 
@@ -207,6 +205,7 @@ fn main() {
 * ```akita-mysql``` - to use mysql
 * ```akita-sqlite``` - to use sqlite
 * ```akita-auth``` - to use some auth mehod
+* ```akita-fuse``` - to use some fuse feature
 
 ## Annotions.
 

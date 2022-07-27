@@ -25,7 +25,7 @@ pub enum Value {
     Blob(Vec<u8>),
     Char(char),
     Text(String),
-    Json(String),
+    Json(serde_json::Value),
 
     Uuid(Uuid),
     Date(NaiveDate),
@@ -33,7 +33,7 @@ pub enum Value {
     DateTime(NaiveDateTime),
     Timestamp(DateTime<Utc>),
     Interval(Interval),
-    SerdeJson(serde_json::Value),
+    // SerdeJson(serde_json::Value),
     Object(IndexMap<String, Value>),
     Array(Array),
 }
@@ -164,7 +164,10 @@ impl Value {
     {
         match self {
             Value::Object(data) => match data.get(&s.replace("r#","")) {
-                Some(v) => FromValue::from_value_opt(v),
+                Some(v) => {
+                    let s = FromValue::from_value_opt(v);
+                    s
+                },
                 None => Err(AkitaDataError::NoSuchValueError(s.into())),
             },
             _ => Err(AkitaDataError::ObjectValidError("Unsupported type".to_string())),
@@ -268,11 +271,11 @@ impl fmt::Display for Value {
             Value::BigDecimal(v) => write!(f, "{}", v),
             Value::Char(v) => write!(f, "{}", v),
             Value::Text(v) => write!(f, "{}", v),
-            Value::Json(v) => write!(f, "{}", v),
+            Value::Json(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::Uuid(v) => write!(f, "{}", v),
             Value::Date(v) => write!(f, "{}", v),
             Value::Time(v) => write!(f, "{}", v),
-            Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
+            // Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::DateTime(v) => write!(f, "{}", v.format("%Y-%m-%d %H:%M:%S").to_string()),
             Value::Timestamp(v) => write!(f, "{}", v.to_rfc3339()),
             Value::Array(array) => array.fmt(f),
@@ -580,10 +583,41 @@ impl FromValue for String {
             Value::Blob(ref v) => String::from_utf8(v.to_owned()).map_err(|e| {
                 AkitaDataError::ConvertError(ConvertError::NotSupported(format!("{:?}", v), format!("String: {}", e)))
             }),
+            Value::Bool(ref v) => Ok(v.to_string()),
+            Value::Tinyint(ref v) => Ok(v.to_string()),
+            Value::Smallint(ref v) => Ok(v.to_string()),
+            Value::Int(ref v) => Ok(v.to_string()),
+            Value::Bigint(ref v) => Ok(v.to_string()),
+            Value::Float(ref v) => Ok(v.to_string()),
+            Value::Double(ref v) => Ok(v.to_string()),
+            Value::BigDecimal(ref v) => Ok(v.to_string()),
+            Value::Json(ref v) => Ok(serde_json::to_string(v).unwrap_or_default()),
+            Value::Uuid(ref v) => Ok(v.to_string()),
+            Value::Date(ref v) => Ok(v.to_string()),
+            Value::Time(ref v) => Ok(v.to_string()),
+            Value::DateTime(ref v) => Ok(v.to_string()),
+            Value::Timestamp(ref v) => Ok(v.to_string()),
+            Value::Array(ref v) => {
+                match v {
+                    Array::Int(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Float(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                }
+            }
+            Value::Object(ref obj) => {
+                let data: IndexMap<String, Value> = obj.to_owned();
+                if data.len() > 0 {
+                    let (_k, v) = data.get_index(0).unwrap();
+                    Ok(v.as_str().to_owned().unwrap_or_default().to_string())
+                } else {
+                    Ok(String::default())
+                }
+            }
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "String".to_string(),
             ))),
+
         }
     }
 }
@@ -642,13 +676,13 @@ impl FromValue for serde_json::Value {
             Value::Blob(v) => serde_json::to_value(String::from_utf8_lossy(&v)).map_err(AkitaDataError::from),
             Value::Char(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Text(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
-            Value::Json(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
+            Value::Json(v) => Ok(v.clone()), //serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Uuid(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Date(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Time(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::DateTime(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Timestamp(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
-            Value::SerdeJson(v) => Ok(v.clone()),
+            // Value::SerdeJson(v) => Ok(v.clone()),
             Value::Object(v) => {
                 let mut data = Map::new();
                 for (k, v) in v.into_iter() {

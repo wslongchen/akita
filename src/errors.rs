@@ -85,7 +85,11 @@ impl From<ParseError> for AkitaError {
 }
 impl From<ConvertError> for AkitaError {
     fn from(err: ConvertError) -> Self {
-        AkitaError::DataError(err.to_string())
+        match err {
+            ConvertError::NotSupported(v, ty) => {
+                AkitaError::DataError(format!("[{}]:{}", ty, v))
+            }
+        }
     }
 }
 

@@ -39,7 +39,18 @@ pub struct Wrapper{
 
 impl ISegment for Wrapper {
     fn get_sql_segment(&mut self) -> String {
-        format!("{} {} {}", self.sql_first.to_owned().unwrap_or_default(), self.expression.get_sql_segment(), self.last_sql.to_owned().unwrap_or_default()) 
+        let mut sql =  self.sql_first.to_owned().unwrap_or_default();
+        sql.push_str(SPACE);
+        let condition = self.expression.get_sql_segment();
+        if !condition.is_empty() {
+            sql.push_str(&self.expression.get_sql_segment());
+        }
+        if sql.trim().is_empty() {
+            sql.push_str("(1 = 1)")
+        }
+        sql.push_str(SPACE);
+        sql.push_str(&self.last_sql.to_owned().unwrap_or_default());
+        sql
     }
 }
 
@@ -77,7 +88,7 @@ impl Wrapper{
 
     pub fn set_sql<S: Into<String>>(mut self, condition: bool, sql: S) -> Self {
         let sql: String = sql.into();
-        if condition && !&sql.is_empty() {
+        if condition && !sql.is_empty() {
             self.sql_set.push(sql);
         }
         self
@@ -106,7 +117,13 @@ impl Wrapper{
         if table_name.is_empty() {
             Err("table name is empty!!!")
         } else {
-            Ok(format!("update {} set {} where {}", table_name, set_fields, self.expression.get_sql_segment()))
+            let condition = self.expression.get_sql_segment();
+            let mut sql = format!("update {} set {} ", table_name, set_fields);
+            if !condition.is_empty() {
+                sql.push_str("where ");
+                sql.push_str(&condition);
+            }
+            Ok(sql)
         }
     }
 
@@ -115,7 +132,13 @@ impl Wrapper{
         if table_name.is_empty() {
             Err("table name is empty!!!")
         } else {
-            Ok(format!("select {} from {} where {}", select_fields, table_name, self.expression.get_sql_segment()))
+            let condition = self.expression.get_sql_segment();
+            let mut sql = format!("select {} from {}", select_fields, table_name);
+            if !condition.is_empty() {
+                sql.push_str("where ");
+                sql.push_str(&condition);
+            }
+            Ok(sql)
         }
     }
 
@@ -228,16 +251,11 @@ impl Wrapper{
 
 
 #[test]
+#[allow(unused)]
 fn basic_test() {
     let s : Option<String> = Some("ffffa".to_string());
     let d: Option<i32> = None;
-    let mut wrapper = Wrapper::new()
-        // .like("fffff", &s)
-        // .eq("dddd", &s)
-        .eq("ff", "d")
-        // .and(|wrapper| wrapper.eq("innert_1", "1").eq("inner_2", "2"))
-        .or(|wrapper| wrapper.eq("or_innert_1", "1").eq("or_inner_2", "2"))
-        ;
+    let mut wrapper = Wrapper::new().last("limit 1");
         //.not_in("vecs", vec!["a","f","g"]);
     println!("{}", wrapper.get_sql_segment());
 }

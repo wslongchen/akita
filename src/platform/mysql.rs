@@ -6,6 +6,7 @@ use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
+use akita_core::Array;
 
 use crate::{AkitaConfig, Params, self as akita};
 
@@ -18,6 +19,7 @@ use serde_json::Map;
 use crate::{ToValue, Value, FromValue, Rows, SqlType, cfg_if, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent, comm};
 type R2d2Pool = Pool<MysqlConnectionManager>;
 
+#[derive(Debug)]
 pub struct MysqlDatabase(r2d2::PooledConnection<MysqlConnectionManager>, AkitaConfig);
 
 impl MysqlDatabase {
@@ -25,26 +27,26 @@ impl MysqlDatabase {
         MysqlDatabase(pool, cfg)
     }
 
-    pub fn log(&self, fmt: String) {
+    pub fn log(&self, _fmt: String) {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
                 LogLevel::Debug => {
                     #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: {}", &fmt);
+                    log::debug!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: {}", &fmt);
+                    tracing::debug!("[Akita]: {}", &_fmt);
                 },
                 LogLevel::Info => {
                     #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: {}", &fmt);
+                    log::info!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: {}", &fmt);
+                    tracing::info!("[Akita]: {}", &_fmt);
                 },
                 LogLevel::Error => {
                     #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: {}", &fmt);
+                    log::error!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: {}", &fmt);
+                    tracing::error!("[Akita]: {}", &_fmt);
                 },
             }
         }
@@ -690,14 +692,31 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Interval(ref _v) => panic!("storing interval in DB is not supported"),
             Value::Json(ref v) => v.into(),
             Value::Nil => mysql::Value::NULL,
-            Value::Array(_) => unimplemented!("unsupported type"),
-            Value::SerdeJson(ref v) => v.into(),
+            Value::Array(ref v) => {
+                match v {
+                    Array::Int(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Float(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Text(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                }
+            },
+            // Value::SerdeJson(ref v) => v.into(),
             Value::Object(ref v) => {
                 let mut data = Map::new();
                 for (k, v) in v.into_iter() {
                     data.insert(k.to_owned(), serde_json::Value::from_value(&v));
                 }
-                serde_json::Value::Object(data).into()
+                // serde_json::Value::Object(data).into()
+                let value = serde_json::to_string(&data).unwrap_or_default();
+                value.into()
             },
             Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
@@ -829,20 +848,15 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
 /// cfg 配置信息
 /// 
 pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
-    let database_url = &cfg.url();
-    test_connection(&database_url, cfg)?;
-    let opts = Opts::from_url(&database_url)?;
-    let builder = OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
+    test_connection(cfg)?;
+    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
     let pool = Pool::builder().connection_timeout(cfg.connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size()).build(manager)?;
     Ok(pool)
 }
 
 /// 测试连接池连接
-fn test_connection(database_url: &str, cfg: &AkitaConfig) -> Result<(), AkitaError> {
-    let opts = mysql::Opts::from_url(&database_url)?;
-    let builder = mysql::OptsBuilder::from_opts(opts);
-    let manager = MysqlConnectionManager::new(builder, cfg.to_owned());
+fn test_connection(cfg: &AkitaConfig) -> Result<(), AkitaError> {
+    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
     let mut conn = manager.connect()?;
     manager.is_valid(&mut conn)?;
     Ok(())

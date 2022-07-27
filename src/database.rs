@@ -99,7 +99,7 @@ pub trait Database {
     fn flush_privileges(&mut self) -> Result<(), AkitaError>;
 }
 
-
+#[derive(Debug)]
 pub enum DatabasePlatform {
     #[cfg(feature = "akita-mysql")]
     Mysql(Box<MysqlDatabase>),
@@ -131,7 +131,9 @@ impl std::ops::DerefMut for DatabasePlatform {
     }
 }
 
-pub(crate) enum Platform {
+
+#[derive(Debug, Clone)]
+pub enum Platform {
     #[cfg(feature = "akita-mysql")]
     Mysql,
     #[cfg(feature = "akita-sqlite")]
