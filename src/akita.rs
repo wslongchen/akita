@@ -378,10 +378,13 @@ impl AkitaMapper for Akita {
         }
         let mut conn = self.acquire()?;
         let columns = T::fields();
-        let sql = build_update_clause(&conn, entity, &mut wrapper);
+        let mut sql = build_update_clause(&conn, entity, &mut wrapper);
         let update_fields = wrapper.fields_set;
-        let _bvalues: Vec<&Value> = Vec::new();
         if update_fields.is_empty() {
+            sql = wrapper.get_update_sql(&table.complete_name()).unwrap_or_default();
+        }
+        let _bvalues: Vec<&Value> = Vec::new();
+        if update_fields.is_empty() && update_sql.is_empty() {
             let data = entity.to_value();
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
             for col in columns.iter() {
