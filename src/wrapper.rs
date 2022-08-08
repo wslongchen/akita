@@ -64,19 +64,6 @@ impl Wrapper{
         self.set_condition(true, column, val)
     }
 
-    pub fn sets<S: Into<String>, U: ISegment>(self, column: S, val: U) -> Self {
-        self.set_conditions(true, column, val)
-    }
-
-    pub fn set_conditions<S: Into<String>, U: ISegment>(mut self,condition: bool, column: S, mut val: U) -> Self {
-        if condition {
-            let col: String = column.into();
-            self.sql_set.push(col.to_owned() + EQUALS + val.get_sql_segment().as_str());
-            // self.fields_set.push((col.to_owned(), val.to_segment()));
-        }
-        self
-    }
-
     pub fn set_condition<S: Into<String>, U: ToSegment>(mut self,condition: bool, column: S, val: U) -> Self {
         if condition {
             let col: String = column.into();
@@ -86,9 +73,9 @@ impl Wrapper{
         self
     }
 
-    pub fn set_sql<S: Into<String>>(mut self, condition: bool, sql: S) -> Self {
+    pub fn set_sql<S: Into<String>>(mut self, sql: S) -> Self {
         let sql: String = sql.into();
-        if condition && !sql.is_empty() {
+        if !sql.is_empty() {
             self.sql_set.push(sql);
         }
         self
@@ -108,7 +95,7 @@ impl Wrapper{
         self.sql_set.clear();
     }
 
-    pub fn get_update_sql(&mut self, table_name: &'static str) -> Result<String, &str> {
+    pub fn get_update_sql(&mut self, table_name: &str) -> Result<String, &str> {
         let set_fields = if let Some(set) = self.get_set_sql() {
             set.to_owned()
         } else {
@@ -127,7 +114,7 @@ impl Wrapper{
         }
     }
 
-    pub fn get_query_sql(mut self, table_name: &'static str) -> Result<String, &str> {
+    pub fn get_query_sql(mut self, table_name: &str) -> Result<String, &str> {
         let select_fields = self.get_select_sql();
         if table_name.is_empty() {
             Err("table name is empty!!!")
@@ -255,7 +242,7 @@ impl Wrapper{
 fn basic_test() {
     let s : Option<String> = Some("ffffa".to_string());
     let d: Option<i32> = None;
-    let mut wrapper = Wrapper::new().last("limit 1");
+    let mut wrapper = Wrapper::new().set_sql("a='b'").eq("a", "bn").last("limit 1");
         //.not_in("vecs", vec!["a","f","g"]);
-    println!("{}", wrapper.get_sql_segment());
+    println!("{}", wrapper.get_set_sql().unwrap_or_default());
 }

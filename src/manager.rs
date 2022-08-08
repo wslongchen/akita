@@ -308,10 +308,13 @@ pub fn build_update_clause<T>(platform: &DatabasePlatform, _entity: &T, wrapper:
 {
     let table = T::table_name();
     let columns = T::fields();
+    let update_sql = wrapper.get_update_sql(&table.complete_name()).unwrap_or_default();
+    if !update_sql.is_empty() {
+        return update_sql;
+    }
     let set_fields = &mut wrapper.fields_set;
     let mut sql = String::new();
     sql += &format!("update {} ", table.complete_name());
-
     if set_fields.is_empty() {
         sql += &format!(
             "set {}",
