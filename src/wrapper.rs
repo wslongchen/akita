@@ -227,10 +227,10 @@ impl Wrapper{
     pub fn or_direct(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
     pub fn apply<S: Into<String>>(self, apply_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
     pub fn apply_condition<S: Into<String>>(self, condition: bool, apply_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
-    pub fn is_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
-    pub fn is_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NULL.into() ]) }
-    pub fn is_not_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![ column.into().into(), SqlKeyword::IS_NOT_NULL.into() ]) }
-    pub fn is_not_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![ column.into().into(), SqlKeyword::IS_NOT_NULL.into() ]) }
+    pub fn is_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NULL.into() ]) }
+    pub fn is_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NULL.into() ]) }
+    pub fn is_not_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![ Segment::ColumnField(column.into()), SqlKeyword::IS_NOT_NULL.into() ]) }
+    pub fn is_not_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NOT_NULL.into() ]) }
     pub fn not_exists<S: Into<String>>(self, not_exists_sql: S) -> Self  { self.not().exists(not_exists_sql) }
     pub fn not_exists_condition<S: Into<String>>(self, condition: bool, not_exists_sql: S) -> Self  { self.not_condition(condition).exists_condition(condition, not_exists_sql) }
     pub fn exists<S: Into<String>>(self, exists_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::EXISTS.into(), Segment::Extenssion(format!("({})", exists_sql.into()))]) }
