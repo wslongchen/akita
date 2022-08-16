@@ -261,7 +261,7 @@ impl ToSegment for str
         if self.is_empty() {
             return Segment::Nil
         }
-        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
+        Segment::Extenssion(format!("{}", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
 
