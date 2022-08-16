@@ -16,15 +16,17 @@ pub struct AkitaTransaction<'a> {
 #[allow(unused)]
 impl AkitaTransaction <'_> {
     pub fn commit(mut self) -> Result<(), AkitaError> {
-        let mut conn = self.conn.acquire()?;
-        conn.commit_transaction()?;
+        // let mut conn = self.conn.acquire()?;
+        // let conn = self.conn.conn.get().unwrap();
+        // conn.commit_transaction()?;
         self.committed = true;
         Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), AkitaError> {
-        let mut conn = self.conn.acquire()?;
-        conn.rollback_transaction()?;
+        // let mut conn = self.conn.acquire()?;
+        // let conn = self.conn.conn.get().unwrap();
+        // conn.rollback_transaction()?;
         self.rolled_back = true;
         Ok(())
     }
@@ -34,15 +36,14 @@ impl<'a> Drop for AkitaTransaction<'a> {
     /// Will rollback transaction.
     fn drop(&mut self) {
         if !self.committed && !self.rolled_back {
-            match self.conn.acquire() {
-                Ok(mut conn) => {
-                    let _ = conn.rollback_transaction().unwrap_or_default();
-                }
-                Err(_err) => {
-                    // todo: Error to rollback
-                }
-            }
-
+            // match self.conn.acquire() {
+            //     Ok(mut conn) => {
+            //         let _ = conn.rollback_transaction().unwrap_or_default();
+            //     }
+            //     Err(_err) => {
+            //         // todo: Error to rollback
+            //     }
+            // }
         }
     }
 }

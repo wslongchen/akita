@@ -96,7 +96,7 @@ impl Database for MysqlDatabase {
                 .query_iter(&sql)
                 .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
                 let rows = collect(rows)?;
-                self.log(format!("AffectRows: {}", self.0.affected_rows()));
+                self.log(format!("AffectRows: {}", self.affected_rows()));
                 Ok(rows)
             },
             Params::Vector(param) => {
@@ -112,7 +112,7 @@ impl Database for MysqlDatabase {
                     .into();
                 let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
                 let rows = collect(rows)?;
-                self.log(format!("AffectRows: {} records: {:?}", self.0.affected_rows(), rows));
+                self.log(format!("AffectRows: {} records: {:?}", self.affected_rows(), rows));
                 Ok(rows)
             },
             Params::Custom(param) => {

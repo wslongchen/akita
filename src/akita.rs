@@ -104,25 +104,6 @@ impl Akita {
     pub fn new_wrapper(&self) -> Wrapper {
         Wrapper::new()
     }
-
-    pub fn affected_rows(&self) -> u64 {
-        match self.acquire() {
-            Ok(conn) => {
-                conn.affected_rows()
-            }
-            Err(_) => 0
-        }
-    }
-
-    pub fn last_insert_id(&self) -> u64 {
-        match self.acquire() {
-            Ok(conn) => {
-                conn.last_insert_id()
-            }
-            Err(_) => 0
-        }
-
-    }
 }
 
 #[allow(unused)]
@@ -601,6 +582,7 @@ impl AkitaMapper for Akita {
         let rows = conn.execute_result(&sql.into(), params.into())?;
         Ok(rows)
     }
+
 }
 
 #[allow(unused)]
