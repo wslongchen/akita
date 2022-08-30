@@ -99,7 +99,6 @@ pub trait Database {
     fn flush_privileges(&mut self) -> Result<(), AkitaError>;
 }
 
-#[derive(Debug)]
 pub enum DatabasePlatform {
     #[cfg(feature = "akita-mysql")]
     Mysql(Box<MysqlDatabase>),

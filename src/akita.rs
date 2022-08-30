@@ -60,8 +60,9 @@ impl Akita {
                 Ok(PlatformPool::MysqlPool(pool_mysql))
             }
             #[cfg(feature = "akita-sqlite")]
-            Platform::Sqlite(path) => {
-                cfg.set_url(path);
+            Platform::Sqlite(ref path) => {
+                let mut cfg = cfg.clone();
+                cfg = cfg.set_url(path.to_string());
                 let pool_sqlite = sqlite::init_pool(&cfg)?;
                 Ok(PlatformPool::SqlitePool(pool_sqlite))
             }
