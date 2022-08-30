@@ -16,17 +16,15 @@ pub struct AkitaTransaction<'a> {
 #[allow(unused)]
 impl AkitaTransaction <'_> {
     pub fn commit(mut self) -> Result<(), AkitaError> {
-        // let mut conn = self.conn.acquire()?;
-        // let conn = self.conn.conn.get().unwrap();
-        // conn.commit_transaction()?;
+        let mut conn = self.conn.acquire()?;
+        conn.commit_transaction()?;
         self.committed = true;
         Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), AkitaError> {
-        // let mut conn = self.conn.acquire()?;
-        // let conn = self.conn.conn.get().unwrap();
-        // conn.rollback_transaction()?;
+        let mut conn = self.conn.acquire()?;
+        conn.rollback_transaction()?;
         self.rolled_back = true;
         Ok(())
     }

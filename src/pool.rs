@@ -289,8 +289,8 @@ impl Pool {
                 Ok(Pool(PlatformPool::MysqlPool(pool_mysql), cfg))
             }
             #[cfg(feature = "akita-sqlite")]
-            Platform::Sqlite(path) => {
-                cfg.url = path;
+            Platform::Sqlite(ref path) => {
+                cfg.url = path.to_string().into();
                 let pool_sqlite = sqlite::init_pool(&cfg)?;
                 Ok(Pool(PlatformPool::SqlitePool(pool_sqlite), cfg))
             }

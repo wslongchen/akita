@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::result::Result;
 
 
-cfg_if! {if #[cfg(feature = "auth")]{
+cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 
@@ -69,7 +69,7 @@ impl Database for SqliteDatabase {
     }
     
     fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, params));
         let stmt = self.0.prepare(&sql);
         let column_names = if let Ok(ref stmt) = stmt {
             stmt.column_names()
@@ -126,7 +126,7 @@ impl Database for SqliteDatabase {
                         records.push(record);
                     }
                 }
-                self.log(format!("AffectRows: {} records: {:?}", records.len(), rows));
+                self.log(format!("AffectRows: {} records: {:?}", records.len(), records));
                 Ok(records)
             }
             Err(e) => Err(AkitaError::from(e)),
@@ -134,7 +134,7 @@ impl Database for SqliteDatabase {
     }
 
     fn execute_drop(&mut self, sql: &str, params: Params) -> Result<(), AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
+        self.log(format!("Prepare SQL: {} params: {:?}", &sql, params));
         let stmt = self.0.prepare(&sql);
         match stmt {
             Ok(mut stmt) => {
@@ -488,56 +488,56 @@ impl Database for SqliteDatabase {
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn get_users(&mut self) -> Result<Vec<DataBaseUser>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to extract users".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn exist_user(&mut self, user: &UserInfo) -> Result<bool, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to exist user".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to user details".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to extract roles".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to create_user".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to drop_user".to_string(),
         ))
     }
     
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to grant_privileges".to_string(),
         ))
     }
 
-    #[cfg(feature = "auth")]
+    #[cfg(feature = "akita-auth")]
     fn flush_privileges(&mut self) -> Result<(), AkitaError> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to flush_privileges".to_string(),
@@ -567,22 +567,27 @@ impl Database for SqliteDatabase {
         }
     }
 
+    #[cfg(feature = "akita-auth")]
     fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         todo!()
     }
 
+    #[cfg(feature = "akita-auth")]
     fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         todo!()
     }
 
+    #[cfg(feature = "akita-auth")]
     fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         todo!()
     }
 
+    #[cfg(feature = "akita-auth")]
     fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
         todo!()
     }
 
+    #[cfg(feature = "akita-auth")]
     fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
         todo!()
     }
@@ -671,7 +676,7 @@ fn to_sq_value(val: &Value) -> rusqlite::types::Value {
         },
         Value::Blob(ref v) => rusqlite::types::Value::Blob(v.clone()),
         Value::Char(v) => rusqlite::types::Value::Text(format!("{}", v)),
-        Value::Json(ref v) => rusqlite::types::Value::Text(v.clone()),
+        Value::Json(ref v) => rusqlite::types::Value::Text(v.to_string()),
         Value::Uuid(ref v) => rusqlite::types::Value::Text(v.to_string()),
         Value::Date(ref v) => rusqlite::types::Value::Text(v.to_string()),
         Value::DateTime(ref v) => rusqlite::types::Value::Text(v.to_string()),

@@ -27,14 +27,6 @@ impl<'a> Fuse<'a> {
         self
     }
 
-    pub fn affected_rows(&self) -> u64 {
-        self.akita.affected_rows()
-    }
-
-    pub fn last_insert_id(&self) -> u64 {
-        self.akita.last_insert_id()
-    }
-
     pub fn list<T>(&mut self) -> Result<Vec<T>, AkitaError>
         where
             T: FromValue {
