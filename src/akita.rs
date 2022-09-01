@@ -234,7 +234,8 @@ impl AkitaMapper for Akita {
         };
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let count_sql = format!("select count(1) as count from {} {}", &table.complete_name(), where_condition);
+        let mut sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
+        let count_sql = format!("select count(*) from ({}) TOTAL", &sql);
         let count: i64 = self.exec_first(&count_sql, ())?;
         let mut page = IPage::new(page, size ,count as usize, vec![]);
         if page.total > 0 {
