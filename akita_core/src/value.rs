@@ -7,6 +7,7 @@ use uuid::Uuid;
 use indexmap::{IndexMap};
 
 use crate::error::{ConvertError, AkitaDataError};
+use crate::{Row};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -480,6 +481,16 @@ where
     }
 }
 
+impl ToValue for Row {
+    fn to_value(&self) -> Value {
+        let mut data = IndexMap::new();
+        for (i, col) in self.columns.iter().enumerate() {
+            data.insert(col.to_string(), self.data.get(i).map(|v| v.clone()).unwrap_or(Value::Nil));
+        }
+        Value::Object(data)
+    }
+}
+
 impl <'a> From<&'a Value> for Value {
     fn from(v: &'a Value) -> Value {
         v.to_owned()
@@ -758,7 +769,6 @@ impl FromValue for Value
     }
 }
 
-
 fn parse_naive_date_time(v: &str) -> NaiveDateTime {
     let ts = NaiveDateTime::parse_from_str(&v, "%Y-%m-%d %H:%M:%S");
     if let Ok(ts) = ts {
@@ -772,7 +782,6 @@ fn parse_naive_date_time(v: &str) -> NaiveDateTime {
         }
     }
 }
-
 
 
 macro_rules! take_or_place {
@@ -1096,4 +1105,16 @@ impl <V> ToValue for IndexMap<String, V> where V: ToValue {
         Value::Object(map)
 
     }
+}
+
+/// Will panic if could not convert `v` to `T`
+#[inline]
+pub fn from_value<T: FromValue>(v: Value) -> T {
+    FromValue::from_value(&v)
+}
+
+/// Will return `Err(FromValueError(v))` if could not convert `v` to `T`
+#[inline]
+pub fn from_value_opt<T: FromValue>(v: Value) -> Result<T, AkitaDataError> {
+    FromValue::from_value_opt(&v)
 }

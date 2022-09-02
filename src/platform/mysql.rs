@@ -6,6 +6,7 @@ use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
+use std::sync::Arc;
 use akita_core::Array;
 
 use crate::{AkitaConfig, Params, self as akita};
@@ -78,7 +79,7 @@ impl Database for MysqlDatabase {
                 .collect::<Result<Vec<String>, _>>()
                 .map_err(|e| AkitaError::from(e))?;
 
-            let mut records = Rows::new(fields);
+            let mut records = Rows::new();
             // while rows.next().is_some() {
             //     for r in rows.by_ref() {
             //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
@@ -727,10 +728,10 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
 fn into_record(
     mut row: mysql::Row,
     column_types: &[mysql::consts::ColumnType],
-) -> Result<Vec<Value>, AkitaError> {
+) -> Result<crate::Row, AkitaError> {
     use mysql::{consts::ColumnType, from_value_opt as fvo};
-
-    column_types
+    let cols = row.columns().iter().map(|v| v.name_str().to_string()).collect::<Vec<_>>();
+    let values = column_types
         .iter()
         .enumerate()
         .map(|(i, column_type)| {
@@ -790,8 +791,12 @@ fn into_record(
                 }
             }
             .map_err(AkitaError::from)
-        })
-        .collect()
+        }).map(|v| v.unwrap_or(Value::Nil))
+        .collect::<Vec<_>>();
+    Ok(crate::Row{
+        columns: cols,
+        data: values
+    })
 }
 
 

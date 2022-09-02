@@ -1,4 +1,4 @@
-use akita_core::{Rows};
+use akita_core::{AkitaDataError, from_value, from_value_opt, Rows};
 use crate::{AkitaError, Wrapper, FromValue, ToValue, Params, GetTableName, GetFields};
 use serde::{Serialize, Deserialize};
 
@@ -137,16 +137,42 @@ pub trait AkitaMapper {
             T: GetTableName + GetFields + ToValue,
             I: FromValue;
 
-    fn query_map<T, F, Q, U>(&self, query: Q, f: F) -> Result<Vec<U>, AkitaError>
+    fn query<T, Q>(&mut self, query: Q) -> Result<Vec<T>, AkitaError>
         where
             Q: Into<String>,
             T: FromValue,
-            F: FnMut(T) -> U,
     {
-        self.exec_map(query, f)
+        self.query_map(query, from_value)
     }
 
-    fn exec_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>, AkitaError>
+    fn query_opt<T, Q>(&mut self, query: Q) -> Result<Vec<Result<T, AkitaDataError>>, AkitaError>
+        where
+            Q: Into<String>,
+            T: FromValue,
+    {
+        self.query_map(query, from_value_opt)
+    }
+
+    fn query_first<S: Into<String>, R>(
+        &self, sql: S
+    ) -> Result<R, AkitaError>
+        where
+            R: FromValue,
+    {
+        self.exec_first(sql, ())
+    }
+
+    fn query_first_opt<R, S: Into<String>>(
+        &self, sql: S,
+    ) -> Result<Option<R>, AkitaError>
+        where
+            R: FromValue,
+    {
+        self.exec_first_opt(sql, ())
+    }
+
+
+    fn query_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>, AkitaError>
         where
             Q: Into<String>,
             T: FromValue,
@@ -166,6 +192,26 @@ pub trait AkitaMapper {
     {
         self.exec_iter::<_, _>(query, ()).map(|r| r.iter().map(|data| T::from_value(&data))
             .fold(init, |acc, row| f(acc, row)))
+    }
+
+
+    fn query_drop<Q>(&mut self, query: Q) -> Result<(), AkitaError>
+        where
+            Q: Into<String>,
+    {
+        self.query_iter(query).map(drop)
+    }
+
+    fn exec_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>, AkitaError>
+        where
+            Q: Into<String>,
+            T: FromValue,
+            F: FnMut(T) -> U,
+    {
+        self.query_fold(query, Vec::new(), |mut acc, row| {
+            acc.push(f(row));
+            acc
+        })
     }
 
     fn query_iter<S: Into<String>>(
@@ -193,15 +239,6 @@ pub trait AkitaMapper {
     {
         let rows = self.exec_iter(&sql.into(), params.into())?;
         Ok(rows.iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
-    }
-
-    fn query_first<S: Into<String>, R>(
-        &self, sql: S
-    ) -> Result<R, AkitaError>
-        where
-            R: FromValue,
-    {
-        self.exec_first(sql, ())
     }
 
     fn exec_first<R, S: Into<String>, P: Into<Params>>(
@@ -233,15 +270,6 @@ pub trait AkitaMapper {
         let sql: String = sql.into();
         let _result: Result<Vec<()>, AkitaError> = self.exec_raw(&sql, params);
         Ok(())
-    }
-
-    fn query_first_opt<R, S: Into<String>>(
-        &self, sql: S,
-    ) -> Result<Option<R>, AkitaError>
-        where
-            R: FromValue,
-    {
-        self.exec_first_opt(sql, ())
     }
 
     fn exec_first_opt<R, S: Into<String>, P: Into<Params>>(
