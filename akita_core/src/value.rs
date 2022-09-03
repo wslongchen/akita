@@ -276,7 +276,6 @@ impl fmt::Display for Value {
             Value::Uuid(v) => write!(f, "{}", v),
             Value::Date(v) => write!(f, "{}", v),
             Value::Time(v) => write!(f, "{}", v),
-            // Value::SerdeJson(v) => write!(f, "{}", serde_json::to_string(v).unwrap_or_default()),
             Value::DateTime(v) => write!(f, "{}", v.format("%Y-%m-%d %H:%M:%S").to_string()),
             Value::Timestamp(v) => write!(f, "{}", v.to_rfc3339()),
             Value::Array(array) => array.fmt(f),
@@ -292,41 +291,77 @@ impl fmt::Display for Value {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Array {
-    /*
     Bool(Vec<bool>),
-
     Tinyint(Vec<i8>),
     Smallint(Vec<i16>),
-    */
     Int(Vec<i64>),
     Float(Vec<f64>),
-    /*
     Bigint(Vec<i64>),
-
     Double(Vec<f64>),
     BigDecimal(Vec<BigDecimal>),
-    */
     Text(Vec<String>),
-    /*
     Char(Vec<char>),
     Uuid(Vec<Uuid>),
     Date(Vec<NaiveDate>),
     Timestamp(Vec<DateTime<Utc>>),
-    */
 }
 
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Array::Text(_texts) => {
-                let json_arr = "";//serde_json::to_string(texts).expect("must serialize");
+            Array::Text(texts) => {
+                let json_arr = serde_json::to_string(texts).expect("must serialize");
                 write!(f, "{}", json_arr)
             }
-            Array::Float(_floats) => {
-                let json_arr = "";//serde_json::to_string(floats).expect("must serialize");
+            Array::Float(floats) => {
+                let json_arr = serde_json::to_string(floats).expect("must serialize");
                 write!(f, "{}", json_arr)
             }
-            _ => panic!("not yet implemented: {:?}", self),
+            Array::Bool(bools) => {
+                let json_arr = serde_json::to_string(bools).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Tinyint(tinyints) => {
+                let json_arr = serde_json::to_string(tinyints).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Smallint(smallints) => {
+                let json_arr = serde_json::to_string(smallints).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Int(ints) => {
+                let json_arr = serde_json::to_string(ints).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Bigint(bigints) => {
+                let json_arr = serde_json::to_string(bigints).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Double(doubles) => {
+                let json_arr = serde_json::to_string(doubles).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::BigDecimal(bigdecimals) => {
+                let json_arr = bigdecimals.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "{}", json_arr)
+            }
+            Array::Char(chars) => {
+                let json_arr = serde_json::to_string(chars).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Uuid(uuids) => {
+                let json_arr = uuids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "{}", json_arr)
+            }
+            Array::Date(dates) => {
+                let json_arr = dates.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "{}", json_arr)
+            }
+            Array::Timestamp(timestamps) => {
+                let json_arr = timestamps.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "{}", json_arr)
+            }
+            // _ => panic!("not yet implemented: {:?}", self),
         }
     }
 }
@@ -613,6 +648,16 @@ impl FromValue for String {
                     Array::Int(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Float(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Bool(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Tinyint(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Smallint(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Bigint(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::BigDecimal(vv) =>  Ok(vv.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",")),
+                    Array::Date(vv) =>  Ok(vv.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",")),
+                    Array::Timestamp(vv) =>  Ok(vv.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",")),
+                    Array::Uuid(vv) =>  Ok(vv.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",")),
+                    Array::Double(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Char(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                 }
             }
             Value::Object(ref obj) => {

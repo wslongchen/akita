@@ -6,7 +6,6 @@ use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
-use std::sync::Arc;
 use akita_core::Array;
 
 use crate::{AkitaConfig, Params, self as akita};
@@ -72,7 +71,7 @@ impl Database for MysqlDatabase {
         self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
-            let fields = rows
+            let _fields = rows
                 .columns().as_ref()
                 .iter()
                 .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
@@ -704,6 +703,46 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
                         value.into()
                     }
                     Array::Text(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Bool(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Tinyint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Smallint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Bigint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Double(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::BigDecimal(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Char(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Uuid(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Date(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Timestamp(vv) => {
                         let value = serde_json::to_string(vv).unwrap_or_default();
                         value.into()
                     }

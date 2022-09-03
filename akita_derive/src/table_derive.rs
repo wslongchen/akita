@@ -74,6 +74,35 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                 },
             )
         }).collect();
+
+    let cols: Vec<proc_macro2::TokenStream> = fields
+        .iter()
+        .map(|field| {
+            let field_name = field.field.ident.as_ref().unwrap();
+            let mut name = field.name.clone();
+            let mut exist = true;
+            for extra in field.extra.iter() {
+                match extra {
+                    FieldExtra::Name(v) => {
+                        name = v.clone();
+                    }
+                    FieldExtra::Exist(v) => {
+                        exist = v.clone();
+                    }
+                    _ => { }
+                }
+            }
+            if exist {
+                quote!(
+                    pub fn #field_name() -> String {
+                        #name.to_string()
+                    }
+                )
+            } else {
+                quote!(
+                )
+            }
+        }).collect();
     let impl_mapper = impl_table_mapper(struct_info);
     let impl_to_akita = build_to_akita(struct_info, generics, &fields);
     let impl_from_akita = build_from_akita(struct_info, generics, &fields);
@@ -102,6 +131,13 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                 ]
             }
         }
+
+        impl #generics #struct_info #generics {
+
+            #(#cols)*
+
+        }
+
     ).into()
 }
 
