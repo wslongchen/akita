@@ -16,10 +16,12 @@
 //! ```
 //!
 //!
-use crate::{segment::{MergeSegments, Segment, SqlKeyword, SqlLike, ToSegment, ISegment}, comm::*};
+use crate::{segment::{MergeSegments, Segment, SqlKeyword, SqlLike, ToSegment, ISegment}, comm::*, AkitaError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Wrapper{
+    /// 表名
+    pub table: Option<String>,
     /// 必要度量
     pub param_name_seq: i32,
     /// SQL set字段
@@ -57,7 +59,7 @@ impl ISegment for Wrapper {
 impl Wrapper{
 
     pub fn new() -> Self {
-        Self { sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: 0, sql_first: None, last_sql: None, sql_comment: None, sql_select: None, fields_set: Vec::new() }
+        Self { table: None, sql_set: Vec::new(), expression: MergeSegments::default(), param_name_seq: 0, sql_first: None, last_sql: None, sql_comment: None, sql_select: None, fields_set: Vec::new() }
     }
 
     pub fn set<S: Into<String>, U: ToSegment>(self, column: S, val: U) -> Self {
@@ -81,6 +83,12 @@ impl Wrapper{
         self
     }
 
+    pub fn table<S: Into<String>>(mut self, table: S) -> Self {
+        let table: String = table.into();
+        self.table = table.into();
+        self
+    }
+
 
     pub fn get_set_sql(&mut self) -> Option<String> {
         if self.sql_set.is_empty() {
@@ -95,34 +103,36 @@ impl Wrapper{
         self.sql_set.clear();
     }
 
-    pub fn get_update_sql(&mut self, table_name: &str) -> Result<String, &str> {
+    pub fn get_update_sql(&mut self) -> Result<String, AkitaError> {
         let set_fields = if let Some(set) = self.get_set_sql() {
             set.to_owned()
         } else {
-            return Err("update fields is empty!!!")
+            return Err(AkitaError::DataError("update fields is empty!!!".to_string()))
         };
-        if table_name.is_empty() {
-            Err("table name is empty!!!")
+        let table = self.table.to_owned().unwrap_or_default();
+        if table.is_empty() {
+            Err(AkitaError::DataError("table name is empty!!!".to_string()))
         } else {
             let condition = self.expression.get_sql_segment();
-            let mut sql = format!("update {} set {} ", table_name, set_fields);
+            let mut sql = format!("update {} set {} ", table, set_fields);
             if !condition.is_empty() {
-                sql.push_str("where ");
+                sql.push_str(" where ");
                 sql.push_str(&condition);
             }
             Ok(sql)
         }
     }
 
-    pub fn get_query_sql(mut self, table_name: &str) -> Result<String, &str> {
+    pub fn get_query_sql(mut self) -> Result<String, AkitaError> {
         let select_fields = self.get_select_sql();
-        if table_name.is_empty() {
-            Err("table name is empty!!!")
+        let table = self.table.unwrap_or_default();
+        if table.is_empty() {
+            Err(AkitaError::DataError("table name is empty!!!".to_string()))
         } else {
             let condition = self.expression.get_sql_segment();
-            let mut sql = format!("select {} from {}", select_fields, table_name);
+            let mut sql = format!("select {} from {}", select_fields, table);
             if !condition.is_empty() {
-                sql.push_str("where ");
+                sql.push_str(" where ");
                 sql.push_str(&condition);
             }
             Ok(sql)

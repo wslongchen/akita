@@ -105,6 +105,10 @@ impl Akita {
     pub fn new_wrapper(&self) -> Wrapper {
         Wrapper::new()
     }
+
+    pub fn wrapper<T: GetTableName>(&self) -> Wrapper {
+        Wrapper::new().table(T::table_name().complete_name())
+    }
 }
 
 #[allow(unused)]
@@ -234,7 +238,8 @@ impl AkitaMapper for Akita {
         };
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let count_sql = format!("select count(1) as count from {} {}", &table.complete_name(), where_condition);
+        let mut sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
+        let count_sql = format!("select count(*) from ({}) TOTAL", &sql);
         let count: i64 = self.exec_first(&count_sql, ())?;
         let mut page = IPage::new(page, size ,count as usize, vec![]);
         if page.total > 0 {
@@ -364,7 +369,7 @@ impl AkitaMapper for Akita {
         let update_fields = wrapper.fields_set.to_owned();
         let is_set = wrapper.get_set_sql().is_none();
         if update_fields.is_empty() && !is_set {
-            sql = wrapper.get_update_sql(&table.complete_name()).unwrap_or_default();
+            sql = wrapper.table(&table.complete_name()).get_update_sql().unwrap_or_default();
         }
         let _bvalues: Vec<&Value> = Vec::new();
         if update_fields.is_empty() && is_set {
@@ -591,7 +596,7 @@ mod test {
     use std::time::Duration;
     use akita_core::ToValue;
     use once_cell::sync::Lazy;
-    use crate::{Akita, AkitaTable, self as akita, AkitaConfig, LogLevel, AkitaMapper};
+    use crate::{Akita, AkitaTable, self as akita, AkitaConfig, LogLevel, AkitaMapper, Wrapper};
 
     pub static AK:Lazy<Akita> = Lazy::new(|| {
         let mut cfg = AkitaConfig::new("xxxx".to_string());
@@ -619,15 +624,14 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "akita-mysql")]
     fn test_akita() {
         let mut cfg = AkitaConfig::new("xxxxx".to_string());
         cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
-        let mut akita = Akita::new(cfg).unwrap();
-        let wrapper = akita.new_wrapper();
+        // let mut akita = Akita::new(cfg).unwrap();
+        let wrapper = Wrapper::new().eq(MchInfo::mch_no(), "sdff");
         // let data = akita.select_by_id::<MchInfo, _>("23234234").unwrap();
-        let s = select("23234234");
-        println!("ssssssss{:?}",data);
+        //let s = select("23234234");
+        println!("ssssssss{:?}",wrapper.get_query_sql());
         // let s = select("i");
     }
 }

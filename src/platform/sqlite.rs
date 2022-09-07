@@ -80,7 +80,7 @@ impl Database for SqliteDatabase {
         match stmt {
             Ok(mut stmt) => {
                 let column_count = stmt.column_count();
-                let mut records = Rows::new(column_names);
+                let mut records = Rows::new();
                 let sql_values = match params {
                     Params::Nil => {
                         vec![]
@@ -123,7 +123,10 @@ impl Database for SqliteDatabase {
                                 record.push(value);
                             }
                         }
-                        records.push(record);
+                        records.push(crate::Row{
+                            columns: column_names.clone(),
+                            data: record
+                        });
                     }
                 }
                 self.log(format!("AffectRows: {} records: {:?}", records.len(), records));

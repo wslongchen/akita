@@ -71,14 +71,14 @@ impl Database for MysqlDatabase {
         self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
-            let fields = rows
+            let _fields = rows
                 .columns().as_ref()
                 .iter()
                 .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
                 .collect::<Result<Vec<String>, _>>()
                 .map_err(|e| AkitaError::from(e))?;
 
-            let mut records = Rows::new(fields);
+            let mut records = Rows::new();
             // while rows.next().is_some() {
             //     for r in rows.by_ref() {
             //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
@@ -706,6 +706,46 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
                         let value = serde_json::to_string(vv).unwrap_or_default();
                         value.into()
                     }
+                    Array::Bool(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Tinyint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Smallint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Bigint(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Double(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::BigDecimal(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Char(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Uuid(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Date(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
+                    Array::Timestamp(vv) => {
+                        let value = serde_json::to_string(vv).unwrap_or_default();
+                        value.into()
+                    }
                 }
             },
             // Value::SerdeJson(ref v) => v.into(),
@@ -727,10 +767,10 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
 fn into_record(
     mut row: mysql::Row,
     column_types: &[mysql::consts::ColumnType],
-) -> Result<Vec<Value>, AkitaError> {
+) -> Result<crate::Row, AkitaError> {
     use mysql::{consts::ColumnType, from_value_opt as fvo};
-
-    column_types
+    let cols = row.columns().iter().map(|v| v.name_str().to_string()).collect::<Vec<_>>();
+    let values = column_types
         .iter()
         .enumerate()
         .map(|(i, column_type)| {
@@ -790,8 +830,12 @@ fn into_record(
                 }
             }
             .map_err(AkitaError::from)
-        })
-        .collect()
+        }).map(|v| v.unwrap_or(Value::Nil))
+        .collect::<Vec<_>>();
+    Ok(crate::Row{
+        columns: cols,
+        data: values
+    })
 }
 
 

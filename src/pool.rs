@@ -165,6 +165,10 @@ impl AkitaConfig {
             "mysql" => {
                 self.platform = Platform::Mysql;
             },
+            #[cfg(feature = "akita-sqlite")]
+            "sqlite" => {
+                self.platform = Platform::Sqlite("".to_string());
+            },
             _ => {},
         }
         self
