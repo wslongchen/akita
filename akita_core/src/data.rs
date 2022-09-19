@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use std::slice;
 use std::ops::Index;
 use crate::{AkitaDataError, from_value, from_value_opt, FromValue};
@@ -10,6 +11,12 @@ pub struct Rows {
     pub data: Vec<Row>,
     /// can be optionally set, indicates how many total rows are there in the table
     pub count: Option<usize>,
+}
+
+impl std::fmt::Display for Rows {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "data: {:?}, count: {}", self.data, self.count.unwrap_or_default())
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

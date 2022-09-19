@@ -27,26 +27,26 @@ impl SqliteDatabase {
         SqliteDatabase(pool, cfg)
     }
 
-    pub fn log(&self, fmt: String) {
+    pub fn log(&self, _fmt: String) {
         if let Some(log_level) = &self.1.log_level() {
             match log_level {
                 LogLevel::Debug => {
                     #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: {}", &fmt);
+                    log::debug!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: {}", &fmt);
+                    tracing::debug!("[Akita]: {}", &_fmt);
                 },
                 LogLevel::Info => {
                     #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: {}", &fmt);
+                    log::info!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: {}", &fmt);
+                    tracing::info!("[Akita]: {}", &_fmt);
                 },
                 LogLevel::Error => {
                     #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: {}", &fmt);
+                    log::error!("[Akita]: {}", &_fmt);
                     #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: {}", &fmt);
+                    tracing::error!("[Akita]: {}", &_fmt);
                 },
             }
         }

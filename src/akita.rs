@@ -492,7 +492,7 @@ impl AkitaMapper for Akita {
 
         let mut values: Vec<Value> = Vec::with_capacity(entities.len() * columns.len());
         for entity in entities.iter() {
-            for col in columns.iter() {
+            for col in columns.iter().filter(|col| col.exist ) {
                 let data = entity.to_value();
                 let mut value = data.get_obj_value(&col.name);
                 match &col.fill {
@@ -528,7 +528,7 @@ impl AkitaMapper for Akita {
         let sql = build_insert_clause(&conn, &[entity]);
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-        for col in columns.iter() {
+        for col in columns.iter().filter(|col| col.exist ) {
             let mut value = data.get_obj_value(&col.name);
             match &col.fill {
                 None => {}

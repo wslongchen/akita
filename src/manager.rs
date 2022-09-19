@@ -34,14 +34,14 @@ impl<'a> Drop for AkitaTransaction<'a> {
     /// Will rollback transaction.
     fn drop(&mut self) {
         if !self.committed && !self.rolled_back {
-            // match self.conn.acquire() {
-            //     Ok(mut conn) => {
-            //         let _ = conn.rollback_transaction().unwrap_or_default();
-            //     }
-            //     Err(_err) => {
-            //         // todo: Error to rollback
-            //     }
-            // }
+            match self.conn.acquire() {
+                Ok(mut conn) => {
+                    let _ = conn.rollback_transaction().unwrap_or_default();
+                }
+                Err(_err) => {
+                    // todo: Error to rollback
+                }
+            }
         }
     }
 }

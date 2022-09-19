@@ -6,6 +6,7 @@ use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
 use r2d2::{ManageConnection, Pool};
 
 use std::result::Result;
+use std::time::Instant;
 use akita_core::Array;
 
 use crate::{AkitaConfig, Params, self as akita};
@@ -14,7 +15,6 @@ cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 use crate::database::Database;
-use crate::pool::LogLevel;
 use serde_json::Map;
 use crate::{ToValue, Value, FromValue, Rows, SqlType, cfg_if, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent, comm};
 type R2d2Pool = Pool<MysqlConnectionManager>;
@@ -26,37 +26,12 @@ impl MysqlDatabase {
     pub fn new(pool: r2d2::PooledConnection<MysqlConnectionManager>, cfg: AkitaConfig) -> Self {
         MysqlDatabase(pool, cfg)
     }
-
-    pub fn log(&self, _fmt: String) {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: {}", &_fmt);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: {}", &_fmt);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: {}", &_fmt);
-                },
-            }
-        }
-    }
 }
 
 /// MYSQL数据操作
 impl Database for MysqlDatabase {
     fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("BEGIN", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+        self.execute_result("START TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
     }
 
     fn commit_transaction(&mut self) -> Result<(), AkitaError> {
@@ -68,7 +43,8 @@ impl Database for MysqlDatabase {
     }
     
     fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
+        let now = Instant::now();
+        log::info!("[Akita]: excute sql:{}, params:{}", sql, param);
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
             let _fields = rows
@@ -79,25 +55,19 @@ impl Database for MysqlDatabase {
                 .map_err(|e| AkitaError::from(e))?;
 
             let mut records = Rows::new();
-            // while rows.next().is_some() {
-            //     for r in rows.by_ref() {
-            //         records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
-            //     }
-            // }
             for r in rows.by_ref() {
                 records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
             }
             Ok(records)
         }
-        match param {
+        let result: Rows = match param {
             Params::Nil => {
                 let rows = self
                 .0
                 .query_iter(&sql)
                 .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-                let rows = collect(rows)?;
-                self.log(format!("AffectRows: {}", self.affected_rows()));
-                Ok(rows)
+                let rows: Rows = collect(rows)?;
+                Ok::<Rows, AkitaError>(rows)
             },
             Params::Vector(param) => {
                 let stmt = self
@@ -112,7 +82,6 @@ impl Database for MysqlDatabase {
                     .into();
                 let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
                 let rows = collect(rows)?;
-                self.log(format!("AffectRows: {} records: {:?}", self.affected_rows(), rows));
                 Ok(rows)
             },
             Params::Custom(param) => {
@@ -138,15 +107,17 @@ impl Database for MysqlDatabase {
                     .into();
                 let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
                 let rows = collect(rows)?;
-                self.log(format!("AffectRows: {} records: {:?}", self.0.affected_rows(), rows));
                 Ok(rows)
             },
-        }
+        }?;
+        tracing::info!("[Akita]: 执行sql结果:{},耗时:{}", result, now.elapsed().as_millis());
+        Ok(result)
     }
     
     fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, param));
-        match param {
+        let now = Instant::now();
+        tracing::info!("[Akita]: 执行sql:{}", sql);
+        let _ = match param {
             Params::Nil => {
                 self
                 .0
@@ -189,7 +160,9 @@ impl Database for MysqlDatabase {
                     .into();
                 self.0.exec_drop(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))
             },
-        }
+        }?;
+        tracing::info!("[Akita]: 执行sql结束,耗时:{}", now.elapsed().as_millis());
+        Ok(())
     }
 
     fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
