@@ -110,13 +110,13 @@ impl Database for MysqlDatabase {
                 Ok(rows)
             },
         }?;
-        tracing::info!("[Akita]: 执行sql结果:{},耗时:{}", result, now.elapsed().as_millis());
+        tracing::info!("[Akita]: excute result:{}, cost:{}", result, now.elapsed().as_millis());
         Ok(result)
     }
     
     fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
         let now = Instant::now();
-        tracing::info!("[Akita]: 执行sql:{}", sql);
+        tracing::info!("[Akita]: excute sql:{}, params:{}", sql, param);
         let _ = match param {
             Params::Nil => {
                 self
@@ -161,7 +161,7 @@ impl Database for MysqlDatabase {
                 self.0.exec_drop(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))
             },
         }?;
-        tracing::info!("[Akita]: 执行sql结束,耗时:{}", now.elapsed().as_millis());
+        tracing::info!("[Akita]: excute end, cost:{}", now.elapsed().as_millis());
         Ok(())
     }
 
