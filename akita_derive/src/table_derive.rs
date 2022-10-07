@@ -25,7 +25,8 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|field| {
-            let mut name = field.name.clone();
+            let name = field.name.clone();
+            let mut alias = field.name.clone();
             let mut exist = true;
             let mut select = true;
             let mut identify = false;
@@ -39,7 +40,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                         fill_mode = mode.clone();
                     }
                     FieldExtra::Name(v) => {
-                        name = v.clone();
+                        alias = v.clone().into();
                     }
                     FieldExtra::Select(v) => {
                         select = v.clone();
@@ -66,7 +67,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                 akita::core::FieldName {
                     name: #name.to_string(),
                     table: #table_name.to_string().into(),
-                    alias: #name.to_string().into(),
+                    alias: #alias.to_string().into(),
                     field_type: #field_type,
                     fill: #fill,
                     select: #select,

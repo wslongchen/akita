@@ -216,7 +216,7 @@ impl AkitaEntityManager{
         for entity in entities.iter() {
             for col in columns.iter() {
                 let data = entity.to_value();
-                let mut value = data.get_obj_value(&col.name);
+                let mut value = data.get_obj_value(&col.name.to_string());
                 match &col.fill {
                     None => {}
                     Some(v) => {
@@ -267,7 +267,7 @@ pub fn build_insert_clause<T>(platform: &DatabasePlatform, entities: &[&T]) -> S
         "({})\n",
         columns
             .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
+            .map(|c| format!("`{}`", c.alias.to_owned().unwrap_or(c.name.to_string())))
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -320,10 +320,10 @@ pub fn build_update_clause<T>(platform: &DatabasePlatform, _entity: &T, wrapper:
                     #[allow(unreachable_patterns)]
                     match platform {
                         #[cfg(feature = "akita-mysql")]
-                        DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
+                        DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.alias.to_owned().unwrap_or(col.name.to_string())),
                         #[cfg(feature = "akita-sqlite")]
-                        DatabasePlatform::Sqlite(_) => format!("`{}` = ${}", &col.name, x + 1),
-                        _ => format!("`{}` = ${}", &col.name, x + 1),
+                        DatabasePlatform::Sqlite(_) => format!("`{}` = ${}", &col.alias.to_owned().unwrap_or(col.name.to_string()), x + 1),
+                        _ => format!("`{}` = ${}", &col.alias.to_owned().unwrap_or(col.name.to_string()), x + 1),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -374,7 +374,7 @@ impl AkitaMapper for AkitaEntityManager {
         let columns = T::fields();
         let enumerated_columns = columns
             .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
+            .map(|c| format!("`{}`", c.alias.to_owned().unwrap_or(c.name.to_string())))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -408,7 +408,7 @@ impl AkitaMapper for AkitaEntityManager {
         let columns = T::fields();
         let enumerated_columns = columns
             .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
+            .map(|c| format!("`{}`", c.alias.to_owned().unwrap_or(c.name.to_string())))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -439,7 +439,7 @@ impl AkitaMapper for AkitaEntityManager {
         let col_len = columns.len();
         let enumerated_columns = columns
             .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
+            .map(|c| format!("`{}`", c.alias.to_owned().unwrap_or(c.name.to_string())))
             .collect::<Vec<_>>()
             .join(", ");
         let mut conn = self.acquire()?;
@@ -449,10 +449,10 @@ impl AkitaMapper for AkitaEntityManager {
         }) {
             let sql = match conn {
                 #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("SELECT {} FROM {} WHERE `{}` = ? limit 1", &enumerated_columns, &table.complete_name(), &field.name),
+                DatabasePlatform::Mysql(_) => format!("SELECT {} FROM {} WHERE `{}` = ? limit 1", &enumerated_columns, &table.complete_name(), &field.alias.to_owned().unwrap_or(field.name.to_string())),
                 #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
-                _ => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
+                DatabasePlatform::Sqlite(_) => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
+                _ => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
             };
             let rows = conn.execute_result(&sql, (id.to_value(),).into())?;
             Ok(rows.iter().next().map(|data| T::from_value(&data)))
@@ -474,7 +474,7 @@ impl AkitaMapper for AkitaEntityManager {
         let columns = T::fields();
         let enumerated_columns = columns
             .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
+            .map(|c| format!("`{}`", &c.alias.to_owned().unwrap_or(c.name.to_string())))
             .collect::<Vec<_>>()
             .join(", ");
         let select_fields = wrapper.get_select_sql();
@@ -556,10 +556,10 @@ impl AkitaMapper for AkitaEntityManager {
             let mut conn = self.acquire()?;
             let sql = match conn {
                 #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` = ?", &table.name, &field.name),
+                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` = ?", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string())),
                 #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
-                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
+                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` = ${}", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
+                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
             };
             let _ = conn.execute_result(&sql, (id.to_value(),).into())?;
             Ok(conn.affected_rows())
@@ -587,10 +587,10 @@ impl AkitaMapper for AkitaEntityManager {
         }) {
             let sql = match conn {
                 #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` in (?)", &table.name, &field.name),
+                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` in (?)", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string())),
                 #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` in (${})", &table.name, &field.name, col_len + 1),
-                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
+                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` in (${})", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
+                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
             };
             let ids = ids.iter().map(|v| v.to_value().to_string()).collect::<Vec<String>>().join(",");
             let _ = conn.execute_result(&sql, (ids,).into())?;
@@ -621,7 +621,7 @@ impl AkitaMapper for AkitaEntityManager {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
-                let col_name = &col.name;
+                let col_name = &col.name.to_string();
                 let mut value = data.get_obj_value(&col_name);
                 match &col.fill {
                     None => {}
@@ -669,28 +669,28 @@ impl AkitaMapper for AkitaEntityManager {
                 #[allow(unreachable_patterns)]
                 match conn {
                     #[cfg(feature = "akita-mysql")]
-                    DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
+                    DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.alias.to_owned().unwrap_or(col.name.to_string())),
                     #[cfg(feature = "akita-sqlite")]
-                    DatabasePlatform::Sqlite(_) => format!("`{}` = ${}",&col.name, x + 1),
-                    _ => format!("`{}` = ${}", &col.name, x + 1),
+                    DatabasePlatform::Sqlite(_) => format!("`{}` = ${}",&col.alias.to_owned().unwrap_or(col.name.to_string()), x + 1),
+                    _ => format!("`{}` = ${}", &col.alias.to_owned().unwrap_or(col.name.to_string()), x + 1),
                 }
             })
             .collect::<Vec<_>>()
             .join(", ");
             let sql = match conn {
                 #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.name),
+                DatabasePlatform::Mysql(_) => format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.alias.to_owned().unwrap_or(field.name.to_string())),
                 #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
-                _ => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
+                DatabasePlatform::Sqlite(_) => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
+                _ => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
             };
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-            let id = data.get_obj_value(&field.name);
+            let id = data.get_obj_value(&field.name.to_string());
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
-                let col_name = &col.name;
+                let col_name = &col.name.to_string();
                 let mut value = data.get_obj_value(col_name);
                 match &col.fill {
                     None => {}
@@ -748,7 +748,7 @@ impl AkitaMapper for AkitaEntityManager {
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter() {
-            let mut value = data.get_obj_value(&col.name);
+            let mut value = data.get_obj_value(&col.name.to_string());
             match &col.fill {
                 None => {}
                 Some(v) => {
@@ -787,7 +787,7 @@ impl AkitaMapper for AkitaEntityManager {
             FieldType::TableId(_) => true,
             FieldType::TableField => false,
         }) {
-            data.get_obj_value(&field.name).unwrap_or(&Value::Nil)
+            data.get_obj_value(&field.name.to_string()).unwrap_or(&Value::Nil)
         } else { &Value::Nil };
         match id {
             Value::Nil => {
