@@ -24,7 +24,6 @@ cfg_if! {if #[cfg(feature = "akita-sqlite")]{
 pub struct Akita{
     /// the connection pool
     pool: OnceCell<PlatformPool>,
-    conn: OnceCell<DatabasePlatform>,
     cfg: AkitaConfig,
 }
 
@@ -35,7 +34,6 @@ impl Akita {
         let platform = Self::init_pool(&cfg)?;
         Ok(Self {
             pool: OnceCell::from(platform),
-            conn: OnceCell::new(),
             cfg
         })
     }
@@ -44,7 +42,6 @@ impl Akita {
         let platform = pool.get_pool()?;
         Ok(Self {
             pool: OnceCell::from(platform),
-            conn: OnceCell::new(),
             cfg: pool.config().clone()
         })
     }
@@ -77,7 +74,7 @@ impl Akita {
         let mut conn = self.acquire()?;
         conn.start_transaction()?;
         Ok(AkitaTransaction {
-            conn: &self,
+            conn: &mut conn,
             committed: false,
             rolled_back: false,
         })
@@ -95,21 +92,6 @@ impl Akita {
     /// get an DataBase Connection used for the next step
     pub fn acquire(&self) -> Result<DatabasePlatform, AkitaError> {
         let pool = self.get_pool()?;
-        // if let Some(conn) = self.conn.get() {
-        //     Ok(conn)
-        // } else {
-        //     let conn = pool.acquire()?;
-        //     let pt = match conn {
-        //         #[cfg(feature = "akita-mysql")]
-        //         PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.cfg.to_owned())))),
-        //         #[cfg(feature = "akita-sqlite")]
-        //         PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.cfg.to_owned())))),
-        //         _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
-        //     }?;
-        //     let ref_pt = &pt;
-        //     self.conn.set(pt);
-        //     Ok(ref_pt)
-        // };
         let conn = pool.acquire()?;
         match conn {
             #[cfg(feature = "akita-mysql")]

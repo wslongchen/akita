@@ -8,7 +8,7 @@ use crate::pool::PlatformPool;
 pub struct AkitaEntityManager(PlatformPool, AkitaConfig);
 
 pub struct AkitaTransaction<'a> {
-    pub(crate) conn: &'a Akita,
+    pub(crate) conn: &'a mut DatabasePlatform,
     pub committed: bool,
     pub rolled_back: bool,
 }
@@ -16,15 +16,13 @@ pub struct AkitaTransaction<'a> {
 #[allow(unused)]
 impl AkitaTransaction <'_> {
     pub fn commit(mut self) -> Result<(), AkitaError> {
-        let mut conn = self.conn.acquire()?;
-        conn.commit_transaction()?;
+        self.conn.commit_transaction()?;
         self.committed = true;
         Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), AkitaError> {
-        let mut conn = self.conn.acquire()?;
-        conn.rollback_transaction()?;
+        self.conn.rollback_transaction()?;
         self.rolled_back = true;
         Ok(())
     }
@@ -34,14 +32,7 @@ impl<'a> Drop for AkitaTransaction<'a> {
     /// Will rollback transaction.
     fn drop(&mut self) {
         if !self.committed && !self.rolled_back {
-            match self.conn.acquire() {
-                Ok(mut conn) => {
-                    let _ = conn.rollback_transaction().unwrap_or_default();
-                }
-                Err(_err) => {
-                    // todo: Error to rollback
-                }
-            }
+            self.conn.rollback_transaction().unwrap_or_default();
         }
     }
 }
