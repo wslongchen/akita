@@ -24,6 +24,7 @@ cfg_if! {if #[cfg(feature = "akita-sqlite")]{
 pub struct Akita{
     /// the connection pool
     pool: OnceCell<PlatformPool>,
+    conn: OnceCell<DatabasePlatform>,
     cfg: AkitaConfig,
 }
 
@@ -34,6 +35,7 @@ impl Akita {
         let platform = Self::init_pool(&cfg)?;
         Ok(Self {
             pool: OnceCell::from(platform),
+            conn: OnceCell::new(),
             cfg
         })
     }
@@ -42,6 +44,7 @@ impl Akita {
         let platform = pool.get_pool()?;
         Ok(Self {
             pool: OnceCell::from(platform),
+            conn: OnceCell::new(),
             cfg: pool.config().clone()
         })
     }
@@ -92,6 +95,21 @@ impl Akita {
     /// get an DataBase Connection used for the next step
     pub fn acquire(&self) -> Result<DatabasePlatform, AkitaError> {
         let pool = self.get_pool()?;
+        // if let Some(conn) = self.conn.get() {
+        //     Ok(conn)
+        // } else {
+        //     let conn = pool.acquire()?;
+        //     let pt = match conn {
+        //         #[cfg(feature = "akita-mysql")]
+        //         PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.cfg.to_owned())))),
+        //         #[cfg(feature = "akita-sqlite")]
+        //         PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.cfg.to_owned())))),
+        //         _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
+        //     }?;
+        //     let ref_pt = &pt;
+        //     self.conn.set(pt);
+        //     Ok(ref_pt)
+        // };
         let conn = pool.acquire()?;
         match conn {
             #[cfg(feature = "akita-mysql")]
@@ -549,14 +567,21 @@ impl AkitaMapper for Akita {
         let _bvalues: Vec<&Value> = values.iter().collect();
 
         conn.execute_result(&sql,values.into())?;
-        let _rows: Rows = match conn {
+        let last_insert_id = match conn {
             #[cfg(feature = "akita-mysql")]
-            DatabasePlatform::Mysql(_) => conn.execute_result("SELECT LAST_INSERT_ID();", Params::Nil)?,
+            DatabasePlatform::Mysql(_) => {
+                // conn.execute_result("SELECT LAST_INSERT_ID();", Params::Nil)?
+                Some(I::from_value(&Value::Bigint(conn.last_insert_id() as i64)))
+            },
             #[cfg(feature = "akita-sqlite")]
-            DatabasePlatform::Sqlite(_) => conn.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?,
+            DatabasePlatform::Sqlite(_) => {
+                let rows = conn.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?;
+                rows.iter().next().map(|data| I::from_value(&data))
+            },
             _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
         };
-        let last_insert_id = _rows.iter().next().map(|data| I::from_value(&data));
+
+        // let last_insert_id = _rows.iter().next().map(|data| I::from_value(&data));
         Ok(last_insert_id)
     }
 
