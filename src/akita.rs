@@ -529,7 +529,6 @@ impl AkitaMapper for Akita {
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter().filter(|col| col.exist ) {
-            println!("dataS:{:?}", data);
             let mut value = data.get_obj_value(&col.name.to_string());
             match &col.fill {
                 None => {}
