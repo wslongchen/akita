@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, ops::Deref};
 
-use crate::{cfg_if, Params, TableName, DatabaseName, SchemaContent, TableDef, Rows, AkitaMapper, Wrapper, IPage, ISegment};
+use crate::{cfg_if, Params, TableName, DatabaseName, SchemaContent, TableDef, Rows, Wrapper, IPage, ISegment};
 use url::Url;
 use akita_core::{AkitaDataError, FieldType, from_value, from_value_opt, FromValue, GetFields, GetTableName, ToValue, Value};
 
@@ -256,7 +256,7 @@ impl DatabasePlatform {
         };
         let where_condition = wrapper.get_sql_segment();
         let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let mut sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
+        let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
         let count_sql = format!("select count(*) from ({}) TOTAL", &sql);
         let count: i64 = self.exec_first(&count_sql, ())?;
         let mut page = IPage::new(page, size ,count as usize, vec![]);
@@ -630,7 +630,7 @@ impl DatabasePlatform {
         self.exec_first(sql, ())
     }
 
-    fn query_first_opt<R, S: Into<String>>(
+    pub fn query_first_opt<R, S: Into<String>>(
         &mut self, sql: S,
     ) -> Result<Option<R>, AkitaError>
         where

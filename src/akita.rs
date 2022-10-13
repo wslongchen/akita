@@ -4,14 +4,13 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use akita_core::{FieldType, GetTableName};
+use akita_core::{ GetTableName};
 use once_cell::sync::OnceCell;
 
-use crate::segment::ISegment;
 use crate::{AkitaError, AkitaMapper, IPage, Pool, Wrapper, database::DatabasePlatform, AkitaConfig};
-use crate::{cfg_if, Params, Rows, FromValue, Value, ToValue, GetFields};
+use crate::{cfg_if, Params, Rows, FromValue, ToValue, GetFields};
 use crate::database::Platform;
-use crate::manager::{AkitaTransaction, build_insert_clause, build_update_clause};
+use crate::manager::{AkitaTransaction};
 use crate::pool::{PlatformPool, PooledConnection};
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
