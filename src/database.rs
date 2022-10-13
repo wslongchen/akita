@@ -132,7 +132,7 @@ impl std::ops::DerefMut for DatabasePlatform {
     }
 }
 
-
+#[allow(unreachable_patterns)]
 impl DatabasePlatform {
     /// Get all the table of records
     pub fn list<T>(&mut self, mut wrapper:Wrapper) -> Result<Vec<T>, AkitaError>
