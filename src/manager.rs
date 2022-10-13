@@ -18,14 +18,16 @@ pub struct AkitaTransaction {
 #[allow(unused)]
 impl AkitaTransaction {
     pub fn commit(mut self) -> Result<(), AkitaError> {
-        // self.conn.commit_transaction()?;
-        // self.committed = true;
+        let mut conn = self.conn.borrow_mut();
+        conn.commit_transaction()?;
+        self.committed = true;
         Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), AkitaError> {
-        // self.conn.rollback_transaction()?;
-        // self.rolled_back = true;
+        let mut conn = self.conn.borrow_mut();
+        conn.rollback_transaction()?;
+        self.rolled_back = true;
         Ok(())
     }
 }
@@ -33,9 +35,10 @@ impl AkitaTransaction {
 impl<'a> Drop for AkitaTransaction {
     /// Will rollback transaction.
     fn drop(&mut self) {
-        // if !self.committed && !self.rolled_back {
-        //     self.conn.rollback_transaction().unwrap_or_default();
-        // }
+        if !self.committed && !self.rolled_back {
+            let mut conn = self.conn.borrow_mut();
+            conn.rollback_transaction().unwrap_or_default();
+        }
     }
 }
 
