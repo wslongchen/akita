@@ -1,4 +1,6 @@
-use crate::{AkitaError, IPage, Wrapper, database::{DatabasePlatform}, mapper::AkitaMapper, GetFields, GetTableName, FromValue, ToValue, Rows, TableName, DatabaseName, FieldName, Params, Value, FieldType, TableDef, segment::ISegment, AkitaConfig, Akita};
+use std::cell::RefCell;
+use std::rc::Rc;
+use crate::{AkitaError, IPage, Wrapper, database::{DatabasePlatform}, mapper::AkitaMapper, GetFields, GetTableName, FromValue, ToValue, Rows, TableName, DatabaseName, FieldName, Params, Value, FieldType, TableDef, segment::ISegment, AkitaConfig};
 use crate::pool::PlatformPool;
 
 /// an interface executing sql statement and getting the results as generic Akita values
@@ -7,38 +9,38 @@ use crate::pool::PlatformPool;
 #[allow(unused)]
 pub struct AkitaEntityManager(PlatformPool, AkitaConfig);
 
-pub struct AkitaTransaction<'a> {
-    pub(crate) conn: &'a mut DatabasePlatform,
+pub struct AkitaTransaction {
+    pub(crate) conn: Rc<RefCell<DatabasePlatform>>,
     pub committed: bool,
     pub rolled_back: bool,
 }
 
 #[allow(unused)]
-impl AkitaTransaction <'_> {
+impl AkitaTransaction {
     pub fn commit(mut self) -> Result<(), AkitaError> {
-        self.conn.commit_transaction()?;
-        self.committed = true;
+        // self.conn.commit_transaction()?;
+        // self.committed = true;
         Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), AkitaError> {
-        self.conn.rollback_transaction()?;
-        self.rolled_back = true;
+        // self.conn.rollback_transaction()?;
+        // self.rolled_back = true;
         Ok(())
     }
 }
 
-impl<'a> Drop for AkitaTransaction<'a> {
+impl<'a> Drop for AkitaTransaction {
     /// Will rollback transaction.
     fn drop(&mut self) {
-        if !self.committed && !self.rolled_back {
-            self.conn.rollback_transaction().unwrap_or_default();
-        }
+        // if !self.committed && !self.rolled_back {
+        //     self.conn.rollback_transaction().unwrap_or_default();
+        // }
     }
 }
 
 #[allow(unused)]
-impl AkitaMapper for AkitaTransaction <'_> {
+impl AkitaMapper for AkitaTransaction {
 
     /// Get all the table of records
     fn list<T>(&self, wrapper:Wrapper) -> Result<Vec<T>, AkitaError>
@@ -46,7 +48,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
         T: GetTableName + GetFields + FromValue,
         
     {
-        self.conn.list(wrapper)
+        let mut conn = self.conn.borrow_mut();
+        conn.list(wrapper)
     }
 
     /// Get one the table of records
@@ -55,7 +58,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
         T: GetTableName + GetFields + FromValue,
         
     {
-        self.conn.select_one(wrapper)
+        let mut conn = self.conn.borrow_mut();
+        conn.select_one(wrapper)
     }
 
     /// Get one the table of records by id
@@ -64,7 +68,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
         T: GetTableName + GetFields + FromValue,
         I: ToValue
     {
-        self.conn.select_by_id(id)
+        let mut conn = self.conn.borrow_mut();
+        conn.select_by_id(id)
     }
 
     /// Get table of records with page
@@ -73,7 +78,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
         T: GetTableName + GetFields + FromValue,
         
     {
-        self.conn.page(page, size, wrapper)
+        let mut conn = self.conn.borrow_mut();
+        conn.page(page, size, wrapper)
     }
 
     /// Get the total count of records
@@ -81,7 +87,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
     where
         T: GetTableName + GetFields,
          {
-        self.conn.count::<T>(wrapper)
+        let mut conn = self.conn.borrow_mut();
+        conn.count::<T>(wrapper)
     }
 
     /// Remove the records by wrapper.
@@ -89,11 +96,13 @@ impl AkitaMapper for AkitaTransaction <'_> {
     where
         T: GetTableName + GetFields,
          {
-            self.conn.remove::<T>(wrapper)
+            let mut conn = self.conn.borrow_mut();
+        conn.remove::<T>(wrapper)
     }
 
     fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64, AkitaError> where I: ToValue, T: GetTableName + GetFields {
-        self.conn.remove_by_ids::<T,I>(ids)
+        let mut conn = self.conn.borrow_mut();
+        conn.remove_by_ids::<T,I>(ids)
     }
 
     /// Remove the records by id.
@@ -101,7 +110,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
     where
         I: ToValue,
         T: GetTableName + GetFields {
-            self.conn.remove_by_id::<T, I>(id)
+            let mut conn = self.conn.borrow_mut();
+        conn.remove_by_id::<T, I>(id)
         
     }
 
@@ -109,14 +119,16 @@ impl AkitaMapper for AkitaTransaction <'_> {
     fn update<T>(&self, entity: &T, wrapper: Wrapper) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
-            self.conn.update(entity, wrapper)
+            let mut conn = self.conn.borrow_mut();
+        conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
     fn update_by_id<T>(&self, entity: &T) -> Result<u64, AkitaError>
     where
         T: GetTableName + GetFields + ToValue {
-            self.conn.update_by_id(entity)
+            let mut conn = self.conn.borrow_mut();
+        conn.update_by_id(entity)
         
     }
 
@@ -125,7 +137,8 @@ impl AkitaMapper for AkitaTransaction <'_> {
     where
         T: GetTableName + GetFields + ToValue
     {
-        self.conn.save_batch(entities)
+        let mut conn = self.conn.borrow_mut();
+        conn.save_batch(entities)
     }
 
     /// called multiple times when using database platform that doesn;t support multiple value
@@ -134,15 +147,18 @@ impl AkitaMapper for AkitaTransaction <'_> {
         T: GetTableName + GetFields + ToValue,
         I: FromValue,
     {
-        self.conn.save(entity)
+        let mut conn = self.conn.borrow_mut();
+        conn.save(entity)
     }
 
     fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError> where T: GetTableName + GetFields + ToValue, I: FromValue {
-        self.conn.save_or_update(entity)
+        let mut conn = self.conn.borrow_mut();
+        conn.save_or_update(entity)
     }
 
     fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Rows, AkitaError> {
-        self.conn.exec_iter(sql, params)
+        let mut conn = self.conn.borrow_mut();
+        conn.exec_iter(sql, params)
     }
 }
 
