@@ -15,7 +15,12 @@ pub struct Rows {
 
 impl std::fmt::Display for Rows {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "data: {:?}, count: {}", self.data, self.count.unwrap_or_default())
+
+        write!(f, "<==    Columns: {}\n", self.data.iter().next().map(|v| v.columns.join(", ")).unwrap_or("[]".to_string()))?;
+        for data in self.data.iter() {
+            write!(f, "<==        Row: {}\n", data.data.iter().map(|v| format!("{}",v)).collect::<Vec<String>>().join(", "))?;
+        }
+        write!(f, "<==      Total: {}", self.count.unwrap_or(self.data.len()))
     }
 }
 

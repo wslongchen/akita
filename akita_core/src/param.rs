@@ -13,12 +13,14 @@ impl std::fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Params::Vector(v) => {
-                write!(f, "{:?}",  v)
+                let v = v.iter().map(|value| format!("{}", value)).collect::<Vec<String>>().join(", ");
+                write!(f, "==> Parameters: {}",  v)
             }
             Params::Custom(v) => {
-                write!(f, "{:?}", v)
+                let v = v.iter().map(|(_, value)| format!("{}", value)).collect::<Vec<String>>().join(", ");
+                write!(f, "==> Parameters: {}", v)
             }
-            Params::Nil => {write!(f, "Nil")}
+            Params::Nil => {write!(f, "==> Parameters: Nil")}
         }
     }
 }

@@ -44,7 +44,7 @@ impl Database for MysqlDatabase {
     
     fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
         let now = Instant::now();
-        log::info!("[Akita]: excute sql:{}, params:{}", sql, param);
+        log::info!("\n==>  Preparing: {}\n{}", sql, param);
         fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
             let _fields = rows
@@ -110,13 +110,13 @@ impl Database for MysqlDatabase {
                 Ok(rows)
             },
         }?;
-        tracing::info!("[Akita]: excute result:{}, cost:{}", result, now.elapsed().as_millis());
+        tracing::info!("\n{}, cost:{}", result, now.elapsed().as_millis());
         Ok(result)
     }
     
     fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
         let now = Instant::now();
-        tracing::info!("[Akita]: excute sql:{}, params:{}", sql, param);
+        log::info!("\n==>  Preparing: {}\n{}", sql, param);
         let _ = match param {
             Params::Nil => {
                 self
