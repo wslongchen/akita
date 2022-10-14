@@ -392,7 +392,7 @@ impl DatabasePlatform {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
-                let col_name = &col.name.to_string();
+                let col_name = &col.alias.to_owned().unwrap_or(col.name.to_string());
                 let mut value = data.get_obj_value(&col_name);
                 match &col.fill {
                     None => {}
@@ -456,12 +456,12 @@ impl DatabasePlatform {
                 _ => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.alias.to_owned().unwrap_or(field.name.to_string()), col_len + 1),
             };
             let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-            let id = data.get_obj_value(&field.name.to_string());
+            let id = data.get_obj_value(&field.alias.to_owned().unwrap_or(field.name.to_string()));
             for col in columns.iter() {
                 if !col.exist || col.field_type.ne(&FieldType::TableField) {
                     continue;
                 }
-                let col_name = &col.name.to_string();
+                let col_name = &col.alias.to_owned().unwrap_or(col.name.to_string());
                 let mut value = data.get_obj_value(col_name);
                 match &col.fill {
                     None => {}
@@ -505,7 +505,7 @@ impl DatabasePlatform {
         for entity in entities.iter() {
             for col in columns.iter().filter(|col| col.exist ) {
                 let data = entity.to_value();
-                let mut value = data.get_obj_value(&col.name.to_string());
+                let mut value = data.get_obj_value( &col.alias.to_owned().unwrap_or(col.name.to_string()));
                 match &col.fill {
                     None => {}
                     Some(v) => {
@@ -539,7 +539,7 @@ impl DatabasePlatform {
         let data = entity.to_value();
         let mut values: Vec<Value> = Vec::with_capacity(columns.len());
         for col in columns.iter().filter(|col| col.exist ) {
-            let mut value = data.get_obj_value(&col.name.to_string());
+            let mut value = data.get_obj_value(&col.alias.to_owned().unwrap_or(col.name.to_string()));
             match &col.fill {
                 None => {}
                 Some(v) => {
@@ -587,7 +587,7 @@ impl DatabasePlatform {
             FieldType::TableId(_) => true,
             FieldType::TableField => false,
         }) {
-            data.get_obj_value(&field.name.to_string()).unwrap_or(&Value::Nil)
+            data.get_obj_value(&field.alias.to_owned().unwrap_or(field.name.to_string())).unwrap_or(&Value::Nil)
         } else { &Value::Nil };
         match id {
             Value::Nil => {
