@@ -1018,7 +1018,7 @@ where
     T9: FromValue,
 {
     fn from_value_opt(data: &Value) -> Result<Self, AkitaDataError> {
-        if data.get_obj_len() !=8 {
+        if data.get_obj_len() !=9 {
             return Err(AkitaDataError::NoSuchValueError(format!("Can not convert row with {:?}", data)))
         }
         let ir1 = take_or_place!(data, 0, T1);
@@ -1050,7 +1050,7 @@ where
     T10: FromValue,
 {
     fn from_value_opt(data: &Value) -> Result<Self, AkitaDataError> {
-        if data.get_obj_len() !=8 {
+        if data.get_obj_len() !=10 {
             return Err(AkitaDataError::NoSuchValueError(format!("Can not convert row with {:?}", data)))
         }
         let ir1 = take_or_place!(data, 0, T1);
@@ -1085,7 +1085,7 @@ where
     T11: FromValue,
 {
     fn from_value_opt(data: &Value) -> Result<Self, AkitaDataError> {
-        if data.get_obj_len() !=8 {
+        if data.get_obj_len() !=11 {
             return Err(AkitaDataError::NoSuchValueError(format!("Can not convert row with {:?}", data)))
         }
         let ir1 = take_or_place!(data, 0, T1);
@@ -1120,7 +1120,7 @@ where
     T12: FromValue,
 {
     fn from_value_opt(data: &Value) -> Result<Self, AkitaDataError> {
-        if data.get_obj_len() !=8 {
+        if data.get_obj_len() !=12 {
             return Err(AkitaDataError::NoSuchValueError(format!("Can not convert row with {:?}", data)))
         }
         let ir1 = take_or_place!(data, 0, T1);
