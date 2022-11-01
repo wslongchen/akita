@@ -261,7 +261,7 @@ impl Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Value::Nil => write!(f, ""),
+            Value::Nil => write!(f, "Null"),
             Value::Bool(v) => write!(f, "{}", v),
             Value::Tinyint(v) => write!(f, "{}", v),
             Value::Smallint(v) => write!(f, "{}", v),
@@ -280,7 +280,6 @@ impl fmt::Display for Value {
             Value::Timestamp(v) => write!(f, "{}", v.to_rfc3339()),
             Value::Array(array) => array.fmt(f),
             Value::Blob(v) => {
-
                 write!(f, "{}", String::from_utf8_lossy(v))
             }
             _ => panic!("not yet implemented: {:?}", self),
