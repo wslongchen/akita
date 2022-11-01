@@ -3,6 +3,7 @@ use quote::quote;
 use syn::{self, DeriveInput};
 
 use crate::{util::{get_field_default_value, collect_field_info}, comm::FieldInformation};
+use crate::comm::FieldExtra;
 
 pub fn impl_from_akita(input: TokenStream) -> TokenStream {
     let ast = syn::parse::<DeriveInput>(input).unwrap();
@@ -49,8 +50,19 @@ pub fn build_to_akita(name: &syn::Ident, generics: &syn::Generics, fields: &Vec<
     let to_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|field| {
-            let field_name = &field.name;
+            let mut field_name = field.name.to_string();
             let field_info = field.field.ident.as_ref().unwrap();
+            for ext in field.extra.iter() {
+                match ext {
+                    FieldExtra::Name(v) => {
+                        field_name = v.to_string();
+                    }
+                    _ => {
+
+                    }
+                }
+            }
+            // insert with alias
             quote!( data.insert_obj(#field_name, &self.#field_info );)
         })
         .collect();
