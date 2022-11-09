@@ -188,8 +188,8 @@ impl Wrapper{
             Segment::Text(LEFT_BRACKET.to_string() + vals.iter_mut().map(|val| val.get_sql_segment()).collect::<Vec<String>>().join(COMMA).as_str() + RIGHT_BRACKET) 
         } 
     }
-    pub fn between<S: Into<String>, U: ToSegment>(self, column: S, val1: U, val2: U) -> Self { self.do_it(true, vec![column.into().into(), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
-    pub fn between_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val1: U, val2: U) -> Self { self.do_it(condition, vec![column.into().into(), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
+    pub fn between<S: Into<String>, U: ToSegment>(self, column: S, val1: U, val2: U) -> Self { self.do_it(true, vec![Segment::ColumnField(column.into()), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
+    pub fn between_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val1: U, val2: U) -> Self { self.do_it(condition, vec![Segment::ColumnField(column.into()), SqlKeyword::BETWEEN.into(), val1.into(), SqlKeyword::AND.into(), val2.into() ]) }
     pub fn not_between<S: Into<String>, U: ToSegment>(self, column: S, val1: U, val2: U) -> Self { self.not().between(column, val1, val2) }
     pub fn not_between_condition<S: Into<String>, U: ToSegment>(self, condition: bool, column: S, val1: U, val2: U) -> Self { self.not_condition(condition).between_condition(condition, column, val1, val2) }
     pub fn add_condition(self, condition: bool, column: Segment, sql_keword: SqlKeyword, val: Segment) -> Self { 
