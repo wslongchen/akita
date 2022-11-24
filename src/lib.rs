@@ -209,7 +209,7 @@ pub use auth::*;
 pub use fuse::*;
 pub use akita::*;
 #[doc(inline)]
-pub use manager::{AkitaEntityManager};
+pub use manager::{AkitaEntityManager, AkitaTransaction};
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
 // Re-export #[derive(AkitaTable)].
