@@ -299,6 +299,7 @@ pub enum Array {
     Double(Vec<f64>),
     BigDecimal(Vec<BigDecimal>),
     Text(Vec<String>),
+    Json(Vec<serde_json::Value>),
     Char(Vec<char>),
     Uuid(Vec<Uuid>),
     Date(Vec<NaiveDate>),
@@ -314,6 +315,10 @@ impl fmt::Display for Array {
             }
             Array::Float(floats) => {
                 let json_arr = serde_json::to_string(floats).expect("must serialize");
+                write!(f, "{}", json_arr)
+            }
+            Array::Json(json) => {
+                let json_arr = serde_json::to_string(json).expect("must serialize");
                 write!(f, "{}", json_arr)
             }
             Array::Bool(bools) => {
@@ -466,6 +471,7 @@ impl ToValue for Vec<serde_json::Value> {
         let mut int_values = Vec::new();
         let mut float_values = Vec::new();
         let mut text_values = Vec::new();
+        let mut obj_values = Vec::new();
         for v in self {
             if v.is_f64() {
                 float_values.push(v.as_f64().unwrap_or_default());
@@ -475,12 +481,18 @@ impl ToValue for Vec<serde_json::Value> {
                 int_values.push(v.as_i64().unwrap_or_default());
             } else if v.is_string() {
                 text_values.push(v.as_str().unwrap_or_default().to_string());
+            } else if v.is_object() {
+                obj_values.push(v.to_owned());
+            } else {
+                text_values.push(v.to_string());
             }
         }
         if !int_values.is_empty() {
             Value::Array(Array::Int(int_values))
         } else if !float_values.is_empty() {
             Value::Array(Array::Float(float_values))
+        } else if !obj_values.is_empty() {
+            Value::Array(Array::Json(obj_values))
         } else{
             Value::Array(Array::Text(text_values))
         }
@@ -647,6 +659,7 @@ impl FromValue for String {
                     Array::Int(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Float(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Text(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
+                    Array::Json(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Bool(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Tinyint(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),
                     Array::Smallint(vv) =>  Ok(serde_json::to_string(vv).unwrap_or_default()),

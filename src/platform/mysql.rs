@@ -668,36 +668,31 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Array(ref v) => {
                 match v {
                     Array::Int(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Float(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Text(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
+                    }
+                    Array::Json(vv) => {
+                        serde_json::Value::Array(vv.clone()).into()
                     }
                     Array::Bool(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Tinyint(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Smallint(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Bigint(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::Double(vv) => {
-                        let value = serde_json::to_string(vv).unwrap_or_default();
-                        value.into()
+                        serde_json::Value::from(vv.clone()).into()
                     }
                     Array::BigDecimal(vv) => {
                         let value = serde_json::to_string(vv).unwrap_or_default();

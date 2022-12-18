@@ -215,6 +215,7 @@ impl HasType for Value {
             Value::Array(Array::Int(_)) => Some(SqlType::Array(Box::new(SqlType::Int))),
             Value::Array(Array::Float(_)) => Some(SqlType::Array(Box::new(SqlType::Float))),
             Value::Array(Array::Text(_)) => Some(SqlType::Array(Box::new(SqlType::Text))),
+            Value::Array(Array::Json(_)) => Some(SqlType::Array(Box::new(SqlType::Json))),
             Value::Array(Array::Bool(_)) => Some(SqlType::Array(Box::new(SqlType::Bool))),
             Value::Array(Array::Tinyint(_)) => Some(SqlType::Array(Box::new(SqlType::Tinyint))),
             Value::Array(Array::Smallint(_)) => Some(SqlType::Array(Box::new(SqlType::Smallint))),

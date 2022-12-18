@@ -256,8 +256,8 @@ mod test {
         pub mch_name: Option<String>,
     }
 
-    #[sql(AK,"select * from mch_info where mch_no = ?")]
-    fn select(name: &str) -> Vec<MchInfo> {
+    #[sql(AK,"select * from mch_info where mch_no = ? and id = ? limit ?")]
+    fn select(name: &str, id : u8, limit: u8) -> Vec<MchInfo> {
         todo!()
     }
 
