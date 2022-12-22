@@ -27,7 +27,7 @@ pub struct AkitaConfig {
     port: Option<u16>,
     ip_or_hostname: Option<String>,
     username: Option<String>,
-    log_level: Option<LogLevel>, 
+    log_level: Option<LogLevel>,
 }
 
 #[cfg(feature = "akita-mysql")]
