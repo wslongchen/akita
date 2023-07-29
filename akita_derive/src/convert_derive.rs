@@ -18,8 +18,18 @@ pub fn build_from_akita(name: &syn::Ident, _generics: &syn::Generics, fields: &V
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|field| {
-            let field_name = &field.name;
+            let mut field_name = field.name.to_string();
             let field_info = field.field.ident.as_ref().unwrap();
+            for ext in field.extra.iter() {
+                match ext {
+                    FieldExtra::Name(v) => {
+                        field_name = v.to_string();
+                    }
+                    _ => {
+
+                    }
+                }
+            }
             let default_value = get_field_default_value(&field.field.ty, field.field.ident.as_ref().unwrap());
             quote!( #field_info: match data.get_obj(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
         })

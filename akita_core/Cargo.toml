@@ -1,6 +1,6 @@
 [package]
 name = "akita_core"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
 description = "Akita - Mini orm for rust."
