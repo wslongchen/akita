@@ -137,7 +137,7 @@ pub trait AkitaMapper {
             T: GetTableName + GetFields + ToValue,
             I: FromValue;
 
-    fn query<T, Q>(&mut self, query: Q) -> Result<Vec<T>, AkitaError>
+    fn query<T, Q>(&self, query: Q) -> Result<Vec<T>, AkitaError>
         where
             Q: Into<String>,
             T: FromValue,
@@ -145,7 +145,7 @@ pub trait AkitaMapper {
         self.query_map(query, from_value)
     }
 
-    fn query_opt<T, Q>(&mut self, query: Q) -> Result<Vec<Result<T, AkitaDataError>>, AkitaError>
+    fn query_opt<T, Q>(&self, query: Q) -> Result<Vec<Result<T, AkitaDataError>>, AkitaError>
         where
             Q: Into<String>,
             T: FromValue,
