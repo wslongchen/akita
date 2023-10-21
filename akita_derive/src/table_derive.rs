@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DeriveInput};
-use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{ FieldExtra},util::{ find_struct_annotions, collect_field_info, to_snake_name}};
+use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{FieldExtra}, util::{find_struct_annotions, collect_field_info, to_snake_name}};
 
 pub fn impl_get_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
@@ -17,11 +17,17 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
     let struct_info = &ast.ident;
     let struct_name = &ast.ident.to_string();
     let structs = find_struct_annotions(&ast.attrs);
-    let mut table_name = structs.iter().find(|st| match st { FieldExtra::Table(_) => true, _ => false })
-        .map(|extra| match extra { FieldExtra::Table(name) => name.clone(), _ => String::default() }).unwrap_or_default();
-   if table_name.is_empty() {
-       table_name = to_snake_name(struct_name);
-   }
+    let mut table_name = structs.iter().find(|st| match st {
+        FieldExtra::Table(_) => true,
+        _ => false
+    })
+        .map(|extra| match extra {
+            FieldExtra::Table(name) => name.clone(),
+            _ => String::default()
+        }).unwrap_or_default();
+    if table_name.is_empty() {
+        table_name = to_snake_name(struct_name);
+    }
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
         .map(|field| {
@@ -35,7 +41,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
 
             for extra in field.extra.iter() {
                 match extra {
-                    FieldExtra::Fill {ref function, ref mode, .. } => {
+                    FieldExtra::Fill { ref function, ref mode, .. } => {
                         fill_function = function.clone();
                         fill_mode = mode.clone();
                     }
@@ -52,16 +58,19 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                     FieldExtra::TableId(_) => {
                         identify = true;
                     }
-                    _ => { }
+                    _ => {}
                 }
             }
 
             let field_type = if identify { quote!(akita::FieldType::TableId("none".to_string())) } else { quote!(akita::FieldType::TableField) };
             let fill_mode = fill_mode.unwrap_or(String::from("default")).to_lowercase();
-            let fill = if fill_function.is_empty() { quote! (None) } else { let fn_ident: syn::Path = syn::parse_str(&fill_function).unwrap(); quote! (akita::core::Fill {
+            let fill = if fill_function.is_empty() { quote!(None) } else {
+                let fn_ident: syn::Path = syn::parse_str(&fill_function).unwrap();
+                quote!(akita::core::Fill {
                         value: Some(#fn_ident().to_value()),
                         mode: #fill_mode.to_string()
-                    }.into()) };
+                    }.into())
+            };
 
             quote!(
                 akita::core::FieldName {
@@ -90,7 +99,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                     FieldExtra::Exist(v) => {
                         exist = v.clone();
                     }
-                    _ => { }
+                    _ => {}
                 }
             }
             if exist {
@@ -98,6 +107,12 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                     pub fn #field_name() -> String {
                         #name.to_string()
                     }
+
+                    // #[allow(dead_code)]
+                    // fn get_value(&self) -> akita::Value {
+                    //     // 这里可以根据需要获取结构体值
+                    //     self.#field_name.to_value()
+                    // }
                 )
             } else {
                 quote!(
@@ -143,7 +158,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
 }
 
 fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
-    quote! (
+    quote!(
         impl akita::BaseMapper for #name {
 
             type Item = #name;

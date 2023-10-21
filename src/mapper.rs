@@ -268,7 +268,7 @@ pub trait AkitaMapper {
     ) -> Result<(), AkitaError>
     {
         let sql: String = sql.into();
-        let _result: Result<Vec<()>, AkitaError> = self.exec_raw(&sql, params);
+        let _result: Vec<()> = self.exec_raw(&sql, params)?;
         Ok(())
     }
 

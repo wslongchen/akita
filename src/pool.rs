@@ -159,6 +159,7 @@ impl AkitaConfig {
         self.port.to_owned().unwrap_or_default()
     }
 
+    #[allow(unused_mut)]
     pub fn set_platform(mut self, platform: &str) -> Self {
         match platform {
             #[cfg(feature = "akita-mysql")]

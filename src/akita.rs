@@ -11,7 +11,7 @@ use crate::{AkitaError, AkitaMapper, IPage, Pool, Wrapper, database::DatabasePla
 use crate::{cfg_if, Params, Rows, FromValue, ToValue, GetFields};
 use crate::database::Platform;
 use crate::manager::{AkitaTransaction};
-use crate::pool::{PlatformPool, PooledConnection};
+use crate::pool::{PlatformPool};
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
     use crate::platform::{mysql::{self, MysqlDatabase}};
@@ -96,9 +96,9 @@ impl Akita {
         let conn = pool.acquire()?;
         match conn {
             #[cfg(feature = "akita-mysql")]
-            PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.cfg.to_owned())))),
+            crate::pool::PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.cfg.to_owned())))),
             #[cfg(feature = "akita-sqlite")]
-            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.cfg.to_owned())))),
+            crate::pool::PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.cfg.to_owned())))),
             _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
         }
     }

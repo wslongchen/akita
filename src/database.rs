@@ -528,6 +528,7 @@ impl DatabasePlatform {
         Ok(())
     }
 
+    #[allow(unused_variables, unreachable_code)]
     /// called multiple times when using database platform that doesn;t support multiple value
     pub fn save<T, I>(&mut self, entity: &T) -> Result<Option<I>, AkitaError>
         where
