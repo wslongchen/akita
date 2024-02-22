@@ -806,6 +806,24 @@ where
     }
 }
 
+impl<T> FromValue for Vec<T>
+    where
+        T: FromValue,
+{
+    fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
+       Ok(vec![])
+    }
+}
+
+impl<T> FromValue for Option<Vec<T>>
+    where
+        T: FromValue,
+{
+    fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
+       Ok(None)
+    }
+}
+
 impl<T> FromValue for &T
 where
     T: FromValue,
