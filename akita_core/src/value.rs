@@ -690,17 +690,17 @@ impl FromValue for String {
     }
 }
 
-impl FromValue for Vec<String> {
-    fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
-        match *v {
-            Value::Array(Array::Text(ref t)) => Ok(t.to_owned()),
-            _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
-                format!("{:?}", v),
-                "Vec<String>".to_string(),
-            ))),
-        }
-    }
-}
+// impl FromValue for Vec<String> {
+//     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
+//         match *v {
+//             Value::Array(Array::Text(ref t)) => Ok(t.to_owned()),
+//             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
+//                 format!("{:?}", v),
+//                 "Vec<String>".to_string(),
+//             ))),
+//         }
+//     }
+// }
 
 impl FromValue for () {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
