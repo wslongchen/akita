@@ -1,9 +1,31 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use quote::{quote, ToTokens};
 use syn::{self, Type, Ident, parse_quote, spanned::Spanned, ItemFn, ReturnType, FnArg, Pat};
 use std::collections::HashMap;
 use proc_macro2::{Span};
 use proc_macro_error::{abort};
 use crate::{comm::{FieldExtra, FieldInformation, CustomArgument, NUMBER_TYPES, COW_TYPE, CUSTOM_ARG_LIFETIME, CUSTOM_ARG_ALLOWED_COPY_TYPES, ValueOrPath}};
+use crate::comm::ALLOW_TABLE_ID_TYPES;
 
 
 /// get the field orignal type
@@ -56,6 +78,7 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
     if let Type::Path(r#path) = ty {
         ft = r#path.path.segments[0].ident.to_string();
     }
+
     if ft.eq("Option") {
         quote!(None)
     } else {
@@ -69,7 +92,18 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
             "NaiveDateTime" => quote!(Local::now().naive_local()),
             "Vec" => quote!(Vec::new()),
             "Value" => quote!(serde_json::Value::default()),
-            _ => quote!(None)
+            _ => {
+                // 如果字段没有定义Option，则抛错
+                let error_message = format!(
+                    "Field `{}` with type `{}` must be `Option` .",
+                    ident_name,
+                    ori_ty
+                );
+                // 显式地抛出编译错误
+                quote! {
+                    compile_error!(#error_message);
+                }
+            }
         }
     }
 }
@@ -161,9 +195,18 @@ pub fn collect_field_info(ast: &syn::DeriveInput) -> Vec<FieldInformation> {
     fields.drain(..).fold(vec![], |mut acc, field| {
         let key = field.ident.clone().unwrap().to_string();
         let (name, extra) = find_extra_for_field(&field, &field_types);
+        // table_id仅支持数字类型及字符串类型
+        let has_table_id = extra.iter().find(|ext| match ext {
+            FieldExtra::TableId => true,
+            _ => false,
+        }).is_some();
+        let file_type = field_types.get(&key).map(Clone::clone).unwrap_or_default().to_string();
+        if has_table_id && !ALLOW_TABLE_ID_TYPES.contains(&file_type.as_str()) {
+            abort!(ast.span(), "#[id] can only be used with Long、Integer or String Types.")
+        }
         acc.push(FieldInformation::new(
             field,
-            field_types.get(&key).unwrap().clone(),
+            file_type,
             name,
             extra,
         ));
@@ -223,12 +266,12 @@ pub fn collect_fields(ast: &syn::DeriveInput) -> Vec<syn::Field> {
                 abort!(
                     fields.span(),
                     "struct has unnamed fields";
-                    help = "#[derive(AkitaTable)] can only be used on structs with named fields";
+                    help = "#[derive(Entity)] can only be used on structs with named fields";
                 );
             }
             fields.iter().cloned().collect::<Vec<_>>()
         }
-        _ => abort!(ast.span(), "#[derive(AkitaTable)] can only be used with structs"),
+        _ => abort!(ast.span(), "#[derive(Entity)] can only be used with structs"),
     }
 }
 /// Find everything we need to know about a field
@@ -258,9 +301,16 @@ pub fn find_extra_for_field(
         if attr.path == parse_quote!(field) || attr.path != parse_quote!(table_id) {
             has_field = true;
         }
+
         match attr.parse_meta() {
-            Ok(syn::Meta::List(syn::MetaList { ref nested, .. })) => {
+            Ok(syn::Meta::List(syn::MetaList { ref nested, path, .. })) => {
                 let meta_items = nested.iter().collect::<Vec<_>>();
+                let tfield_type = path.get_ident().unwrap().to_string();
+                if tfield_type.eq("id") {
+                    extras.push(FieldExtra::TableId)
+                } else if tfield_type.eq("field") {
+                    extras.push(FieldExtra::Field)
+                }
                 // only field from there on
                 for meta_item in meta_items {
                     match *meta_item {
@@ -292,6 +342,12 @@ pub fn find_extra_for_field(
                                                 argument: None,
                                             }),
                                             None => error(lit.span(), "invalid argument for `fill` annotion: only strings are allowed"),
+                                        };
+                                    }
+                                    "converter" => {
+                                        match lit_to_string(lit) {
+                                            Some(s) => extras.push(FieldExtra::Converter(s)),
+                                            None => error(lit.span(), "invalid argument for `converter` annotion: only strings are allowed"),
                                         };
                                     }
                                     "name" => {
@@ -372,7 +428,9 @@ pub fn find_extra_for_field(
             Ok(syn::Meta::Path(ref name)) => {
                 let ident = name.get_ident().unwrap();
                 match ident.to_string().as_ref() {
-                    "table_id" => extras.push(FieldExtra::TableId(String::from("none"))),
+                    "id" => {
+                        extras.push(FieldExtra::TableId)
+                    },
                     _ => extras.push(FieldExtra::Field),
                 }
             },
@@ -608,7 +666,7 @@ pub fn assert_has_number(field_name: String, type_name: &str, field_type: &syn::
     if !NUMBER_TYPES.contains(&type_name) {
         abort!(
             field_type.span(),
-            "AkitaTable `numberic_scale` can only be used on number types but found `{}` for field `{}`",
+            "Entity `numberic_scale` can only be used on number types but found `{}` for field `{}`",
             type_name,
             field_name
         );

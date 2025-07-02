@@ -1,16 +1,40 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! Akita
 //!
 
-use akita_core::{FieldType, GetTableName};
-use once_cell::sync::OnceCell;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::segment::ISegment;
-use crate::{AkitaError, AkitaMapper, IPage, Pool, Wrapper, database::DatabasePlatform, AkitaConfig};
-use crate::{cfg_if, Params, Rows, FromValue, Value, ToValue, GetFields};
-use crate::database::Platform;
-use crate::manager::{AkitaTransaction, build_insert_clause, build_update_clause};
-use crate::pool::{PlatformPool, PooledConnection};
+use once_cell::sync::Lazy;
+
+use akita_core::GetTableName;
+
+use crate::{AkitaConfig, AkitaError, AkitaMapper, database::DatabasePlatform, IdentifierGenerator, IPage, Pool, Wrapper};
+use crate::{cfg_if, FromValue, GetFields, Params, Rows, ToValue};
+use crate::key::SnowflakeGenerator;
+use crate::manager::AkitaTransaction;
 
 cfg_if! {if #[cfg(feature = "akita-mysql")]{
     use crate::platform::{mysql::{self, MysqlDatabase}};
@@ -21,72 +45,56 @@ cfg_if! {if #[cfg(feature = "akita-sqlite")]{
 }}
 
 #[allow(unused)]
-pub struct Akita{
+#[derive(Clone)]
+pub struct Akita {
     /// the connection pool
-    pool: OnceCell<PlatformPool>,
-    cfg: AkitaConfig,
+    pool: Pool,
 }
+
+// 全局生成器
+pub(crate) static GLOBAL_GENERATOR: Lazy<Arc<SnowflakeGenerator>> = Lazy::new(|| {
+    Arc::new(SnowflakeGenerator::new())
+});
+
+// // 自定义 Clone 逻辑
+// impl Clone for Akita {
+//     fn clone(&self) -> Self {
+//         // 注意：这里只复制结构体的状态，不会复制 `Box<dyn IdentifierGenerator>` 的内容
+//         Akita {
+//             pool: self.pool.clone(),
+//             identifier_generator: OnceLock::new(),
+//         }
+//     }
+// }
 
 #[allow(unused)]
 impl Akita {
-    
     pub fn new(cfg: AkitaConfig) -> Result<Self, AkitaError> {
-        let platform = Self::init_pool(&cfg)?;
+        let pool = Pool::new(cfg)?;
         Ok(Self {
-            pool: OnceCell::from(platform),
-            cfg
+            pool,
         })
     }
 
-    pub fn from_pool(pool: &Pool) -> Result<Self, AkitaError> {
-        let platform = pool.get_pool()?;
+    pub fn from_pool(pool: Pool) -> Result<Self, AkitaError> {
         Ok(Self {
-            pool: OnceCell::from(platform),
-            cfg: pool.config().clone()
+            pool,
         })
-    }
-
-    #[cfg(feature = "akita-fuse")]
-    pub fn fuse(&self) -> crate::fuse::Fuse {
-        crate::fuse::Fuse::new(self)
-    }
-
-    /// get a database instance with a connection, ready to send sql statements
-    fn init_pool(cfg: &AkitaConfig) -> Result<PlatformPool, AkitaError> {
-        match cfg.platform() {
-            #[cfg(feature = "akita-mysql")]
-            Platform::Mysql => {
-                let pool_mysql = mysql::init_pool(&cfg)?;
-                Ok(PlatformPool::MysqlPool(pool_mysql))
-            }
-            #[cfg(feature = "akita-sqlite")]
-            Platform::Sqlite(ref path) => {
-                let mut cfg = cfg.clone();
-                cfg = cfg.set_url(path.to_string());
-                let pool_sqlite = sqlite::init_pool(&cfg)?;
-                Ok(PlatformPool::SqlitePool(pool_sqlite))
-            }
-            Platform::Unsupported(scheme) => Err(AkitaError::UnknownDatabase(scheme))
-        }
     }
 
     pub fn start_transaction(&self) -> Result<AkitaTransaction, AkitaError> {
         let mut conn = self.acquire()?;
         conn.start_transaction()?;
         Ok(AkitaTransaction {
-            conn: &self,
+            conn: Rc::new(RefCell::new(conn)),
             committed: false,
             rolled_back: false,
         })
     }
 
     /// get conn pool
-    pub fn get_pool(&self) -> Result<&PlatformPool, AkitaError> {
-        let p = self.pool.get();
-        if p.is_none() {
-            return Err(AkitaError::R2D2Error("[akita] akita pool not inited!".to_string()));
-        }
-        return Ok(p.unwrap());
+    pub fn get_pool(&self) -> Result<&Pool, AkitaError> {
+        Ok(&self.pool)
     }
 
     /// get an DataBase Connection used for the next step
@@ -95,9 +103,9 @@ impl Akita {
         let conn = pool.acquire()?;
         match conn {
             #[cfg(feature = "akita-mysql")]
-            PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(*pooled_mysql, self.cfg.to_owned())))),
+            crate::pool::PooledConnection::PooledMysql(pooled_mysql) => Ok(DatabasePlatform::Mysql(Box::new(MysqlDatabase::new(pooled_mysql)))),
             #[cfg(feature = "akita-sqlite")]
-            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(*pooled_sqlite, self.cfg.to_owned())))),
+            crate::pool::PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DatabasePlatform::Sqlite(Box::new(SqliteDatabase::new(pooled_sqlite)))),
             _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
         }
     }
@@ -114,67 +122,23 @@ impl Akita {
 #[allow(unused)]
 impl AkitaMapper for Akita {
     /// Get all the table of records
-    fn list<T>(&self, mut wrapper:Wrapper) -> Result<Vec<T>, AkitaError>
+    fn list<T>(&self, wrapper: Wrapper) -> Result<Vec<T>, AkitaError>
         where
             T: GetTableName + GetFields + FromValue,
 
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let columns = T::fields();
-        let enumerated_columns = columns
-            .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let select_fields = wrapper.get_select_sql();
-        let enumerated_columns = if select_fields.eq("*") {
-            enumerated_columns
-        } else {
-            select_fields
-        };
-        let where_condition = wrapper.get_sql_segment();
-        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(),where_condition);
         let mut conn = self.acquire()?;
-        let rows = conn.execute_result(&sql, Params::Nil)?;
-        let mut entities = vec![];
-        for data in rows.iter() {
-            let entity = T::from_value(&data);
-            entities.push(entity)
-        }
-        Ok(entities)
+        conn.list(wrapper)
     }
 
     /// Get one the table of records
-    fn select_one<T>(&self, mut wrapper:Wrapper) -> Result<Option<T>, AkitaError>
+    fn select_one<T>(&self, wrapper: Wrapper) -> Result<Option<T>, AkitaError>
         where
             T: GetTableName + GetFields + FromValue,
+
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let columns = T::fields();
-        let enumerated_columns = columns
-            .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let select_fields = wrapper.get_select_sql();
-        let enumerated_columns = if select_fields.eq("*") {
-            enumerated_columns
-        } else {
-            select_fields
-        };
-        let where_condition = wrapper.get_sql_segment();
-        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
         let mut conn = self.acquire()?;
-        let rows = conn.execute_result(&sql, Params::Nil)?;
-        Ok(rows.iter().next().map(|data| T::from_value(&data)))
+        conn.select_one(wrapper)
     }
 
     /// Get one the table of records by id
@@ -183,113 +147,41 @@ impl AkitaMapper for Akita {
             T: GetTableName + GetFields + FromValue,
             I: ToValue
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let columns = T::fields();
-        let col_len = columns.len();
-        let enumerated_columns = columns
-            .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
-            .collect::<Vec<_>>()
-            .join(", ");
         let mut conn = self.acquire()?;
-        if let Some(field) = columns.iter().find(| field| match field.field_type {
-            FieldType::TableId(_) => true,
-            FieldType::TableField => false,
-        }) {
-            let sql = match conn {
-                #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("SELECT {} FROM {} WHERE `{}` = ? limit 1", &enumerated_columns, &table.complete_name(), &field.name),
-                #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
-                _ => format!("SELECT {} FROM {} WHERE `{}` = ${} limit 1", &enumerated_columns, &table.complete_name(), &field.name, col_len + 1),
-            };
-
-            let rows = conn.execute_result(&sql, (id.to_value(),).into())?;
-            Ok(rows.iter().next().map(|data| T::from_value(&data)))
-        } else {
-            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
-        }
+        conn.select_by_id(id)
     }
 
     /// Get table of records with page
-    fn page<T>(&self, page: usize, size: usize, mut wrapper:Wrapper) -> Result<IPage<T>, AkitaError>
+    fn page<T>(&self, page: usize, size: usize, wrapper: Wrapper) -> Result<IPage<T>, AkitaError>
         where
             T: GetTableName + GetFields + FromValue,
 
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let columns = T::fields();
-        let enumerated_columns = columns
-            .iter().filter(|f| f.exist)
-            .map(|c| format!("`{}`", c.name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let select_fields = wrapper.get_select_sql();
-        let enumerated_columns = if select_fields.eq("*") {
-            enumerated_columns
-        } else {
-            select_fields
-        };
-        let where_condition = wrapper.get_sql_segment();
-        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let mut sql = format!("SELECT {} FROM {} {}", &enumerated_columns, &table.complete_name(), where_condition);
-        let count_sql = format!("select count(*) from ({}) TOTAL", &sql);
-        let count: i64 = self.exec_first(&count_sql, ())?;
-        let mut page = IPage::new(page, size ,count as usize, vec![]);
-        if page.total > 0 {
-            let sql = format!("SELECT {} FROM {} {} limit {}, {}", &enumerated_columns, &table.complete_name(), where_condition,page.offset(),  page.size);
-            let mut conn = self.acquire()?;
-            let rows = conn.execute_result(&sql, Params::Nil)?;
-            let mut entities = vec![];
-            for dao in rows.iter() {
-                let entity = T::from_value(&dao);
-                entities.push(entity)
-            }
-            page.records = entities;
-        }
-        Ok(page)
+        let mut conn = self.acquire()?;
+        conn.page(page, size, wrapper)
     }
 
     /// Get the total count of records
-    fn count<T>(&self, mut wrapper:Wrapper) -> Result<usize, AkitaError>
+    fn count<T>(&self, wrapper: Wrapper) -> Result<usize, AkitaError>
         where
             T: GetTableName + GetFields,
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let where_condition = wrapper.get_sql_segment();
-        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let sql = format!(
-            "SELECT COUNT(1) AS count FROM {} {}",
-            table.complete_name(),
-            where_condition
-        );
-        self.exec_first(&sql, ())
+        let mut conn = self.acquire()?;
+        conn.count::<T>(wrapper)
     }
 
     /// Remove the records by wrapper.
-    fn remove<T>(&self, mut wrapper:Wrapper) -> Result<u64, AkitaError>
+    fn remove<T>(&self, wrapper: Wrapper) -> Result<u64, AkitaError>
         where
             T: GetTableName + GetFields,
     {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let where_condition = wrapper.get_sql_segment();
-        let where_condition = if where_condition.trim().is_empty() { String::default() } else { format!("WHERE {}",where_condition) };
-        let sql = format!("delete from {} {}", &table.complete_name(), where_condition);
         let mut conn = self.acquire()?;
-        let _rows = conn.execute_result(&sql, Params::Nil)?;
-        Ok(conn.affected_rows())
+        conn.remove::<T>(wrapper)
+    }
+
+    fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64, AkitaError> where I: ToValue, T: GetTableName + GetFields {
+        let mut conn = self.acquire()?;
+        conn.remove_by_ids::<T, I>(ids)
     }
 
     /// Remove the records by id.
@@ -297,188 +189,24 @@ impl AkitaMapper for Akita {
         where
             I: ToValue,
             T: GetTableName + GetFields {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let cols = T::fields();
         let mut conn = self.acquire()?;
-        let col_len = cols.len();
-        if let Some(field) = cols.iter().find(| field| match field.field_type {
-            FieldType::TableId(_) => true,
-            FieldType::TableField => false,
-        }) {
-            let sql = match conn {
-                #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` = ?", &table.name, &field.name),
-                #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
-                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
-            };
-            let _rows = conn.execute_result(&sql, (id.to_value(),).into())?;
-            Ok(conn.affected_rows())
-        } else {
-            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
-        }
+        conn.remove_by_id::<T, I>(id)
     }
-
-
-    /// Remove the records by wrapper.
-    fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64, AkitaError>
-        where
-            I: ToValue,
-            T: GetTableName + GetFields {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let cols = T::fields();
-        let mut conn = self.acquire()?;
-        let col_len = cols.len();
-        if let Some(field) = cols.iter().find(| field| match field.field_type {
-            FieldType::TableId(_) => true,
-            FieldType::TableField => false,
-        }) {
-            let sql = match conn {
-                #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("delete from {} where `{}` in (?)", &table.name, &field.name),
-                #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("delete from {} where `{}` in (${})", &table.name, &field.name, col_len + 1),
-                _ => format!("delete from {} where `{}` = ${}", &table.name, &field.name, col_len + 1),
-            };
-            let ids = ids.iter().map(|v| v.to_value().to_string()).collect::<Vec<String>>().join(",");
-            let _rows = conn.execute_result(&sql, (ids,).into())?;
-            Ok(conn.affected_rows())
-        } else {
-            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
-        }
-    }
-
 
     /// Update the records by wrapper.
-    fn update<T>(&self, entity: &T, mut wrapper: Wrapper) -> Result<u64, AkitaError>
+    fn update<T>(&self, entity: &T, wrapper: Wrapper) -> Result<u64, AkitaError>
         where
             T: GetTableName + GetFields + ToValue {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
         let mut conn = self.acquire()?;
-        let columns = T::fields();
-        let mut sql = build_update_clause(&conn, entity, &mut wrapper);
-        let update_fields = wrapper.fields_set.to_owned();
-        let is_set = wrapper.get_set_sql().is_none();
-        if update_fields.is_empty() && !is_set {
-            sql = wrapper.table(&table.complete_name()).get_update_sql().unwrap_or_default();
-        }
-        let _bvalues: Vec<&Value> = Vec::new();
-        if update_fields.is_empty() && is_set {
-            let data = entity.to_value();
-            let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-            for col in columns.iter() {
-                if !col.exist || col.field_type.ne(&FieldType::TableField) {
-                    continue;
-                }
-                let col_name = &col.name;
-                let mut value = data.get_obj_value(&col_name);
-                match &col.fill {
-                    None => {}
-                    Some(v) => {
-                        match v.mode.as_ref() {
-                            "update" | "default" => {
-                                value = v.value.as_ref();
-                            }
-                            _=> {}
-                        }
-                    }
-                }
-                match value {
-                    Some(value) => values.push(value.clone()),
-                    None => values.push(Value::Nil),
-                }
-            }
-
-            let _rows = conn.execute_result(&sql, values.into())?;
-        } else {
-            let _rows = conn.execute_result(&sql, Params::Nil)?;
-        }
-        Ok(conn.affected_rows())
+        conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
     fn update_by_id<T>(&self, entity: &T) -> Result<u64, AkitaError>
         where
             T: GetTableName + GetFields + ToValue {
-        let table = T::table_name();
-        if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()))
-        }
-        let data = entity.to_value();
-        let columns = T::fields();
-        let col_len = columns.len();
         let mut conn = self.acquire()?;
-        if let Some(field) = T::fields().iter().find(| field| match field.field_type {
-            FieldType::TableId(_) => true,
-            FieldType::TableField => false,
-        }) {
-            let set_fields = columns
-                .iter().filter(|col| col.exist && col.field_type == FieldType::TableField)
-                .enumerate()
-                .map(|(x, col)| {
-                    #[allow(unreachable_patterns)]
-                    match conn {
-                        #[cfg(feature = "akita-mysql")]
-                        DatabasePlatform::Mysql(_) => format!("`{}` = ?", &col.name),
-                        #[cfg(feature = "akita-sqlite")]
-                        DatabasePlatform::Sqlite(_) => format!("`{}` = ${}",&col.name, x + 1),
-                        _ => format!("`{}` = ${}", &col.name, x + 1),
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            let sql = match conn {
-                #[cfg(feature = "akita-mysql")]
-                DatabasePlatform::Mysql(_) => format!("update {} set {} where `{}` = ?", &table.name, &set_fields, &field.name),
-                #[cfg(feature = "akita-sqlite")]
-                DatabasePlatform::Sqlite(_) => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
-                _ => format!("update {} set {} where `{}` = ${}", &table.name, &set_fields, &field.name, col_len + 1),
-            };
-            let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-            let id = data.get_obj_value(&field.name);
-            for col in columns.iter() {
-                if !col.exist || col.field_type.ne(&FieldType::TableField) {
-                    continue;
-                }
-                let col_name = &col.name;
-                let mut value = data.get_obj_value(col_name);
-                match &col.fill {
-                    None => {}
-                    Some(v) => {
-                        match v.mode.as_ref() {
-                            "update" | "default" => {
-                                value = v.value.as_ref();
-                            }
-                            _=> {}
-                        }
-                    }
-                }
-                match value {
-                    Some(value) => values.push(value.clone()),
-                    None => values.push(Value::Nil),
-                }
-            }
-            match id {
-                Some(id) => values.push(id.clone()),
-                None => {
-                    return Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident value...", &table.name)));
-                }
-            }
-            let _ = conn.execute_result(&sql, values.into())?;
-            Ok(conn.affected_rows())
-        } else {
-            Err(AkitaError::MissingIdent(format!("Table({}) Missing Ident...", &table.name)))
-        }
-
+        conn.update_by_id(entity)
     }
 
     #[allow(unused_variables)]
@@ -486,35 +214,8 @@ impl AkitaMapper for Akita {
         where
             T: GetTableName + GetFields + ToValue
     {
-        let columns = T::fields();
         let mut conn = self.acquire()?;
-        let sql = build_insert_clause(&conn, entities);
-
-        let mut values: Vec<Value> = Vec::with_capacity(entities.len() * columns.len());
-        for entity in entities.iter() {
-            for col in columns.iter() {
-                let data = entity.to_value();
-                let mut value = data.get_obj_value(&col.name);
-                match &col.fill {
-                    None => {}
-                    Some(v) => {
-                        match v.mode.as_ref() {
-                            "insert" | "default" => {
-                                value = v.value.as_ref();
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                match value {
-                    Some(value) => values.push(value.clone()),
-                    None => values.push(Value::Nil),
-                }
-            }
-        }
-        let bvalues: Vec<&Value> = values.iter().collect();
-        conn.execute_result(&sql,values.into())?;
-        Ok(())
+        conn.save_batch(entities)
     }
 
     /// called multiple times when using database platform that doesn;t support multiple value
@@ -523,115 +224,120 @@ impl AkitaMapper for Akita {
             T: GetTableName + GetFields + ToValue,
             I: FromValue,
     {
-        let columns = T::fields();
         let mut conn = self.acquire()?;
-        let sql = build_insert_clause(&conn, &[entity]);
-        let data = entity.to_value();
-        let mut values: Vec<Value> = Vec::with_capacity(columns.len());
-        for col in columns.iter() {
-            let mut value = data.get_obj_value(&col.name);
-            match &col.fill {
-                None => {}
-                Some(v) => {
-                    match v.mode.as_ref() {
-                        "insert" | "default" => {
-                            value = v.value.as_ref();
-                        }
-                        _=> {}
-                    }
-                }
-            }
-            match value {
-                Some(value) => values.push(value.clone()),
-                None => values.push(Value::Nil),
-            }
-        }
-        let _bvalues: Vec<&Value> = values.iter().collect();
-
-        conn.execute_result(&sql,values.into())?;
-        let _rows: Rows = match conn {
-            #[cfg(feature = "akita-mysql")]
-            DatabasePlatform::Mysql(_) => conn.execute_result("SELECT LAST_INSERT_ID();", Params::Nil)?,
-            #[cfg(feature = "akita-sqlite")]
-            DatabasePlatform::Sqlite(_) => conn.execute_result("SELECT LAST_INSERT_ROWID();", Params::Nil)?,
-            _ => return Err(AkitaError::UnknownDatabase("database must be init.".to_string()))
-        };
-        let last_insert_id = _rows.iter().next().map(|data| I::from_value(&data));
-        Ok(last_insert_id)
+        conn.save(entity)
     }
 
-    /// save or update
-    fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError>
-        where
-            T: GetTableName + GetFields + ToValue,
-            I: FromValue {
-        let data = entity.to_value();
-        let id = if let Some(field) = T::fields().iter().find(| field| match field.field_type {
-            FieldType::TableId(_) => true,
-            FieldType::TableField => false,
-        }) {
-            data.get_obj_value(&field.name).unwrap_or(&Value::Nil)
-        } else { &Value::Nil };
-        match id {
-            Value::Nil => {
-                self.save(entity)
-            },
-            _ => {
-                self.update_by_id(entity)?;
-                Ok(I::from_value(id).into())
-            }
-        }
+    fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError> where T: GetTableName + GetFields + ToValue, I: FromValue {
+        let mut conn = self.acquire()?;
+        conn.save_or_update(entity)
     }
 
     fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Rows, AkitaError> {
         let mut conn = self.acquire()?;
-        let rows = conn.execute_result(&sql.into(), params.into())?;
-        Ok(rows)
+        conn.exec_iter(sql, params)
     }
-
 }
 
 #[allow(unused)]
 mod test {
     use std::time::Duration;
-    use akita_core::ToValue;
-    use once_cell::sync::Lazy;
-    use crate::{Akita, AkitaTable, self as akita, AkitaConfig, LogLevel, AkitaMapper, Wrapper};
 
-    pub static AK:Lazy<Akita> = Lazy::new(|| {
-        let mut cfg = AkitaConfig::new("xxxx".to_string());
-        cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
+    use once_cell::sync::Lazy;
+
+    use akita_core::ToValue;
+
+    use crate::{Akita, AkitaConfig, AkitaMapper, Entity, Converter, self as akita, Wrapper};
+
+    pub static AK: Lazy<Akita> = Lazy::new(|| {
+        let mut cfg = AkitaConfig::new("mysql://root:longchen@localhost:3306/test");
+        cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5));
         let mut akita = Akita::new(cfg).unwrap();
         akita
     });
-    #[derive(Clone, Debug, AkitaTable)]
-    pub struct MchInfo {
-        #[table_id]
-        pub mch_no: Option<String>,
-        #[field(fill( function = "fffff", mode = "default"))]
-        pub mch_name: Option<String>,
+
+
+    pub struct EncrptConverter;
+
+    impl Converter<String> for EncrptConverter {
+        fn convert(data: &String) -> String {
+            "1".to_string()
+        }
+
+        fn revert(data: &String) -> String {
+            "2".to_string()
+        }
     }
 
-    #[sql(AK,"select * from mch_info where mch_no = ?")]
-    fn select(name: &str) -> Vec<MchInfo> {
+    #[derive(Clone, Debug, Entity)]
+    pub struct MchInfo {
+        #[id(name="mch_no", id_type="assign_uuid")]
+        pub mch_no: Option<String>,
+        #[field(fill(function = "test_function", mode = "default"))]
+        pub mch_name: Option<String>,
+        #[field(converter = "crate::akita::test::EncrptConverter")]
+        pub id_card_no: String,
+        #[field(exist = false)]
+        pub sinner: Option<Inner>,
+    }
+
+    #[derive(Clone, Debug, FromValue, ToValue)]
+    pub struct Inner {
+        pub id: i32,
+    }
+
+    #[sql(AK, "select * from mch_info where mch_no = ? and mch_no = ? limit ?")]
+    fn select(name: &str, id: u8, limit: u8) -> Vec<MchInfo> {
         todo!()
     }
 
-    fn fffff() -> String {
+    fn test_function() -> String {
         println!("跑起来啦");
         String::from("test")
-
     }
 
     #[test]
     fn test_akita() {
-        let mut cfg = AkitaConfig::new("xxxxx".to_string());
-        cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
+        let mut cfg = AkitaConfig::new("mysql://root:password@localhost:3306/akita");
+        cfg = cfg.set_max_size(5).set_connection_timeout(Duration::from_secs(5));
         // let mut akita = Akita::new(cfg).unwrap();
         let wrapper = Wrapper::new().eq(MchInfo::mch_no(), "sdff");
         // let data = akita.select_by_id::<MchInfo, _>("23234234").unwrap();
         //let s = select("23234234");
-        println!("ssssssss{:?}",wrapper.get_query_sql());
+        println!("ssssssss{:?}", wrapper.get_query_sql());
         // let s = select("i");
+    }
+
+    #[test]
+    fn test_select() {
+        let result = select("23234234", 1, 1).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_convert() {
+
+        let handles: Vec<_> = (0..1)
+            .map(|_| {
+                std::thread::spawn(move || {
+                    for _ in 0..1 {
+                        let result = AK.save::<_, String>(&MchInfo {
+                            mch_no: "ffff".to_string().into(),
+                            mch_name: "1111".to_string().into(),
+                            id_card_no: "sssdddd".to_string(),
+                            sinner: None,
+                        }).ok();
+                        println!("save ID: {:?}", result.unwrap_or_default());
+                    }
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // let result = AK.select_by_id::<MchInfo, &str>("ffff").unwrap();
+        // let result = EncrptConverter::revert(&"stest".to_string());
     }
 }

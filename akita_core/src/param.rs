@@ -1,16 +1,50 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use crate::value::{Value, ToValue};
 
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Params {
-    Nil, // no params
-    Vector(Vec<Value>), // vec
-    Custom(Vec<(String, Value)>), // custom params
+    Null,
+    Vector(Vec<Value>),
+    Custom(Vec<(String, Value)>),
 }
-// pub trait ToParam {
-//     fn to_param(&self) -> Params;
-// }
+
+impl std::fmt::Display for Params {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Params::Vector(v) => {
+                let v = v.iter().map(|value| format!("{}", value)).collect::<Vec<String>>().join(", ");
+                write!(f, "==> Parameters: {}",  v)
+            }
+            Params::Custom(v) => {
+                let v = v.iter().map(|(_, value)| format!("{}", value)).collect::<Vec<String>>().join(", ");
+                write!(f, "==> Parameters: {}", v)
+            }
+            Params::Null => {write!(f, "==> Parameters: Null")}
+        }
+    }
+}
 
 impl From<Vec<Value>> for Params {
     fn from(x: Vec<Value>) -> Params {
@@ -23,7 +57,7 @@ impl <T: ToValue> From<T> for Params {
     fn from(x: T) -> Params {
         let v = x.to_value();
         match v {
-            Value::Nil => Params::Nil,
+            Value::Null => Params::Null,
             _ => Params::Vector(vec![v.to_owned()]),
         }
         
@@ -55,7 +89,7 @@ where
 impl From<Value> for Params {
     fn from(x: Value) -> Params {
         match x {
-            Value::Nil => Params::Nil,
+            Value::Null => Params::Null,
             _ => Params::Vector(vec![x]),
         }
     }
@@ -66,7 +100,7 @@ impl <'a> From<&'a dyn ToValue> for Params {
         
         let v = x.to_value();
         match v {
-            Value::Nil => Params::Nil,
+            Value::Null => Params::Null,
             _ => Params::Vector(vec![v.to_owned()]),
         }
     }

@@ -1,0 +1,30 @@
+use serde::{Deserialize, Serialize};
+use snack_micro_framework::akita::NaiveDateTime;
+use snack_micro_framework::SnackRequest;
+
+///
+/// {{ table.comment }} 请求
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+#[allow(unused)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct {{ entity }}Request {
+{#- ----------  BEGIN 字段循环遍历  ---------- -#}
+{%- for field in table.fields %}
+	pub {{field.propertyName}}: Option<{{field.columnType}}>,
+{%- endfor %}
+{#- ----------  END 字段循环遍历  ---------- #}
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct {{ entity }}Query {
+
+}
+
+impl SnackRequest for {{ entity }}Query {
+
+}

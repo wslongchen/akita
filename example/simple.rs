@@ -1,14 +1,35 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use crate::{UpdateWrapper, Wrapper, wrapper, BaseMapper, AkitaError, value::*};
 use crate::pool::{AkitaConfig, LogLevel};
 use crate::{pool::Pool, data::*, IPage};
 use crate::manager::{GetTableName, TableName, FieldName, GetFields, FieldType, AkitaEntityManager};
 
-#[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
+#[derive(Debug, FromValue, ToValue, Entity, Clone)]
 #[table(name="t_system_user")]
 struct SystemUser {
     #[field = "name"]
     id: Option<i32>,
-    #[table_id]
+    #[id]
     username: String,
     #[field(name="ages", exist = "false")]
     age: i32,

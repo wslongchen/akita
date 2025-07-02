@@ -1,10 +1,23 @@
-// Copyright (c) 2021 akita contributors
-//
-// Licensed under the Apache License, Version 2.0
-// <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0> or the MIT
-// license <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. All files in the project carrying such notice may not be copied,
-// modified, or distributed except according to those terms.
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
 
 //! This create offers:
 //!
@@ -57,11 +70,11 @@
 //! # use chrono::{NaiveDateTime, NaiveDate};
 //! # use std::time::Duration;
 //! # use once_cell::sync::Lazy;
-//! /// Annotion Support: AkitaTable、table_id、field (name, exist)
-//! #[derive(AkitaTable, Clone, Default)]
+//! /// Annotion Support: Entity、id、field (name, exist)
+//! #[derive(Entity, Clone, Default)]
 //! #[table(name = "t_system_user")]
 //! pub struct User {
-//!     #[table_id(name = "id")]
+//!     #[id(name = "id")]
 //!     pub pk: i64,
 //!     pub id: String,
 //!     pub headline: Option<NaiveDateTime>,
@@ -186,13 +199,16 @@ mod platform;
 mod auth;
 mod manager;
 #[allow(unused)]
-#[cfg(feature = "akita-fuse")]
-mod fuse;
 mod akita;
+mod config;
+mod converter;
+mod key;
 
 
 #[doc(inline)]
 pub use wrapper::Wrapper;
+pub use converter::{*};
+pub use key::{IdentifierGenerator};
 #[doc(inline)]
 pub use database::Platform;
 #[doc(inline)]
@@ -200,19 +216,18 @@ pub use mapper::{BaseMapper, IPage, AkitaMapper};
 #[doc(inline)]
 pub use segment::{Segment, AkitaKeyword, ISegment};
 #[doc(inline)]
-pub use errors::AkitaError;
+pub use errors::{AkitaError, Result};
+pub use config::AkitaConfig;
 #[doc(inline)]
-pub use pool::{AkitaConfig, LogLevel, Pool};
+pub use pool::{Pool};
 #[cfg(feature = "akita-auth")]
 pub use auth::*;
-#[cfg(feature = "akita-fuse")]
-pub use fuse::*;
 pub use akita::*;
 #[doc(inline)]
-pub use manager::{AkitaEntityManager};
+pub use manager::{AkitaEntityManager, AkitaTransaction};
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
-// Re-export #[derive(AkitaTable)].
+// Re-export #[derive(Entity)].
 //
 // The reason re-exporting is not enabled by default is that disabling it would
 // be annoying for crates that provide handwritten impls or data formats. They
@@ -227,10 +242,3 @@ pub use akita_core as core;
 pub use akita_core::*;
 
 pub use crate::core::{FieldName, FieldType, GetFields, GetTableName, Table, ToValue, FromValue};
-
-pub use akita_core::*;
-
-#[cfg(feature = "akita-logging")]
-extern crate log;
-#[cfg(feature = "akita-tracing")]
-extern crate tracing;

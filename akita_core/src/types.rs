@@ -1,25 +1,44 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+use serde::{Deserialize, Serialize};
 use crate::value::{Array, Value};
 
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SqlType {
     Bool,
     Tinyint,
     Smallint,
     Int,
     Bigint,
-
     Real,
     Float,
     Double,
     Numeric,
-
     Tinyblob,
     Mediumblob,
     Blob,
     Longblob,
     Varbinary,
-
     Char,
     Varchar,
     Tinytext,
@@ -27,20 +46,15 @@ pub enum SqlType {
     Text,
     Json,
     TsVector,
-
     Uuid,
     Date,
     Timestamp,
     TimestampTz,
-
     Time,
     TimeTz,
     Interval,
-
     IpAddress,
-
     Point,
-
     // enum list with the choices value
     Enum(String, Vec<String>),
     Array(Box<SqlType>),
@@ -192,7 +206,7 @@ trait HasType {
 impl HasType for Value {
     fn get_type(&self) -> Option<SqlType> {
         match self {
-            Value::Nil => None,
+            Value::Null => None,
             Value::Bool(_) => Some(SqlType::Bool),
             Value::Tinyint(_) => Some(SqlType::Tinyint),
             Value::Smallint(_) => Some(SqlType::Smallint),
@@ -215,6 +229,7 @@ impl HasType for Value {
             Value::Array(Array::Int(_)) => Some(SqlType::Array(Box::new(SqlType::Int))),
             Value::Array(Array::Float(_)) => Some(SqlType::Array(Box::new(SqlType::Float))),
             Value::Array(Array::Text(_)) => Some(SqlType::Array(Box::new(SqlType::Text))),
+            Value::Array(Array::Json(_)) => Some(SqlType::Array(Box::new(SqlType::Json))),
             Value::Array(Array::Bool(_)) => Some(SqlType::Array(Box::new(SqlType::Bool))),
             Value::Array(Array::Tinyint(_)) => Some(SqlType::Array(Box::new(SqlType::Tinyint))),
             Value::Array(Array::Smallint(_)) => Some(SqlType::Array(Box::new(SqlType::Smallint))),

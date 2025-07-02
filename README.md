@@ -10,7 +10,7 @@
     </p>
   </div>
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.4.0?style=plastic
+[Build Status]: https://img.shields.io/docsrs/akita/0.5.0?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
 [crates.io]: https://crates.io/crates/akita
@@ -51,7 +51,7 @@ Click to show Cargo.toml.
 [dependencies]
 
 # The core APIs, including the Table traits. Always
-# required when using Akita. using #[derive(AkitaTable)] 
+# required when using Akita. using #[derive(Entity)] 
 # to make Akita work with structs defined in your crate.
 akita = { version = "0.4.0", features = ["akita-mysql"] }
 
@@ -65,11 +65,11 @@ akita = { version = "0.4.0", features = ["akita-mysql"] }
 ```rust
 use akita::*;
 
-/// Annotion Support: AkitaTable、table_id、field (name, exist, fill(function, mode))
-#[derive(AkitaTable, Clone, Default)]
+/// Annotion Support: Entity、id、field (name, exist, fill(function, mode))
+#[derive(Entity, Clone, Default)]
 #[table(name = "t_system_user")]
 pub struct User {
-    #[table_id(name = "id")]
+    #[id(name = "id")]
     pub pk: i64,
     pub id: String,
     pub headline: Option<NaiveDateTime>,
@@ -219,10 +219,10 @@ fn main() {
 
 ## Annotions.
 
-* ```AkitaTable``` - to make Akita work with structs
+* ```Entity``` - to make Akita work with structs
 * ```FromValue``` - from value with akita
 * ```ToValue``` - to value with akita
-* ```table_id``` - to make Table Ident
+* ```id``` - to make Table Ident
 * ```field``` - to make struct field with own database.
 * ```name``` - work with column, make the table's field name. default struct' field name.
 * ```exist``` - ignore struct's field with table. default true.

@@ -1,3 +1,25 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+use std::fmt::Formatter;
 use std::slice;
 use std::ops::Index;
 use crate::{AkitaDataError, from_value, from_value_opt, FromValue};
@@ -10,6 +32,26 @@ pub struct Rows {
     pub data: Vec<Row>,
     /// can be optionally set, indicates how many total rows are there in the table
     pub count: Option<usize>,
+}
+
+impl Default for Rows {
+    fn default() -> Self {
+        Self {
+            data: vec![],
+            count: None,
+        }
+    }
+}
+
+impl std::fmt::Display for Rows {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        write!(f, "<==    Columns: {}\n", self.data.iter().next().map(|v| v.columns.join(", ")).unwrap_or("[]".to_string()))?;
+        for data in self.data.iter() {
+            write!(f, "<==        Row: {}\n", data.data.iter().map(|v| format!("{}",v)).collect::<Vec<String>>().join(", "))?;
+        }
+        write!(f, "<==      Total: {}", self.count.unwrap_or(self.data.len()))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

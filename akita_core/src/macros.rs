@@ -1,3 +1,24 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 #[macro_export(local_inner_macros)]
 macro_rules! akita_value {
     // Hide distracting implementation details from the generated rustdoc.
@@ -382,63 +403,3 @@ macro_rules! params {
         }
     }
 }
-
-//
-// /// This macro is a convenient way to pass named parameters to a statement.
-// ///
-// /// ```ignore
-// /// let a: StructA = StructA {
-// ///     field: "name"
-// /// };
-// /// let b: StructB = copy_properties!(a, StructB);
-// /// ```
-// #[macro_export]
-// macro_rules! copy_properties {
-//     () => {
-//         panic!("element can not be empty!")
-//     };
-//     (@to_pair $name:expr => $value:expr) => (
-//         (std::string::String::from($name), akita_core::Value::from($value))
-//     );
-//     (@to_pair $name:ident) => (
-//         (std::string::String::from(stringify!($name)), akita_core::Value::from($name))
-//     );
-//     (@expand $vec:expr;) => {};
-//     (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {
-//         $vec.push(params!(@to_pair $name => $value));
-//         params!(@expand $vec; $($tail)*);
-//     };
-//     (@expand $vec:expr; $name:expr => $value:expr $(, $tail:tt)*) => {
-//         $vec.push(params!(@to_pair $name => $value));
-//         params!(@expand $vec; $($tail)*);
-//     };
-//     (@expand $vec:expr; $name:ident, $($tail:tt)*) => {
-//         $vec.push(params!(@to_pair $name));
-//         params!(@expand $vec; $($tail)*);
-//     };
-//     (@expand $vec:expr; $name:ident $(, $tail:tt)*) => {
-//         $vec.push(params!(@to_pair $name));
-//         params!(@expand $vec; $($tail)*);
-//     };
-//     ($i:ident, $($tail:tt)*) => {
-//         {
-//             let mut output = std::vec::Vec::new();
-//             params!(@expand output; $i, $($tail)*);
-//             output
-//         }
-//     };
-//     ($i:expr => $($tail:tt)*) => {
-//         {
-//             let mut output = std::vec::Vec::new();
-//             params!(@expand output; $i => $($tail)*);
-//             output
-//         }
-//     };
-//     ($i:ident) => {
-//         {
-//             let mut output = std::vec::Vec::new();
-//             params!(@expand output; $i);
-//             output
-//         }
-//     }
-// }

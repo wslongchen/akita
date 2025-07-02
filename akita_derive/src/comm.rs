@@ -1,3 +1,24 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use regex::Regex;
 use lazy_static::lazy_static;
 use proc_macro2::{Span};
@@ -10,6 +31,30 @@ lazy_static! {
 
 
 pub static CUSTOM_ARG_LIFETIME: &str = "v_a";
+
+pub static ALLOW_TABLE_ID_TYPES :[&str; 20] = [
+    "u32",
+    "u64",
+    "u128",
+    "String",
+    "&str",
+    "i32",
+    "i64",
+    "i128",
+    "usize",
+    "iszie",
+
+    "Option<u32>",
+    "Option<u64>",
+    "Option<u128>",
+    "Option<String>",
+    "Option<&str>",
+    "Option<i32>",
+    "Option<i64>",
+    "Option<i128>",
+    "Option<usize>",
+    "Option<iszie>",
+];
 
 pub static CUSTOM_ARG_ALLOWED_COPY_TYPES: [&str; 14] = [
     "usize",
@@ -71,6 +116,7 @@ pub static NUMBER_TYPES: [&str; 38] = [
 
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct FieldInformation {
     pub field: syn::Field,
     pub field_type: String,
@@ -90,14 +136,16 @@ impl FieldInformation {
 }
 
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub enum FieldExtra {
     Field,
-    TableId(String),
+    TableId,
     Name(String),
     IdType(String),
     Table(String),
     Select(bool),
     Exist(bool),
+    Converter(String),
     Fill {
         /// This is the name of the function that should be cacalledlled
         function: String,
@@ -111,6 +159,7 @@ pub enum FieldExtra {
 /// This struct stores information about defined custom arguments that will be passed in
 /// by the user in the annotion step.
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct CustomArgument {
     /// The span of type definition, this can be used in combination with `quote_spanned!` for
     /// better error reporting

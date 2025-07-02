@@ -1,0 +1,66 @@
+use crate::APPLICATION_CONTEXT;
+use snack_micro_framework::axum::extract::Path;
+use snack_micro_framework::axum::routing::{delete, get, post};
+use snack_micro_framework::axum::{Json, Router};
+use snack_micro_framework::{Controller, R};
+use snack_micro_framework::{MicroResult, Service};
+use crate::domain::{ {{ entity }}, {{ entity }}Response};
+use crate::service::I{{ entity }}Service;
+
+///
+/// {{ table.comment }} Service服务
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+pub struct {{ entity }}Controller;
+
+impl Controller for {{ entity }}Controller {
+    fn load_routes() -> Router {
+        Router::new()
+            .nest("/apiconf", Router::new()
+                .route("/:id", get(Self::get_by_id))
+                .route("/:id", delete(Self::remove_by_id))
+                .route("/", post(Self::save).put(Self::update)))
+    }
+}
+
+impl {{ entity }}Controller {
+
+    /// 通过ID查询
+    pub async fn get_by_id(Path(id) : Path<i64>) -> MicroResult<R<{{ entity }}Response>> {
+
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let resp = service.find_by_id(id.to_string())?;
+        Ok(R::from_opt(resp))
+    }
+
+    /// 保存数据
+    pub async fn save(Json(req): Json<{{ entity }}>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        service.save(&req)?;
+        Ok(R::success())
+    }
+
+
+
+
+    /// 删除数据
+    pub async fn remove_by_id(Path(id) : Path<i64>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        service.del(&id.to_string());
+        Ok(R::success())
+    }
+
+
+
+    /// 编辑数据
+    pub async fn update(Json(req): Json<{{ entity }}>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let _ = service.update_by_id(&req)?;
+        Ok(R::success())
+    }
+
+}
+

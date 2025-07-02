@@ -1,0 +1,7 @@
+target/
+Cargo.lock
+*.log
+.idea
+.vscode
+/.idea/
+.gitignore

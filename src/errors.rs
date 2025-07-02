@@ -1,9 +1,33 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! Common Errors.
 //! 
 use std::{fmt, str::Utf8Error, string::ParseError};
+use akita_core::AkitaDataError;
 
 use crate::ConvertError;
+
+pub type Result<T> = std::result::Result<T, AkitaError>;
 
 
 #[derive(Debug)]
@@ -15,7 +39,7 @@ pub enum AkitaError {
     MissingField(String),
     MySQLError(String),
     SQLiteError(String),
-    ExcuteSqlError(String, String),
+    ExecuteSqlError(String, String),
     DataError(String),
     R2D2Error(String),
     UrlParseError(String),
@@ -31,7 +55,7 @@ impl fmt::Display for AkitaError {
             AkitaError::Unknown => write!(f, "Unknown Error"),
             AkitaError::InvalidSQL(ref err) => err.fmt(f),
             AkitaError::InvalidField(ref err) => err.fmt(f),
-            AkitaError::ExcuteSqlError(ref err, ref sql) => write!(f, "SQL Excute Error: {}, SQL: {}", err, sql),
+            AkitaError::ExecuteSqlError(ref err, ref sql) => write!(f, "SQL Execute Error: {}, SQL: {}", err, sql),
             AkitaError::UnsupportedOperation(ref err) => write!(f, "Unsupported operation: {}", err),
             AkitaError::UnknownDatabase(ref schema) => write!(f, "Unknown Database URL :{} (Just Support MySQL)", schema),
             AkitaError::MissingIdent(ref err) => err.fmt(f),
@@ -54,7 +78,7 @@ impl std::error::Error for AkitaError {
             AkitaError::Unknown => "Unknown Error",
             AkitaError::UnknownDatabase(ref err) => err,
             AkitaError::InvalidSQL(ref err) => err,
-            AkitaError::ExcuteSqlError(ref err, ref _sql) => err,
+            AkitaError::ExecuteSqlError(ref err, ref _sql) => err,
             AkitaError::InvalidField(ref err) => err,
             AkitaError::UnsupportedOperation(ref err) => err,
             AkitaError::UrlParseError(ref err) => err,
@@ -75,6 +99,11 @@ impl std::error::Error for AkitaError {
 impl From<Utf8Error> for AkitaError {
     fn from(err: Utf8Error) -> Self {
         AkitaError::MySQLError(err.to_string())
+    }
+}
+impl From<AkitaDataError> for AkitaError {
+    fn from(err: AkitaDataError) -> Self {
+        AkitaError::DataError(err.to_string())
     }
 }
 

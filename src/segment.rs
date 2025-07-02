@@ -1,4 +1,25 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! SQL Segments.
 //! 
 use crate::{comm::*, Wrapper};
@@ -13,7 +34,7 @@ pub enum Segment{
     Keyword(SqlKeyword),
     Float(f64),
     ColumnField(String),
-    Extenssion(String),
+    Extensions(String),
     JsonValue(serde_json::Value),
     Text(String),
     Int32(i32),
@@ -31,7 +52,7 @@ pub enum Segment{
     U64(u64),
     Wrapper(Box<Wrapper>),
     Str(&'static str),
-    Nil,
+    Null,
 }
 
 /// AkitaKeyword is mainly used to distinguish 
@@ -134,10 +155,10 @@ impl ISegment for Segment {
             Segment::Keyword(keyword) => keyword.get_sql_segment(),
             Segment::ColumnField(val) => format!("{}", val),
             Segment::Float(val) => format!("{}", val),
-            Segment::Extenssion(val) => format!("{}", val),
+            Segment::Extensions(val) => format!("{}", val),
             Segment::Text(val) => format!("{}", val),
             Segment::Int32(val) => format!("{}", val),
-            Segment::Nil => String::default().to_string(),
+            Segment::Null => String::default().to_string(),
             Segment::Int64(val) => format!("{}", val),
             Segment::Usize(val) => format!("{}", val),
             Segment::U32(val) => format!("{}", val),
@@ -241,7 +262,7 @@ where
         
         match self {
             Some(v) => v.to_segment(),
-            None => Segment::Nil,
+            None => Segment::Null,
         }
     }
 }
@@ -259,9 +280,9 @@ impl ToSegment for str
 {
     fn to_segment(&self) -> Segment {
         if self.is_empty() {
-            return Segment::Nil
+            return Segment::Null
         }
-        Segment::Extenssion(format!("{}", self.replace(SINGLE_QUOTE, EMPTY)))
+        Segment::Extensions(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
 
@@ -269,9 +290,9 @@ impl ToSegment for &str
 {
     fn to_segment(&self) -> Segment {
         if self.is_empty() {
-            return Segment::Nil
+            return Segment::Null
         }
-        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
+        Segment::Extensions(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
 
@@ -286,9 +307,9 @@ impl ToSegment for String
 {
     fn to_segment(&self) -> Segment {
         if self.is_empty() {
-            return Segment::Nil
+            return Segment::Null
         }
-        Segment::Extenssion(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
+        Segment::Extensions(format!("'{}'", self.replace(SINGLE_QUOTE, EMPTY)))
     }
 }
 
@@ -316,7 +337,7 @@ impl ToSegment for AkitaKeyword
 {
     fn to_segment(&self) -> Segment {
         match self {
-            AkitaKeyword::SqlExtenssion(ref ext) => Segment::Extenssion(ext.to_string()),
+            AkitaKeyword::SqlExtenssion(ref ext) => Segment::Extensions(ext.to_string()),
         }
     }
 }
@@ -408,7 +429,7 @@ impl SegmentList {
         self.sql_segment.clear();
     }
 
-    fn is_empty(&mut self) -> bool {
+    fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
 
@@ -432,7 +453,7 @@ impl SegmentList {
             SegmentType::OrderBy => { 
                 list.remove(0);
                 if !self.segments.is_empty() {
-                    list.insert(0, Segment::Extenssion(COMMA.to_string()));
+                    list.insert(0, Segment::Extensions(COMMA.to_string()));
                 }
                 // let sql = list.iter().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE);
                 // list.clear(); 
@@ -440,8 +461,8 @@ impl SegmentList {
                 true
             },
             SegmentType::Normal => {
-                let first = first_segment.unwrap_or(&Segment::Nil);
-                let last = self.last_value.as_ref().unwrap_or(&Segment::Nil);
+                let first = first_segment.unwrap_or(&Segment::Null);
+                let last = self.last_value.as_ref().unwrap_or(&Segment::Null);
                 if list.len() == 1 {
                     /* 只有 and() 以及 or() 以及 not() 会进入 */
                     if !MatchSegment::NOT.matches(first) {
@@ -499,7 +520,7 @@ impl SegmentList {
                 SPACE.to_string() + SqlKeyword::ORDER_BY.get_sql_segment().as_str() + SPACE + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str()
             },
             SegmentType::Normal => {
-                if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Nil)) {
+                if MatchSegment::AND_OR.matches(&self.last_value.as_ref().unwrap_or(&Segment::Null)) {
                     self.remove_and_flush_last();
                 }
                 LEFT_BRACKET.to_string() + self.segments.iter_mut().map(|seg| seg.get_sql_segment()).collect::<Vec<String>>().join(SPACE).as_str() + RIGHT_BRACKET
@@ -534,7 +555,7 @@ impl MergeSegments {
             } else if MatchSegment::HAVING.matches(&segment) {
                 self.having.add_all(segments);
             } else {
-                if !segments.contains(&Segment::Nil) {
+                if !segments.contains(&Segment::Null) {
                     self.normal.add_all(segments);
                 }
             }
@@ -543,8 +564,8 @@ impl MergeSegments {
 
     pub fn get_normal(self) -> Vec<Segment> {
         let mut segs = self.normal.segments;
-        segs.insert(0, Segment::Extenssion(LEFT_BRACKET.to_string()));
-        segs.insert(segs.len(), Segment::Extenssion(RIGHT_BRACKET.to_string()));
+        segs.insert(0, Segment::Extensions(LEFT_BRACKET.to_string()));
+        segs.insert(segs.len(), Segment::Extensions(RIGHT_BRACKET.to_string()));
         segs
     }
 
@@ -563,14 +584,14 @@ impl MergeSegments {
 
 impl SqlLike {
     pub fn concat_like(&self, mut val:Segment) -> Segment {
-        if val.eq(&Segment::Nil) {
-            return Segment::Nil;
+        if val.eq(&Segment::Null) {
+            return Segment::Null;
         }
         let val = val.get_sql_segment().replace(SINGLE_QUOTE, EMPTY);
         match *self {
-            SqlLike::DEFAULT => Segment::Extenssion(format!("'%{}%'", val)),
-            SqlLike::LEFT => Segment::Extenssion(format!("'%{}'", val)),
-            SqlLike::RIGHT => Segment::Extenssion(format!("'{}%'", val)),
+            SqlLike::DEFAULT => Segment::Extensions(format!("'%{}%'", val)),
+            SqlLike::LEFT => Segment::Extensions(format!("'%{}'", val)),
+            SqlLike::RIGHT => Segment::Extensions(format!("'{}%'", val)),
         }
     }
 }
