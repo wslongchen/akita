@@ -1,5 +1,15 @@
 # Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
 
+<div>
+    <p align="center">
+      <img src="http://img.snackcloud.cn/snackcloud/shop/snack_logo.png" alt="猫狗试验室" width="248" height="248">
+    </p>
+    <p align="center"><strong>猫狗试验室出品</strong></p>
+    <p align="center">
+      这是一个热爱🫶技术，热爱🔥生活的团队. <br>很欢迎大家能够一起学习📑、沟通💬 .
+    </p>
+  </div>
+
 [Build Status]: https://img.shields.io/docsrs/akita/0.5.0?style=plastic
 [actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
 [Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
