@@ -1,3 +1,24 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use std::hash::{Hasher, Hash};
 
 use serde::{Serialize, Deserialize};
@@ -65,7 +86,7 @@ impl TableName {
         }
     }
 
-    pub fn name(&self) -> String { self.name.to_owned() }
+    pub fn name(&self) -> String { self.name.to_string() }
 
     pub fn safe_name(&self) -> String { keywords_safe(&self.name) }
 
@@ -87,7 +108,7 @@ impl TableName {
 
 /// Field
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct FieldName {
     pub name: String,
     pub table: Option<String>,
@@ -99,16 +120,38 @@ pub struct FieldName {
     pub field_type: FieldType,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Fill {
     pub mode: String,
     pub value: Option<Value>,
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum IdentifierType {
+    Auto,
+    Input,
+    None,
+    AssignId,
+    AssignUuid
+}
+
+impl IdentifierType {
+    pub fn from_str(ident: &str) -> Self {
+        let ident = ident.to_lowercase();
+        match ident.as_str() {
+            "auto" => Self::Auto,
+            "input" => Self::Input,
+            "assign_id" => Self::AssignId,
+            "assign_uuid" => Self::AssignUuid,
+            _=> Self::None,
+        }
+
+    }
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum FieldType {
-    TableId(String),
+    TableId(IdentifierType),
     TableField
 }
 
@@ -160,21 +203,37 @@ impl FieldName {
             None => self.name.to_owned(),
         }
     }
+
+    /// 判断是否主键
+    pub fn is_table_id(&self) -> bool {
+        match self.field_type {
+            FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }
+    }
+
+    /// 获取主键类型
+    pub fn get_table_id_type(&self) -> Option<&IdentifierType> {
+        match &self.field_type {
+            FieldType::TableId(id_type) => Some(id_type),
+            FieldType::TableField => None,
+        }
+    }
 }
 
 
 
 
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct TableDef {
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct TableInfo {
     pub name: TableName,
 
     /// comment of this table
     pub comment: Option<String>,
 
     /// columns of this table
-    pub columns: Vec<ColumnDef>,
+    pub columns: Vec<ColumnInfo>,
 
     /// views can also be generated
     pub is_view: bool,
@@ -182,8 +241,8 @@ pub struct TableDef {
     pub table_key: Vec<TableKey>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct ColumnDef {
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ColumnInfo {
     pub table: TableName,
     pub name: FieldName,
     pub comment: Option<String>,
@@ -191,14 +250,14 @@ pub struct ColumnDef {
     pub stat: Option<ColumnStat>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ColumnSpecification {
     pub sql_type: SqlType,
     pub capacity: Option<Capacity>,
     pub constraints: Vec<ColumnConstraint>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Capacity {
     Limit(i32),
     Range(i32, i32),
@@ -221,7 +280,7 @@ impl Capacity {
 
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ColumnConstraint {
     NotNull,
     DefaultValue(Literal),
@@ -240,7 +299,7 @@ impl ColumnConstraint {
 }
 
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Literal {
     Bool(bool),
     Null,
@@ -274,7 +333,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ColumnStat {
     pub avg_width: i32, /* average width of the column, (the number of characters) */
     //most_common_values: Value,//top 5 most common values
@@ -309,13 +368,13 @@ impl ColumnSpecification {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Key {
     pub name: Option<String>,
     pub columns: Vec<FieldName>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ForeignKey {
     pub name: Option<String>,
     // the local columns of this table local column = foreign_column
@@ -328,7 +387,7 @@ pub struct ForeignKey {
 }
 
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum TableKey {
     PrimaryKey(Key),
     UniqueKey(Key),

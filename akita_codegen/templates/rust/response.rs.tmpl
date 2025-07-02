@@ -1,0 +1,34 @@
+
+use serde::{Deserialize, Serialize};
+use snack_micro_framework::akita::{self as akita, Entity, NaiveDateTime};
+
+///
+/// {{ table.comment }} 响应
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+#[allow(unused)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct {{ entity }}Response {
+{#- ----------  BEGIN 字段循环遍历  ---------- -#}
+{%- for field in table.fields %}
+	pub {{field.propertyName}}: Option<{{field.columnType}}>,
+{%- endfor %}
+{#- ----------  END 字段循环遍历  ---------- #}
+}
+
+
+impl From<{{ entity }}> for {{ entity }}Response {
+    fn from(v: {{ entity }}) -> Self {
+        Self {
+        {#- ----------  BEGIN 字段循环遍历  ---------- -#}
+        {%- for field in table.fields %}
+            {{field.propertyName}}: v.{{field.propertyName}},
+        {%- endfor %}
+        {#- ----------  END 字段循环遍历  ---------- #}
+        }
+    }
+}
+

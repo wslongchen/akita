@@ -1,86 +1,108 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! MySQL modules.
 //!
 use mysql::prelude::Protocol;
-use mysql::{Conn, Error, Opts, OptsBuilder, Row, prelude::Queryable};
-use r2d2::{ManageConnection, Pool};
+use mysql::{Conn, Error, Opts, Row, prelude::Queryable};
+use r2d2::{ManageConnection};
 
-use std::result::Result;
 use std::time::Instant;
-use akita_core::Array;
+use akita_core::{Array, ColumnInfo};
 
-use crate::{AkitaConfig, Params, self as akita};
+use crate::{Params, self as akita, AkitaError};
 
 cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 use crate::database::Database;
 use serde_json::Map;
-use crate::{ToValue, Value, FromValue, Rows, SqlType, cfg_if, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent, comm};
-type R2d2Pool = Pool<MysqlConnectionManager>;
+use tracing::trace;
+use crate::{ToValue, Value, FromValue, Rows, SqlType, cfg_if, FieldName, ColumnSpecification, DatabaseName, TableInfo, TableName, SchemaContent, comm, AkitaConfig};
+use crate::errors::Result;
+
+pub type MysqlPool = r2d2::Pool<MysqlConnectionManager>;
+pub type MysqlConnection = r2d2::PooledConnection<MysqlConnectionManager>;
 
 #[derive(Debug)]
-pub struct MysqlDatabase(r2d2::PooledConnection<MysqlConnectionManager>, AkitaConfig);
+pub struct MysqlDatabase(MysqlConnection);
 
 impl MysqlDatabase {
-    pub fn new(pool: r2d2::PooledConnection<MysqlConnectionManager>, cfg: AkitaConfig) -> Self {
-        MysqlDatabase(pool, cfg)
+    pub fn new(pool: MysqlConnection) -> Self {
+        MysqlDatabase(pool)
     }
 }
 
 /// MYSQL数据操作
 impl Database for MysqlDatabase {
-    fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("START TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn start_transaction(&mut self) -> Result<()> {
+        self.execute_result("START TRANSACTION", Params::Null).map(|_| ())
     }
 
-    fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn commit_transaction(&mut self) -> Result<()> {
+        self.execute_result("COMMIT", Params::Null).map(|_| ())
     }
 
-    fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn rollback_transaction(&mut self) -> Result<()> {
+        self.execute_result("ROLLBACK", Params::Null).map(|_| ())
     }
     
-    fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows, AkitaError> {
+    fn execute_result(&mut self, sql: &str, param: Params) -> Result<Rows> {
         let now = Instant::now();
-        log::trace!("\n==>  Preparing: {}\n{}", sql, param);
-        fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows, AkitaError> {
+        trace!("\n==>  Preparing: {}\n{}", sql, param);
+        fn collect<T: Protocol>(mut rows: mysql::QueryResult<T>) -> Result<Rows> {
             let column_types: Vec<_> = rows.columns().as_ref().iter().map(|c| c.column_type()).collect();
             let _fields = rows
                 .columns().as_ref()
                 .iter()
-                .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string))
-                .collect::<Result<Vec<String>, _>>()
-                .map_err(|e| AkitaError::from(e))?;
+                .map(|c| std::str::from_utf8(c.name_ref()).map(ToString::to_string).map_err(AkitaError::from))
+                .collect::<Result<Vec<String>>>()
+                ?;
 
             let mut records = Rows::new();
             for r in rows.by_ref() {
-                records.push(into_record(r.map_err(AkitaError::from)?, &column_types)?);
+                records.push(into_record(r?, &column_types)?);
             }
             Ok(records)
         }
         let result: Rows = match param {
-            Params::Nil => {
+            Params::Null => {
                 let rows = self
                 .0
-                .query_iter(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
-                let rows: Rows = collect(rows)?;
+                .query_iter(&sql)?;
+                let rows = collect(rows)?;
                 Ok::<Rows, AkitaError>(rows)
             },
             Params::Vector(param) => {
                 let stmt = self
                 .0
-                .prep(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                .prep(&sql)?;
                 let params: mysql::Params = param
                     .iter()
                     .map(|v| MySQLValue(v))
                     .map(|v| mysql::prelude::ToValue::to_value(&v))
                     .collect::<Vec<_>>()
                     .into();
-                let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                let rows = self.0.exec_iter(stmt, &params)?;
                 let rows = collect(rows)?;
                 Ok(rows)
             },
@@ -97,45 +119,42 @@ impl Database for MysqlDatabase {
                 let param = values.iter().map(|v| v.1).collect::<Vec<_>>();
                 let stmt = self
                 .0
-                .prep(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                .prep(&sql)?;
                 let params: mysql::Params = param
                     .iter()
                     .map(|v| MySQLValue(v))
                     .map(|v| mysql::prelude::ToValue::to_value(&v))
                     .collect::<Vec<_>>()
                     .into();
-                let rows = self.0.exec_iter(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                let rows = self.0.exec_iter(stmt, &params)?;
                 let rows = collect(rows)?;
                 Ok(rows)
             },
         }?;
-        log::trace!("\n{}, cost:{}", result, now.elapsed().as_millis());
+        trace!("\n{}, cost:{}", result, now.elapsed().as_millis());
         Ok(result)
     }
     
-    fn execute_drop(&mut self, sql: &str, param: Params) -> Result<(), AkitaError> {
+    fn execute_drop(&mut self, sql: &str, param: Params) -> Result<()> {
         let now = Instant::now();
-        log::trace!("\n==>  Preparing: {}\n{}", sql, param);
+        trace!("\n==>  Preparing: {}\n{}", sql, param);
         let _ = match param {
-            Params::Nil => {
+            Params::Null => {
                 self
                 .0
                 .exec_drop(&sql, ())
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))
             },
             Params::Vector(param) => {
                 let stmt = self
                 .0
-                .prep(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                .prep(&sql)?;
                 let params: mysql::Params = param
                     .iter()
                     .map(|v| MySQLValue(v))
                     .map(|v| mysql::prelude::ToValue::to_value(&v))
                     .collect::<Vec<_>>()
                     .into();
-                self.0.exec_drop(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))
+                self.0.exec_drop(stmt, &params)
             },
             Params::Custom(param) => {
                 let mut format_sql = sql.to_owned();
@@ -150,22 +169,21 @@ impl Database for MysqlDatabase {
                 let param = values.iter().map(|v| v.1).collect::<Vec<_>>();
                 let stmt = self
                 .0
-                .prep(&sql)
-                .map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))?;
+                .prep(&sql)?;
                 let params: mysql::Params = param
                     .iter()
                     .map(|v| MySQLValue(v))
                     .map(|v| mysql::prelude::ToValue::to_value(&v))
                     .collect::<Vec<_>>()
                     .into();
-                self.0.exec_drop(stmt, &params).map_err(|e| AkitaError::ExcuteSqlError(e.to_string(), sql.to_string()))
+                self.0.exec_drop(stmt, &params)
             },
         }?;
-        log::trace!("[Akita]: excute end, cost:{}", now.elapsed().as_millis());
+        trace!("[Akita]: execute completed, cost:{}", now.elapsed().as_millis());
         Ok(())
     }
 
-    fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
+    fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableInfo>> {
         #[derive(Debug, FromValue)]
         struct TableSpec {
             schema: String,
@@ -199,7 +217,7 @@ impl Database for MysqlDatabase {
         .map(|data| FromValue::from_value(&data))
         .collect();
         let table_spec = match tables.len() {
-            0 => return Err(AkitaError::DataError("Unknown table finded.".to_string())),
+            0 => return Err(AkitaError::DataError("Unknown table found.".to_string())),
             _ => tables.remove(0),
         };
 
@@ -212,7 +230,7 @@ impl Database for MysqlDatabase {
             type_: String,
         }
         let table_schema: Value =  table_spec.schema.clone().into();
-        let columns: Vec<ColumnDef> = self
+        let columns: Vec<ColumnInfo> = self
             .execute_result(
                 r#"
                 SELECT TABLE_SCHEMA AS `schema`,
@@ -254,7 +272,7 @@ impl Database for MysqlDatabase {
                             "smallint" | "smallint unsigned" | "year" => SqlType::Smallint,
                             "mediumint" | "mediumint unsigned" => SqlType::Int,
                             "int" | "int unsigned" => SqlType::Int,
-                            "bigint" | "bigin unsigned" => SqlType::Bigint,
+                            "bigint" | "bigint unsigned" => SqlType::Bigint,
                             "float" | "float unsigned" => SqlType::Float,
                             "double" | "double unsigned" => SqlType::Double,
                             "decimal" => SqlType::Numeric,
@@ -278,7 +296,7 @@ impl Database for MysqlDatabase {
                         (sql_type, capacity)
                     };
 
-                ColumnDef {
+                ColumnInfo {
                     table: TableName::from(&format!("{}.{}", spec.schema, spec.table_name)),
                     name: FieldName::from(&spec.name),
                     comment: Some(spec.comment),
@@ -293,7 +311,7 @@ impl Database for MysqlDatabase {
             })
             .collect();
 
-        Ok(Some(TableDef {
+        Ok(Some(TableInfo {
             name: TableName {
                 name: table_spec.name,
                 schema: Some(table_spec.schema),
@@ -307,7 +325,7 @@ impl Database for MysqlDatabase {
         }))
     }
 
-    fn exist_table(&mut self, table_name: &TableName) -> Result<bool, AkitaError> {
+    fn exist_table(&mut self, table_name: &TableName) -> Result<bool> {
         let sql = "SELECT count(1) as count FROM information_schema.tables WHERE TABLE_SCHEMA = ? and TABLE_NAME = ?";
         self.execute_result(&sql, (&table_name.name, &table_name.schema).into()).map(|rows| {
             rows.iter().next()
@@ -318,7 +336,7 @@ impl Database for MysqlDatabase {
         })
     }
 
-    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError> {
+    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>> {
         let table_names = get_table_names(&mut *self, &"BASE TABLE".to_string())?;
         let view_names = get_table_names(&mut *self, &"VIEW".to_string())?;
         let mut schema_contents: Vec<SchemaContent> = Vec::new();
@@ -351,7 +369,7 @@ impl Database for MysqlDatabase {
         Ok(schema_contents)
     }
 
-    fn get_all_tables(&mut self, schema: &str) -> Result<Vec<TableDef>, AkitaError> {
+    fn get_all_tables(&mut self, schema: &str) -> Result<Vec<TableInfo>> {
         let tablenames = self.get_tablenames(schema)?;
         Ok(tablenames
             .iter()
@@ -359,7 +377,7 @@ impl Database for MysqlDatabase {
             .collect())
     }
 
-    fn get_tablenames(&mut self, schema: &str) -> Result<Vec<TableName>, AkitaError> {
+    fn get_tablenames(&mut self, schema: &str) -> Result<Vec<TableName>> {
         #[derive(Debug, FromValue)]
         struct TableNameSimple {
             table_name: String,
@@ -385,15 +403,15 @@ impl Database for MysqlDatabase {
         &mut self,
         _table_name: &TableName,
         _sequence_value: i64,
-    ) -> Result<Option<i64>, AkitaError> {
+    ) -> Result<Option<i64>> {
         todo!()
     }
 
     fn get_autoincrement_last_value(
         &mut self,
         _table_name: &TableName,
-    ) -> Result<Option<i64>, AkitaError> {
-        todo!()
+    ) -> Result<Option<i64>> {
+        Ok(Some(self.0.last_insert_id() as i64))
     }
 
     fn affected_rows(&self) -> u64 {
@@ -404,22 +422,21 @@ impl Database for MysqlDatabase {
         self.0.last_insert_id()
     }
 
-    fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
+    fn get_database_name(&mut self) -> Result<Option<DatabaseName>> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
-            self.execute_result(&sql, Params::Nil).map(|rows| {
-                rows.iter()
-                    .map(|row| {
-                        row.get_obj_opt("name")
-                            .expect("must not error")
-                            .map(|name| DatabaseName {
-                                name,
-                                description: None,
-                            })
-                    })
-                    .collect()
-            })?;
-
+        self.execute_result(&sql, Params::Null).map(|rows| {
+            rows.iter()
+                .map(|row| {
+                    row.get_obj_opt("name")
+                        .expect("must not error")
+                        .map(|name| DatabaseName {
+                            name,
+                            description: None,
+                        })
+                })
+                .collect()
+        })?;
         if database_names.len() > 0 {
             Ok(database_names.remove(0))
         } else {
@@ -427,12 +444,12 @@ impl Database for MysqlDatabase {
         }
     }
 
-    fn create_database(&mut self, database: &str) -> Result<(), AkitaError> {
+    fn create_database(&mut self, database: &str) -> Result<()> {
         let sql = format!("CREATE DATABASE {}", database);
         self.execute_drop(&sql, ().into())
     }
 
-    fn exist_databse(&mut self, database: &str) -> Result<bool, AkitaError> {
+    fn exist_databse(&mut self, database: &str) -> Result<bool> {
         let sql = "SELECT count(1) as count FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?";
         self.execute_result(&sql, (database,).into()).map(|rows| {
             rows.iter().next()
@@ -444,9 +461,9 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_users(&mut self) -> Result<Vec<DataBaseUser>, AkitaError> {
+    fn get_users(&mut self) -> Result<Vec<DataBaseUser>> {
         let sql = "SELECT USER as username FROM information_schema.user_attributes";
-        let rows: Result<Rows, AkitaError> = self.execute_result(&sql, Params::Nil);
+        let rows: Result<Rows> = self.execute_result(&sql, Params::Null);
 
         rows.map(|rows| {
             rows.iter()
@@ -469,7 +486,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn exist_user(&mut self, user: &UserInfo) -> Result<bool, AkitaError> {
+    fn exist_user(&mut self, user: &UserInfo) -> Result<bool> {
         let sql = "SELECT count(1) as count FROM mysql.user where User = ? and Host = ?";
         self.execute_result(&sql, (&user.username, user.host.as_ref().unwrap_or(&"localhost".to_owned())).into()).map(|rows| {
             rows.iter().next()
@@ -481,17 +498,17 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>, AkitaError> {
+    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
+    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn create_user(&mut self, user: &UserInfo) -> Result<()> {
         let mut sql = format!("create user '{}'@'{}'", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
         if let Some(password) = user.password.to_owned() { 
             sql.push_str(&format!("identified by '{}'", password));
@@ -508,7 +525,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn drop_user(&mut self, user: &UserInfo) -> Result<()> {
         if user.username.is_empty() || user.host.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
@@ -521,7 +538,7 @@ impl Database for MysqlDatabase {
 
 
     #[cfg(feature = "akita-auth")]
-    fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn update_user_password(&mut self, user: &UserInfo) -> Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
@@ -532,7 +549,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn lock_user(&mut self, user: &UserInfo) -> Result<()> {
         if user.username.is_empty() || user.host.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
@@ -543,7 +560,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn unlock_user(&mut self, user: &UserInfo) -> Result<()> {
         if user.username.is_empty() || user.host.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
@@ -554,7 +571,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn expire_user_password(&mut self, user: &UserInfo) -> Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
             return Err(AkitaError::UnsupportedOperation(
                 "Some param is empty.".to_string(),
@@ -565,7 +582,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+    fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<()> {
         // 分配权限
         if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
             return Err(AkitaError::UnsupportedOperation(
@@ -587,7 +604,7 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<()> {
         // 回收权限
         if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
             return Err(AkitaError::UnsupportedOperation(
@@ -609,14 +626,14 @@ impl Database for MysqlDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn flush_privileges(&mut self) -> Result<(), AkitaError> {
+    fn flush_privileges(&mut self) -> Result<()> {
         let sql = "flush privileges;";
         self.execute_drop(&sql, ().into())
     }
 }
 
 #[allow(unused)]
-fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, AkitaError> {
+fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>> {
     #[derive(Debug, FromValue)]
     struct TableNameSimple {
         table_name: String,
@@ -662,9 +679,11 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
             Value::Timestamp(ref v) => v.naive_utc().into(),
             Value::DateTime(ref v) => v.into(),
             Value::Time(ref v) => v.into(),
-            Value::Interval(ref _v) => panic!("storing interval in DB is not supported"),
+            Value::Interval(ref v) => {
+                v.to_string().into()
+            },
             Value::Json(ref v) => v.into(),
-            Value::Nil => mysql::Value::NULL,
+            Value::Null => mysql::Value::NULL,
             Value::Array(ref v) => {
                 match v {
                     Array::Int(vv) => {
@@ -726,7 +745,7 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
                 let value = serde_json::to_string(&data).unwrap_or_default();
                 value.into()
             },
-            Value::BigDecimal(_) => unimplemented!("we need to upgrade bigdecimal crate"),
+            Value::BigDecimal(v) => v.into(),
             // Value::Point(_) | Value::Array(_) => unimplemented!("unsupported type"),
         }
     }
@@ -735,7 +754,7 @@ impl mysql::prelude::ToValue for MySQLValue<'_> {
 fn into_record(
     mut row: mysql::Row,
     column_types: &[mysql::consts::ColumnType],
-) -> Result<crate::Row, AkitaError> {
+) -> Result<crate::Row> {
     use mysql::{consts::ColumnType, from_value_opt as fvo};
     let cols = row.columns().iter().map(|v| v.name_str().to_string()).collect::<Vec<_>>();
     let values = column_types
@@ -743,12 +762,12 @@ fn into_record(
         .enumerate()
         .map(|(i, column_type)| {
             let cell: mysql::Value = row
-                .take_opt(i)
+                .take_opt(i).map(|v| v.map_err(AkitaError::from))
                 .unwrap_or_else(|| unreachable!("column length does not enough"))
                 .unwrap_or_else(|_| unreachable!("could not convert as `mysql::Value`"));
 
             if cell == mysql::Value::NULL {
-                return Ok(Value::Nil);
+                return Ok(Value::Null);
             }
 
             match column_type {
@@ -768,9 +787,9 @@ fn into_record(
                 ColumnType::MYSQL_TYPE_LONGLONG => fvo(cell).map(Value::Bigint),
                 ColumnType::MYSQL_TYPE_FLOAT => fvo(cell).map(Value::Float),
                 ColumnType::MYSQL_TYPE_DOUBLE => fvo(cell).map(Value::Double),
-                ColumnType::MYSQL_TYPE_NULL => fvo(cell).map(|_: mysql::Value| Value::Nil),
+                ColumnType::MYSQL_TYPE_NULL => fvo(cell).map(|_: mysql::Value| Value::Null),
                 ColumnType::MYSQL_TYPE_TIMESTAMP => fvo(cell).map(|v: chrono::NaiveDateTime| {
-                    Value::Timestamp(chrono::DateTime::from_utc(v, chrono::Utc))
+                    Value::Timestamp(chrono::DateTime::from_naive_utc_and_offset(v, chrono::Utc))
                 }),
                 ColumnType::MYSQL_TYPE_DATE | ColumnType::MYSQL_TYPE_NEWDATE => {
                     fvo(cell).map(Value::Date)
@@ -796,9 +815,12 @@ fn into_record(
                 | ColumnType::MYSQL_TYPE_GEOMETRY => {
                     panic!("not yet handling this kind: {:?}", column_type)
                 }
+                _ => {
+                    panic!("not yet handling this kind: {:?}", column_type)
+                }
             }
             .map_err(AkitaError::from)
-        }).map(|v| v.unwrap_or(Value::Nil))
+        }).map(|v| v.unwrap_or(Value::Null))
         .collect::<Vec<_>>();
     Ok(crate::Row{
         columns: cols,
@@ -807,11 +829,11 @@ fn into_record(
 }
 
 
-
+#[allow(unused)]
 pub trait FromRowExt {
     fn from_long_row(row: mysql::Row) -> Self where
     Self: Sized + Default;
-    fn from_long_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
+    fn from_long_row_opt(row: mysql::Row) -> Result<Self>
     where
         Self: Sized + Default;
 }
@@ -830,9 +852,10 @@ pub struct MysqlConnectionManager {
 }
 
 impl MysqlConnectionManager {
-    pub fn new(params: OptsBuilder, cfg: AkitaConfig) -> MysqlConnectionManager {
+    pub fn new(cfg: AkitaConfig) -> MysqlConnectionManager {
+        let ops = cfg.mysql_builder();
         MysqlConnectionManager {
-            params: Opts::from(params),
+            params: Opts::from(ops),
             cfg,
         }
     }
@@ -842,11 +865,11 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
     type Connection = Conn;
     type Error = Error;
 
-    fn connect(&self) -> Result<Conn, Error> {
-        Conn::new(self.params.to_owned())
+    fn connect(&self) -> std::result::Result<Conn, Error> {
+        Conn::new(self.params.clone())
     }
 
-    fn is_valid(&self, conn: &mut Conn) -> Result<(), Error> {
+    fn is_valid(&self, conn: &mut Conn) -> std::result::Result<(), Error> {
         conn.query_drop("SELECT version()")
     }
 
@@ -859,17 +882,13 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
 /// 创建连接池
 /// cfg 配置信息
 /// 
-pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
-    test_connection(cfg)?;
-    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
-    let pool = Pool::builder().connection_timeout(cfg.connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size()).build(manager)?;
-    Ok(pool)
-}
-
-/// 测试连接池连接
-fn test_connection(cfg: &AkitaConfig) -> Result<(), AkitaError> {
-    let manager = MysqlConnectionManager::new(cfg.into(), cfg.to_owned());
+pub fn init_pool(cfg: AkitaConfig) -> Result<MysqlPool> {
+    let pool = r2d2::Pool::builder().connection_timeout(cfg.connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size());
+    let manager = MysqlConnectionManager::new(cfg);
+    // 测试连接池连接
     let mut conn = manager.connect()?;
     manager.is_valid(&mut conn)?;
-    Ok(())
+    drop(conn);
+    let pool = pool.build(manager)?;
+    Ok(pool)
 }

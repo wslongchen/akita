@@ -1,0 +1,31 @@
+use std::sync::Arc;
+
+use crate::mapper::get_datasource;
+use snack_micro_framework::akita::Akita;
+use snack_micro_framework::{Mapper, MicroFrameworkError, PageRequest};
+use crate::domain::{ {{ entity }}, {{ entity }}Query, {{ entity }}Response};
+
+
+///
+/// {{ table.comment }} Mapper服务
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+
+pub struct {{ entity }}Mapper;
+
+impl Mapper<{{ entity }}, {{ entity }}Response, PageRequest<{{ entity }}Query>> for {{ entity }}Mapper {
+    fn get_akita(&self) -> Result<Arc<Akita>, MicroFrameworkError> {
+        get_datasource()
+    }
+}
+
+impl {{ entity }}Mapper {
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+}

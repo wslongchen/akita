@@ -1,45 +1,191 @@
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
 use std::{any::type_name, fmt, mem};
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer, de, ser::SerializeMap};
 use serde_json::Map;
 use uuid::Uuid;
 use indexmap::{IndexMap};
+use serde::de::{MapAccess, Visitor};
 
 use crate::error::{ConvertError, AkitaDataError};
 use crate::{Row};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Nil, // no value
+    Null,
     Bool(bool),
-
     Tinyint(i8),
     Smallint(i16),
     Int(i32),
     Bigint(i64),
-
     Float(f32),
     Double(f64),
     BigDecimal(BigDecimal),
-
     Blob(Vec<u8>),
     Char(char),
     Text(String),
     Json(serde_json::Value),
-
     Uuid(Uuid),
     Date(NaiveDate),
     Time(NaiveTime),
     DateTime(NaiveDateTime),
     Timestamp(DateTime<Utc>),
     Interval(Interval),
-    // SerdeJson(serde_json::Value),
     Object(IndexMap<String, Value>),
     Array(Array),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+// Implement Serialize
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        match self {
+            Value::Null => serializer.serialize_unit(),
+            Value::Bool(b) => serializer.serialize_bool(*b),
+            Value::Tinyint(i) => serializer.serialize_i8(*i),
+            Value::Smallint(i) => serializer.serialize_i16(*i),
+            Value::Int(i) => serializer.serialize_i32(*i),
+            Value::Bigint(i) => serializer.serialize_i64(*i),
+            Value::Float(f) => serializer.serialize_f32(*f),
+            Value::Double(f) => serializer.serialize_f64(*f),
+            Value::BigDecimal(bd) => serializer.serialize_str(&bd.to_string()),
+            Value::Blob(blob) => serializer.serialize_bytes(blob),
+            Value::Char(c) => serializer.serialize_char(*c),
+            Value::Text(s) => serializer.serialize_str(s),
+            Value::Json(value) => value.serialize(serializer),
+            Value::Uuid(uuid) => serializer.serialize_str(&uuid.to_string()),
+            Value::Date(date) => serializer.serialize_str(&date.to_string()),
+            Value::Time(time) => serializer.serialize_str(&time.to_string()),
+            Value::DateTime(dt) => serializer.serialize_str(&dt.to_string()),
+            Value::Timestamp(ts) => serializer.serialize_str(&ts.to_rfc3339()),
+            Value::Interval(interval) => serializer.serialize_str(&interval.to_string()),
+            Value::Object(map) => {
+                let mut obj = serializer.serialize_map(Some(map.len()))?;
+                for (key, value) in map {
+                    obj.serialize_entry(key, value)?;
+                }
+                obj.end()
+            }
+            Value::Array(arr) => serializer.collect_str(&serde_json::to_string(&arr).unwrap_or_default()),
+        }
+    }
+}
+
+// Implement Deserialize
+impl<'de> Deserialize<'de> for Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        struct ValueVisitor;
+
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a valid Value variant")
+            }
+
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+                Ok(Value::Bool(value))
+            }
+
+            fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E> {
+                Ok(Value::Tinyint(value))
+            }
+
+            fn visit_i16<E>(self, value: i16) -> Result<Self::Value, E> {
+                Ok(Value::Smallint(value))
+            }
+
+            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
+                Ok(Value::Int(value))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+                Ok(Value::Bigint(value))
+            }
+
+            fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> {
+                Ok(Value::Float(value))
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                Ok(Value::Double(value))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+            {
+                if let Ok(uuid) = value.parse::<Uuid>() {
+                    return Ok(Value::Uuid(uuid));
+                }
+                if let Ok(date) = value.parse::<NaiveDate>() {
+                    return Ok(Value::Date(date));
+                }
+                if let Ok(time) = value.parse::<NaiveTime>() {
+                    return Ok(Value::Time(time));
+                }
+                if let Ok(dt) = value.parse::<NaiveDateTime>() {
+                    return Ok(Value::DateTime(dt));
+                }
+                if let Ok(ts) = value.parse::<DateTime<Utc>>() {
+                    return Ok(Value::Timestamp(ts));
+                }
+                if let Ok(bd) = value.parse::<BigDecimal>() {
+                    return Ok(Value::BigDecimal(bd));
+                }
+                Ok(Value::Text(value.to_string()))
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+                where
+                    M: MapAccess<'de>,
+            {
+                let mut object = IndexMap::new();
+                while let Some((key, value)) = map.next_entry()? {
+                    object.insert(key, value);
+                }
+                Ok(Value::Object(object))
+            }
+
+        }
+
+        deserializer.deserialize_any(ValueVisitor)
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Value::Null
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Interval {
     pub microseconds: i64,
     pub days: i32,
@@ -57,10 +203,13 @@ impl Interval {
     
 }
 
-impl Value {
-    pub fn is_nil(&self) -> bool {
-        *self == Value::Nil
+impl ToString for Interval {
+    fn to_string(&self) -> String {
+        format!("{}-{}-{}", self.months, self.days, self.microseconds)
     }
+}
+
+impl Value {
 
     pub fn is_string(&self) -> bool {
         self.as_str().is_some()
@@ -127,13 +276,13 @@ impl Value {
 
     pub fn as_null(&self) -> Option<()> {
         match *self {
-            Value::Nil => Some(()),
+            Value::Null => Some(()),
             _ => None,
         }
     }
 
     pub fn take(&mut self) -> Value {
-        mem::replace(self, Value::Nil)
+        mem::replace(self, Value::Null)
     }
 
     pub fn new_object() -> Self { Value::Object(IndexMap::new()) }
@@ -191,7 +340,7 @@ impl Value {
             Value::Object(data) => match data.get(&s.replace("r#","")) {
                 Some(v) => {
                     match v {
-                        Value::Nil => Ok(None),
+                        Value::Null => Ok(None),
                         _ => {
                             Ok(Some(
                                 FromValue::from_value(v)
@@ -214,7 +363,7 @@ impl Value {
 
     pub fn remove_obj(&mut self, s: &str) -> Option<Value> { 
         match self {
-            Value::Object(v) => v.remove(s),
+            Value::Object(v) => v.shift_remove(s),
             _ => None,
         } 
     }
@@ -261,7 +410,7 @@ impl Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Value::Nil => write!(f, "Null"),
+            Value::Null => write!(f, "Null"),
             Value::Bool(v) => write!(f, "{}", v),
             Value::Tinyint(v) => write!(f, "{}", v),
             Value::Smallint(v) => write!(f, "{}", v),
@@ -310,60 +459,48 @@ impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Array::Text(texts) => {
-                let json_arr = serde_json::to_string(texts).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", texts.join(","))
             }
             Array::Float(floats) => {
-                let json_arr = serde_json::to_string(floats).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&floats).unwrap_or_default())
             }
             Array::Json(json) => {
-                let json_arr = serde_json::to_string(json).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "{}", serde_json::to_string(&json).unwrap_or_default())
             }
             Array::Bool(bools) => {
-                let json_arr = serde_json::to_string(bools).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&bools).unwrap_or_default())
             }
             Array::Tinyint(tinyints) => {
-                let json_arr = serde_json::to_string(tinyints).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&tinyints).unwrap_or_default())
             }
             Array::Smallint(smallints) => {
-                let json_arr = serde_json::to_string(smallints).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&smallints).unwrap_or_default())
             }
             Array::Int(ints) => {
-                let json_arr = serde_json::to_string(ints).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&ints).unwrap_or_default())
             }
             Array::Bigint(bigints) => {
-                let json_arr = serde_json::to_string(bigints).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&bigints).unwrap_or_default())
             }
             Array::Double(doubles) => {
-                let json_arr = serde_json::to_string(doubles).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&doubles).unwrap_or_default())
             }
             Array::BigDecimal(bigdecimals) => {
-                let json_arr = bigdecimals.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
-                write!(f, "{}", json_arr)
+                let fmt = bigdecimals.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "[{}]", fmt)
             }
             Array::Char(chars) => {
-                let json_arr = serde_json::to_string(chars).expect("must serialize");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&chars).unwrap_or_default())
             }
             Array::Uuid(uuids) => {
-                let json_arr = uuids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
-                write!(f, "{}", json_arr)
+                let fmt = uuids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
+                write!(f, "[{}]", fmt)
             }
             Array::Date(dates) => {
-                let json_arr = dates.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&dates).unwrap_or_default())
             }
             Array::Timestamp(timestamps) => {
-                let json_arr = timestamps.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
-                write!(f, "{}", json_arr)
+                write!(f, "[{}]", serde_json::to_string(&timestamps).unwrap_or_default())
             }
             // _ => panic!("not yet implemented: {:?}", self),
         }
@@ -429,7 +566,7 @@ impl ToValue for &str {
 impl ToValue for serde_json::Value {
     fn to_value(&self) -> Value {
         match self {
-            serde_json::Value::Null => Value::Nil,
+            serde_json::Value::Null => Value::Null,
             serde_json::Value::Bool(v) => Value::Bool(v.to_owned()),
             serde_json::Value::Number(v) => {
                 if v.is_f64() {
@@ -466,7 +603,7 @@ impl ToValue for Vec<String> {
 impl ToValue for Vec<serde_json::Value> {
     fn to_value(&self) -> Value {
         if self.is_empty() {
-            return Value::Nil
+            return Value::Null
         }
         let mut int_values = Vec::new();
         let mut float_values = Vec::new();
@@ -507,14 +644,14 @@ where
         
         match self {
             Some(v) => v.to_value(),
-            None => Value::Nil,
+            None => Value::Null,
         }
     }
 }
 
 impl ToValue for () {
     fn to_value(&self) -> Value {
-        Value::Nil
+        Value::Null
     }
 }
 
@@ -531,7 +668,7 @@ impl ToValue for Row {
     fn to_value(&self) -> Value {
         let mut data = IndexMap::new();
         for (i, col) in self.columns.iter().enumerate() {
-            data.insert(col.to_string(), self.data.get(i).map(|v| v.clone()).unwrap_or(Value::Nil));
+            data.insert(col.to_string(), self.data.get(i).map(|v| v.clone()).unwrap_or(Value::Null));
         }
         Value::Object(data)
     }
@@ -551,13 +688,6 @@ where
         v.to_value()
     }
 }
-
-// impl<'a, T: ToValue> From<&'a T> for Value {
-//     fn from(x: &'a T) -> Value {
-//         x.to_value()
-//     }
-// }
-
 
 pub trait FromValue: Sized {
     fn from_value(v: &Value) -> Self {
@@ -598,7 +728,7 @@ macro_rules! impl_from_value_numeric {
                     )*
                     Value::BigDecimal(ref v) => Ok(v.$method().unwrap_or_default()),
                     Value::Object(ref v) => {
-                        let (_, v) = v.first().unwrap_or((&String::default(), &Value::Nil));
+                        let (_, v) = v.first().unwrap_or((&String::default(), &Value::Null));
                         Ok(<$ty>::from_value(v))
                     },
                     _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(format!("{:?}", v), $ty_name.into()))),
@@ -705,7 +835,7 @@ impl FromValue for Vec<String> {
 impl FromValue for () {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
         match *v {
-            Value::Nil => Ok(()),
+            Value::Null => Ok(()),
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
                 "Vec<String>".to_string(),
@@ -734,7 +864,7 @@ impl FromValue for serde_json::Value {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
         match v.clone() {
             Value::Bool(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
-            Value::Nil => Ok(serde_json::Value::Null),
+            Value::Null => Ok(serde_json::Value::Null),
             Value::Tinyint(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Smallint(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
             Value::Int(v) => serde_json::to_value(v).map_err(AkitaDataError::from),
@@ -770,8 +900,8 @@ impl FromValue for serde_json::Value {
 impl FromValue for DateTime<Utc> {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
         match *v {
-            Value::Text(ref v) => Ok(DateTime::<Utc>::from_utc(parse_naive_date_time(v), Utc)),
-            Value::DateTime(v) => Ok(DateTime::<Utc>::from_utc(v, Utc)),
+            Value::Text(ref v) => Ok(DateTime::<Utc>::from_naive_utc_and_offset(parse_naive_date_time(v), Utc)),
+            Value::DateTime(v) => Ok(DateTime::<Utc>::from_naive_utc_and_offset(v, Utc)),
             Value::Timestamp(v) => Ok(v),
             _ => Err(AkitaDataError::ConvertError(ConvertError::NotSupported(
                 format!("{:?}", v),
@@ -800,7 +930,7 @@ where
 {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
         match *v {
-            Value::Nil => Ok(None),
+            Value::Null => Ok(None),
             _ => FromValue::from_value_opt(v).map(Some),
         }
     }
@@ -818,12 +948,13 @@ where
 {
     fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
         match *v {
-            Value::Nil => Err(AkitaDataError::NoSuchValueError(format!("{:?} can not get value", v))),
+            Value::Null => Err(AkitaDataError::NoSuchValueError(format!("{:?} can not get value", v))),
             _ => FromValue::from_value_opt(v),
         }
         
     }
 }
+
 
 impl FromValue for Value
 {
@@ -1180,4 +1311,18 @@ pub fn from_value<T: FromValue>(v: Value) -> T {
 #[inline]
 pub fn from_value_opt<T: FromValue>(v: Value) -> Result<T, AkitaDataError> {
     FromValue::from_value_opt(&v)
+}
+
+
+
+#[test]
+fn test_serialize() {
+    use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+    let mut v: Value = Value::Object(IndexMap::new());
+    v.insert_obj("k", "v");
+    let serialize = serde_json::to_string(&v).unwrap();
+    println!("serialize: {}", serialize);
+    let deserials = serde_json::from_str::<Value>(&serialize).unwrap();
+    println!("derialize: {:?}", v);
+
 }

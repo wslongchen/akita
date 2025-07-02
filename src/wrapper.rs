@@ -1,8 +1,29 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! Generate Wrapper.
 //! ```ignore
 //! 
-//! let mut wrapper = UpdateWrapper::new();
+//! let mut wrapper = Wrapper::new();
 //! wrapper.like(true, "column1", "ffff");
 //! wrapper.eq(true, "column2", 12);
 //! wrapper.eq(true, "column3", "3333");
@@ -17,6 +38,7 @@
 //!
 //!
 use crate::{segment::{MergeSegments, Segment, SqlKeyword, SqlLike, ToSegment, ISegment}, comm::*, AkitaError};
+use crate::errors::Result;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Wrapper{
@@ -103,7 +125,7 @@ impl Wrapper{
         self.sql_set.clear();
     }
 
-    pub fn get_update_sql(&mut self) -> Result<String, AkitaError> {
+    pub fn get_update_sql(&mut self) -> Result<String> {
         let set_fields = if let Some(set) = self.get_set_sql() {
             set.to_owned()
         } else {
@@ -123,7 +145,7 @@ impl Wrapper{
         }
     }
 
-    pub fn get_query_sql(mut self) -> Result<String, AkitaError> {
+    pub fn get_query_sql(mut self) -> Result<String> {
         let select_fields = self.get_select_sql();
         let table = self.table.unwrap_or_default();
         if table.is_empty() {
@@ -222,18 +244,18 @@ impl Wrapper{
     pub fn and_direct(self) -> Self { self.do_it(true, vec![SqlKeyword::AND.into()]) }
     pub fn or_condition(self, condition: bool) -> Self { self.do_it(condition, vec![SqlKeyword::OR.into()]) }
     pub fn or_direct(self) -> Self { self.do_it(true, vec![SqlKeyword::OR.into()]) }
-    pub fn apply<S: Into<String>>(self, apply_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
-    pub fn apply_condition<S: Into<String>>(self, condition: bool, apply_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extenssion(apply_sql.into())]) }
+    pub fn apply<S: Into<String>>(self, apply_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::APPLY.into(), Segment::Extensions(apply_sql.into())]) }
+    pub fn apply_condition<S: Into<String>>(self, condition: bool, apply_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::APPLY.into(), Segment::Extensions(apply_sql.into())]) }
     pub fn is_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NULL.into() ]) }
     pub fn is_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NULL.into() ]) }
     pub fn is_not_null<S: Into<String>>(self, column: S) -> Self { self.do_it(true, vec![ Segment::ColumnField(column.into()), SqlKeyword::IS_NOT_NULL.into() ]) }
     pub fn is_not_null_condition<S: Into<String>>(self, condition: bool, column: S) -> Self { self.do_it(condition, vec![Segment::ColumnField(column.into()), SqlKeyword::IS_NOT_NULL.into() ]) }
     pub fn not_exists<S: Into<String>>(self, not_exists_sql: S) -> Self  { self.not().exists(not_exists_sql) }
     pub fn not_exists_condition<S: Into<String>>(self, condition: bool, not_exists_sql: S) -> Self  { self.not_condition(condition).exists_condition(condition, not_exists_sql) }
-    pub fn exists<S: Into<String>>(self, exists_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::EXISTS.into(), Segment::Extenssion(format!("({})", exists_sql.into()))]) }
-    pub fn exists_condition<S: Into<String>>(self, condition: bool, exists_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::EXISTS.into(), Segment::Extenssion(format!("({})", exists_sql.into()))]) }
-    pub fn in_sql<S: Into<String>, U: Into<String>>(self, column: S, in_val: U) -> Self { self.do_it(true, vec![column.into().into() ,SqlKeyword::IN.into(), Segment::Extenssion(format!("({})", in_val.into()))]) }
-    pub fn in_sql_condition<S: Into<String>, U: Into<String>>(self, condition: bool, column: S, in_val: U) -> Self { self.do_it(condition, vec![column.into().into() ,SqlKeyword::IN.into(), Segment::Extenssion(format!("({})", in_val.into()))]) }
+    pub fn exists<S: Into<String>>(self, exists_sql: S) -> Self { self.do_it(true, vec![SqlKeyword::EXISTS.into(), Segment::Extensions(format!("({})", exists_sql.into()))]) }
+    pub fn exists_condition<S: Into<String>>(self, condition: bool, exists_sql: S) -> Self { self.do_it(condition, vec![SqlKeyword::EXISTS.into(), Segment::Extensions(format!("({})", exists_sql.into()))]) }
+    pub fn in_sql<S: Into<String>, U: Into<String>>(self, column: S, in_val: U) -> Self { self.do_it(true, vec![column.into().into() ,SqlKeyword::IN.into(), Segment::Extensions(format!("({})", in_val.into()))]) }
+    pub fn in_sql_condition<S: Into<String>, U: Into<String>>(self, condition: bool, column: S, in_val: U) -> Self { self.do_it(condition, vec![column.into().into() ,SqlKeyword::IN.into(), Segment::Extensions(format!("({})", in_val.into()))]) }
     pub fn group_by<S: Into<String> + Clone>(self, columns: Vec<S>) -> Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { self.do_it(true, vec![SqlKeyword::GROUP_BY.into(), Segment::ColumnField(cols.join(COMMA))]) } }
     pub fn group_by_condition<S: Into<String> + Clone>(self, condition: bool, columns: Vec<S>) -> Self { let cols: Vec<String> = columns.iter().map(|col|col.to_owned().into()).collect::<Vec<String>>();if columns.is_empty() { self } else { self.do_it(condition, vec![SqlKeyword::GROUP_BY.into(), Segment::ColumnField(cols.join(COMMA))]) } }
     pub fn having<S: Into<String>>(self, sql_having: S) -> Self { self.do_it(true, vec![SqlKeyword::HAVING.into(), sql_having.into().into()]) }
@@ -255,4 +277,14 @@ fn basic_test() {
     let mut wrapper = Wrapper::new().set_sql("a='b'").eq("a", "bn").last("limit 1");
         //.not_in("vecs", vec!["a","f","g"]);
     println!("{}", wrapper.get_set_sql().unwrap_or_default());
+}
+
+#[test]
+fn test_params() {
+    let foo = 42;
+    let v = params!{
+        foo,
+        "foo2x" => foo * 2,
+    };
+    println!("{:?}", v);
 }

@@ -1,0 +1,78 @@
+package {{package.Entity}};
+
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.io.Serializable;
+
+/**
+ * {{ table.comment }} 服务
+ *
+ * @author {{ author }}
+ * @since {{ date }}
+ */
+{% if table.convert -%}
+@TableName("{{ table.name }}")
+{%- endif %}
+
+{%- if activeRecord -%}
+public class {{ entity }} extends Model<{{ entity }}> {
+{%- else -%}
+public class {{ entity }} implements Serializable {
+{%- endif %}
+    private static final long serialVersionUID = 1L;
+{#- ----------  BEGIN 字段循环遍历  ---------- -#}
+{%- for field in table.fields -%}
+{%- if field.keyFlag -%}
+{%- set keyPropertyName = field.propertyName %}
+{%- endif %}
+{%- if field.comment != "" -%}
+    /**
+     * {{ field.comment }}
+     */
+{%- endif %}
+{% if field.keyFlag -%}
+{#- 主键 -#}
+{%- if field.keyIdentityFlag -%}
+	@TableId(value="{{field.name}}", type= IdType.AUTO)
+{%- elif field.convert -%}
+    @TableId("{{field.name}}")
+{%- endif %}
+{#- 普通字段 -#}
+{%- elif field.fill -%}
+{# -----   存在字段填充设置   ----- #}
+{%- if field.convert -%}
+	@TableField(value = "{{field.name}}", fill = FieldFill.{{field.fill}})
+{%- else -%}
+	@TableField(fill = FieldFill.{{field.fill}})
+{%- endif %}
+{% elif field.columnName != field.propertyName %}
+	@TableField("{{field.name}}")
+{%- endif %}
+{%- if field.columnType == "Date" or field.columnType == "LocalDateTime" -%}
+	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+	@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+{%- endif %}
+	private {{field.columnType}} {{field.propertyName}};
+{%- endfor %}
+{#- ----------  END 字段循环遍历  ---------- #}
+
+{%- for field in table.fields -%}
+{% if field.columnType == "boolean" -%}
+{%- set getprefix = "is" %}
+{%- else -%}
+{%- set getprefix = "get" %}
+{%- endif %}
+
+	public {{field.columnType}} {{getprefix}}{{field.capitalName}}() {
+		return {{field.propertyName}};
+	}
+
+	public void set{{field.capitalName}}({{field.columnType}} {{field.propertyName}}) {
+		this.{{field.propertyName}} = {{field.propertyName}};
+	}
+
+{%- endfor %}
+
+}

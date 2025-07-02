@@ -1,0 +1,43 @@
+
+use serde::{Deserialize, Serialize};
+use snack_micro_framework::akita::{self as akita, Entity, NaiveDateTime};
+
+///
+/// {{ table.comment }} 服务
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+#[allow(unused)]
+#[derive(Entity, Debug, Clone, Serialize, Deserialize, Default)]
+#[table(name="{{ table.name }}")]
+#[serde(rename_all = "camelCase")]
+pub struct {{ entity }} {
+{#- ----------  BEGIN 字段循环遍历  ---------- -#}
+{%- for field in table.fields -%}
+{%- if field.keyFlag -%}
+{%- set keyPropertyName = field.propertyName %}
+{%- endif %}
+{%- if field.comment != "" -%}
+     /// {{ field.comment }}
+{%- endif %}
+{% if field.keyFlag -%}
+{#- 主键 -#}
+{%- if field.keyIdentityFlag -%}
+	#[id]
+{%- endif %}
+{#- 普通字段 -#}
+{%- elif field.fill -%}
+{# -----   存在字段填充设置   ----- #}
+{%- if field.convert -%}
+	#[field(name = "{{field.name}}", fill = "{field.fill}}")
+{%- else -%}
+	#[field(fill = "{{field.fill}}")
+{%- endif %}
+{% elif field.columnName != field.propertyName %}
+	#[field(name = "{{field.name}}")
+{%- endif %}
+	pub {{field.propertyName}}: Option<{{field.columnType}}>,
+{%- endfor %}
+{#- ----------  END 字段循环遍历  ---------- #}
+}

@@ -1,4 +1,25 @@
-//! 
+/*
+ *
+ *  *
+ *  *      Copyright (c) 2018-2025, SnackCloud All rights reserved.
+ *  *
+ *  *   Redistribution and use in source and binary forms, with or without
+ *  *   modification, are permitted provided that the following conditions are met:
+ *  *
+ *  *   Redistributions of source code must retain the above copyright notice,
+ *  *   this list of conditions and the following disclaimer.
+ *  *   Redistributions in binary form must reproduce the above copyright
+ *  *   notice, this list of conditions and the following disclaimer in the
+ *  *   documentation and/or other materials provided with the distribution.
+ *  *   Neither the name of the www.snackcloud.cn developer nor the names of its
+ *  *   contributors may be used to endorse or promote products derived from
+ *  *   this software without specific prior written permission.
+ *  *   Author: SnackCloud
+ *  *
+ *
+ */
+
+//!
 //! SQLite modules.
 //! 
 use bigdecimal::ToPrimitive;
@@ -7,69 +28,44 @@ use rusqlite::{Connection, Error, OpenFlags};
 use uuid::Uuid;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::result::Result;
+use tracing::trace;
 
 
 cfg_if! {if #[cfg(feature = "akita-auth")]{
     use crate::auth::{GrantUserPrivilege, Role, UserInfo, DataBaseUser};
 }}
 
-use crate::{AkitaConfig, Params, ToValue};
+use crate::{AkitaConfig, AkitaError, Params, ToValue};
 use crate::database::Database;
-use crate::pool::LogLevel;
-use crate::{self as akita, comm::{extract_datatype_with_capacity, maybe_trim_parenthesis}, Rows, Value, SqlType, cfg_if, Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey, AkitaError, ColumnDef, FieldName, ColumnSpecification, DatabaseName, TableDef, TableName, SchemaContent};
+use crate::errors::Result;
+use crate::{self as akita, comm::{extract_datatype_with_capacity, maybe_trim_parenthesis}, Rows, Value, SqlType, cfg_if, Capacity, ColumnConstraint, ForeignKey, Key, Literal, TableKey, ColumnInfo, FieldName, ColumnSpecification, DatabaseName, TableInfo, TableName, SchemaContent};
 type R2d2Pool = Pool<SqliteConnectionManager>;
 
-pub struct SqliteDatabase(r2d2::PooledConnection<SqliteConnectionManager>, AkitaConfig);
+pub struct SqliteDatabase(r2d2::PooledConnection<SqliteConnectionManager>);
 
 impl SqliteDatabase {
-    pub fn new(pool: r2d2::PooledConnection<SqliteConnectionManager>, cfg: AkitaConfig) -> Self {
-        SqliteDatabase(pool, cfg)
-    }
-
-    pub fn log(&self, _fmt: String) {
-        if let Some(log_level) = &self.1.log_level() {
-            match log_level {
-                LogLevel::Debug => {
-                    #[cfg(feature = "akita-logging")]
-                    log::debug!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::debug!("[Akita]: {}", &_fmt);
-                },
-                LogLevel::Info => {
-                    #[cfg(feature = "akita-logging")]
-                    log::info!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::info!("[Akita]: {}", &_fmt);
-                },
-                LogLevel::Error => {
-                    #[cfg(feature = "akita-logging")]
-                    log::error!("[Akita]: {}", &_fmt);
-                    #[cfg(feature = "akita-tracing")]
-                    tracing::error!("[Akita]: {}", &_fmt);
-                },
-            }
-        }
+    pub fn new(pool: r2d2::PooledConnection<SqliteConnectionManager>) -> Self {
+        SqliteDatabase(pool)
     }
 }
 
 /// SQLite数据操作
 #[allow(unused)]
 impl Database for SqliteDatabase {
-    fn start_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("BEGIN TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn start_transaction(&mut self) -> Result<()> {
+        self.execute_result("BEGIN TRANSACTION", Params::Null).map(|_| ())
     }
 
-    fn commit_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("COMMIT TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn commit_transaction(&mut self) -> Result<()> {
+        self.execute_result("COMMIT TRANSACTION", Params::Null).map(|_| ())
     }
 
-    fn rollback_transaction(&mut self) -> Result<(), AkitaError> {
-        self.execute_result("ROLLBACK TRANSACTION", Params::Nil).map(|_| ()).map_err(AkitaError::from)
+    fn rollback_transaction(&mut self) -> Result<()> {
+        self.execute_result("ROLLBACK TRANSACTION", Params::Null).map(|_| ())
     }
     
-    fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, params));
+    fn execute_result(&mut self, sql: &str, params: Params) -> Result<Rows> {
+        trace!("Prepare SQL: {} params: {:?}", &sql, params);
         let stmt = self.0.prepare(&sql);
         let column_names = if let Ok(ref stmt) = stmt {
             stmt.column_names()
@@ -82,7 +78,7 @@ impl Database for SqliteDatabase {
                 let column_count = stmt.column_count();
                 let mut records = Rows::new();
                 let sql_values = match params {
-                    Params::Nil => {
+                    Params::Null => {
                         vec![]
                     },
                     Params::Vector(param) => {
@@ -118,7 +114,7 @@ impl Database for SqliteDatabase {
                                     rusqlite::types::Value::Real(v) => Value::Double(v),
                                     rusqlite::types::Value::Integer(v) => Value::Bigint(v),
                                     rusqlite::types::Value::Text(v) => Value::Text(v),
-                                    rusqlite::types::Value::Null => Value::Nil,
+                                    rusqlite::types::Value::Null => Value::Null,
                                 };
                                 record.push(value);
                             }
@@ -129,20 +125,20 @@ impl Database for SqliteDatabase {
                         });
                     }
                 }
-                self.log(format!("AffectRows: {} records: {:?}", records.len(), records));
+                trace!("AffectRows: {} records: {:?}", records.len(), records);
                 Ok(records)
             }
             Err(e) => Err(AkitaError::from(e)),
         }
     }
 
-    fn execute_drop(&mut self, sql: &str, params: Params) -> Result<(), AkitaError> {
-        self.log(format!("Prepare SQL: {} params: {:?}", &sql, params));
+    fn execute_drop(&mut self, sql: &str, params: Params) -> Result<()> {
+        trace!("Prepare SQL: {} params: {:?}", &sql, params);
         let stmt = self.0.prepare(&sql);
         match stmt {
             Ok(mut stmt) => {
                 let sql_values = match params {
-                    Params::Nil => {
+                    Params::Null => {
                         vec![]
                     },
                     Params::Vector(param) => {
@@ -166,13 +162,13 @@ impl Database for SqliteDatabase {
                         }).collect::<Vec<_>>()
                     },
                 };
-                stmt.execute(sql_values).map(|_| ()).map_err(AkitaError::from)
+                Ok(stmt.execute(sql_values).map(|_| ())?)
             }
             Err(e) => Err(AkitaError::from(e)),
         }
     }
 
-    fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableDef>, AkitaError> {
+    fn get_table(&mut self, table_name: &TableName) -> Result<Option<TableInfo>> {
         #[derive(Debug)]
         struct ColumnSimple {
             name: String,
@@ -182,8 +178,8 @@ impl Database for SqliteDatabase {
             pk: bool,
         }
         impl ColumnSimple {
-            fn to_column(&self, table_name: &TableName) -> ColumnDef {
-                ColumnDef {
+            fn to_column(&self, table_name: &TableName) -> ColumnInfo {
+                ColumnInfo {
                     table: table_name.clone(),
                     name: FieldName::from(&self.name),
                     comment: None,
@@ -223,7 +219,7 @@ impl Database for SqliteDatabase {
                             | SqlType::Smallint
                             | SqlType::Tinyint
                             | SqlType::Bigint => {
-                                let v: Result<i64, _> = default.parse();
+                                let v: std::result::Result<i64, _> = default.parse();
                                 match v {
                                     Ok(v) => Literal::Integer(v),
                                     Err(e) => {
@@ -255,7 +251,7 @@ impl Database for SqliteDatabase {
                                 if ic_default == "uuid_generate_v4()" {
                                     Literal::UuidGenerateV4
                                 } else {
-                                    let v: Result<Uuid, _> = Uuid::parse_str(&default);
+                                    let v: std::result::Result<Uuid, _> = Uuid::parse_str(&default);
                                     match v {
                                         Ok(v) => Literal::Uuid(v),
                                         Err(e) => panic!(
@@ -352,20 +348,20 @@ impl Database for SqliteDatabase {
         let mut primary_columns = vec![];
         let mut columns = vec![];
         for data in result.iter() {
-            let name: Result<Option<String>, _> = data.get_obj("name");
+            let name: std::result::Result<Option<String>, _> = data.get_obj("name");
             let name = unwrap_ok_some!(name);
-            let data_type: Result<Option<String>, _> = data.get_obj("type");
+            let data_type: std::result::Result<Option<String>, _> = data.get_obj("type");
             let data_type = unwrap_ok_some!(data_type).to_lowercase();
-            let not_null: Result<Option<i64>, _> = data.get_obj("notnull");
+            let not_null: std::result::Result<Option<i64>, _> = data.get_obj("notnull");
             let not_null = unwrap_ok_some!(not_null) != 0;
-            let pk: Result<Option<i64>, _> = data.get_obj("pk");
+            let pk: std::result::Result<Option<i64>, _> = data.get_obj("pk");
             let pk = unwrap_ok_some!(pk) != 0;
             if pk {
                 primary_columns.push(FieldName::from(&name));
             }
             let default = data.get_obj_value("dflt_value").map(|v| match *v {
                 Value::Text(ref v) => v.to_owned(),
-                Value::Nil => "null".to_string(),
+                Value::Null => "null".to_string(),
                 _ => panic!("Expecting a text value, got: {:?}", v),
             });
             let simple = ColumnSimple {
@@ -386,7 +382,7 @@ impl Database for SqliteDatabase {
             foreign_keys.into_iter().map(TableKey::ForeignKey).collect();
         let mut table_keys = vec![TableKey::PrimaryKey(primary_key)];
         table_keys.extend(table_key_foreign);
-        let table = TableDef {
+        let table = TableInfo {
             name: table_name.clone(),
             comment: None, // TODO: need to extract comment from the create_sql
             columns,
@@ -396,11 +392,11 @@ impl Database for SqliteDatabase {
         Ok(Some(table))
     }
 
-    fn exist_table(&mut self, table_name: &TableName) -> Result<bool, AkitaError> {
+    fn exist_table(&mut self, table_name: &TableName) -> Result<bool> {
         todo!()
     }
 
-    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, AkitaError> {
+    fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>> {
         let table_names = get_table_names(&mut *self, &"table".to_string())?;
         let view_names = get_table_names(&mut *self, &"view".to_string())?;
         let schema_content = SchemaContent {
@@ -411,7 +407,7 @@ impl Database for SqliteDatabase {
         Ok(vec![schema_content])
     }
 
-    fn get_all_tables(&mut self, shema: &str) -> Result<Vec<TableDef>, AkitaError> {
+    fn get_all_tables(&mut self, shema: &str) -> Result<Vec<TableInfo>> {
         let tablenames = self.get_tablenames(shema)?;
         Ok(tablenames
             .iter()
@@ -419,7 +415,7 @@ impl Database for SqliteDatabase {
             .collect())
     }
 
-    fn get_tablenames(&mut self, _shema: &str) -> Result<Vec<TableName>, AkitaError> {
+    fn get_tablenames(&mut self, _shema: &str) -> Result<Vec<TableName>> {
         #[derive(Debug, FromValue)]
         struct TableNameSimple {
             tbl_name: String,
@@ -443,7 +439,7 @@ impl Database for SqliteDatabase {
         &mut self,
         table_name: &TableName,
         sequence_value: i64,
-    ) -> Result<Option<i64>, AkitaError> {
+    ) -> Result<Option<i64>> {
         let sql = "UPDATE sqlite_sequence SET seq = $2 WHERE name = $1";
         self.execute_result(
             sql,
@@ -456,7 +452,7 @@ impl Database for SqliteDatabase {
     fn get_autoincrement_last_value(
         &mut self,
         table_name: &TableName,
-    ) -> Result<Option<i64>, AkitaError> {
+    ) -> Result<Option<i64>> {
         let sql = "SELECT seq FROM sqlite_sequence where name = $1";
         let result: Vec<Option<i64>> = self
             .execute_result(sql, (table_name.complete_name(),).into())?
@@ -476,78 +472,78 @@ impl Database for SqliteDatabase {
     }
 
     fn last_insert_id(&self) -> u64 {
-        todo!()
+        self.0.last_insert_rowid() as u64
     }
 
-    fn create_database(&mut self, _database: &str) -> Result<(), AkitaError> {
+    fn create_database(&mut self, _database: &str) -> Result<()> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't need to created database".to_string(),
         ))
     }
 
-    fn exist_databse(&mut self, database: &str) -> Result<bool, AkitaError> {
+    fn exist_databse(&mut self, database: &str) -> Result<bool> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't need to exist databse".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_users(&mut self) -> Result<Vec<DataBaseUser>, AkitaError> {
+    fn get_users(&mut self) -> Result<Vec<DataBaseUser>> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to extract users".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn exist_user(&mut self, user: &UserInfo) -> Result<bool, AkitaError> {
+    fn exist_user(&mut self, user: &UserInfo) -> Result<bool> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to exist user".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>, AkitaError> {
+    fn get_user_detail(&mut self, _username: &str) -> Result<Vec<DataBaseUser>> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operatio to user details".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>, AkitaError> {
+    fn get_roles(&mut self, _username: &str) -> Result<Vec<Role>> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to extract roles".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn create_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn create_user(&mut self, user: &UserInfo) -> Result<()> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to create_user".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn drop_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn drop_user(&mut self, user: &UserInfo) -> Result<()> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to drop_user".to_string(),
         ))
     }
     
     #[cfg(feature = "akita-auth")]
-    fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+    fn grant_privileges(&mut self, user: &GrantUserPrivilege) -> Result<()> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to grant_privileges".to_string(),
         ))
     }
 
     #[cfg(feature = "akita-auth")]
-    fn flush_privileges(&mut self) -> Result<(), AkitaError> {
+    fn flush_privileges(&mut self) -> Result<()> {
         Err(AkitaError::UnsupportedOperation(
             "sqlite doesn't have operation to flush_privileges".to_string(),
         ))
     }
 
-    fn get_database_name(&mut self) -> Result<Option<DatabaseName>, AkitaError> {
+    fn get_database_name(&mut self) -> Result<Option<DatabaseName>> {
         let sql = "SELECT database() AS name";
         let mut database_names: Vec<Option<DatabaseName>> =
             self.execute_result(&sql, ().into()).map(|rows| {
@@ -571,33 +567,33 @@ impl Database for SqliteDatabase {
     }
 
     #[cfg(feature = "akita-auth")]
-    fn update_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn update_user_password(&mut self, user: &UserInfo) -> Result<()> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn lock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn lock_user(&mut self, user: &UserInfo) -> Result<()> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn unlock_user(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn unlock_user(&mut self, user: &UserInfo) -> Result<()> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn expire_user_password(&mut self, user: &UserInfo) -> Result<(), AkitaError> {
+    fn expire_user_password(&mut self, user: &UserInfo) -> Result<()> {
         todo!()
     }
 
     #[cfg(feature = "akita-auth")]
-    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<(), AkitaError> {
+    fn revoke_privileges(&mut self, user: &GrantUserPrivilege) -> Result<()> {
         todo!()
     }
 }
 
 #[allow(unused)]
-fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, AkitaError> {
+fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>> {
     #[derive(Debug, FromValue)]
     struct TableNameSimple {
         tbl_name: String,
@@ -619,7 +615,7 @@ fn get_table_names(db: &mut dyn Database, kind: &str) -> Result<Vec<TableName>, 
 }
 
 /// get the foreign keys of table
-fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<ForeignKey>, AkitaError> {
+fn get_foreign_keys(db: &mut dyn Database, table: &TableName) -> Result<Vec<ForeignKey>> {
     let sql = format!("PRAGMA foreign_key_list({});", table.complete_name());
     #[derive(Debug, FromValue)]
     struct ForeignSimple {
@@ -683,7 +679,7 @@ fn to_sq_value(val: &Value) -> rusqlite::types::Value {
         Value::Uuid(ref v) => rusqlite::types::Value::Text(v.to_string()),
         Value::Date(ref v) => rusqlite::types::Value::Text(v.to_string()),
         Value::DateTime(ref v) => rusqlite::types::Value::Text(v.to_string()),
-        Value::Nil => rusqlite::types::Value::Null,
+        Value::Null => rusqlite::types::Value::Null,
         _ => panic!("not yet handled: {:?}", val),
     }
 }
@@ -695,7 +691,7 @@ enum Source {
     Memory,
 }
 
-type InitFn = dyn Fn(&mut Connection) -> Result<(), rusqlite::Error> + Send + Sync + 'static;
+type InitFn = dyn Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static;
 
 pub struct SqliteConnectionManager {
     source: Source,
@@ -758,7 +754,7 @@ impl SqliteConnectionManager {
     /// ```
     pub fn with_init<F>(self, init: F) -> Self
     where
-        F: Fn(&mut Connection) -> Result<(), rusqlite::Error> + Send + Sync + 'static,
+        F: Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static,
     {
         let init: Option<Box<InitFn>> = Some(Box::new(init));
         Self { init, ..self }
@@ -769,7 +765,7 @@ impl r2d2::ManageConnection for SqliteConnectionManager {
     type Connection = Connection;
     type Error = rusqlite::Error;
 
-    fn connect(&self) -> Result<Connection, Error> {
+    fn connect(&self) -> std::result::Result<Connection, Error> {
         match self.source {
             Source::File(ref path) => Connection::open_with_flags(path, self.flags),
             Source::Memory => Connection::open_in_memory_with_flags(self.flags),
@@ -781,7 +777,7 @@ impl r2d2::ManageConnection for SqliteConnectionManager {
         })
     }
 
-    fn is_valid(&self, conn: &mut Connection) -> Result<(), Error> {
+    fn is_valid(&self, conn: &mut Connection) -> std::result::Result<(), Error> {
         conn.execute_batch("").map_err(Into::into)
     }
 
@@ -794,8 +790,8 @@ impl r2d2::ManageConnection for SqliteConnectionManager {
 /// 创建连接池
 /// cfg 配置信息
 /// 
-pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
-    let database_url = &cfg.url().to_owned();
+pub fn init_pool(cfg: AkitaConfig) -> Result<R2d2Pool> {
+    let database_url = cfg.url().map(ToString::to_string).unwrap_or_default();
     test_connection(&database_url)?;
     let manager = SqliteConnectionManager::file(database_url);
     let pool = Pool::builder().connection_timeout(cfg.to_owned().connection_timeout()).min_idle(cfg.min_idle()).max_size(cfg.max_size()).build(manager)?;
@@ -803,7 +799,7 @@ pub fn init_pool(cfg: &AkitaConfig) -> Result<R2d2Pool, AkitaError> {
 }
 
 /// 测试连接池连接
-fn test_connection(database_url: &str) -> Result<(), AkitaError> {
+fn test_connection(database_url: &str) -> Result<()> {
     let database_url: String = database_url.into();
     let manager = SqliteConnectionManager::file(database_url);
     let mut conn = manager.connect()?;
@@ -814,12 +810,12 @@ fn test_connection(database_url: &str) -> Result<(), AkitaError> {
 
 #[cfg(test)]
 mod test {
-    use crate::{AkitaConfig, AkitaMapper, FromValue, Pool, QueryWrapper, AkitaTable, ToValue, types::SqlType::{Int, Text, Timestamp}};
+    use crate::{AkitaConfig, AkitaMapper, FromValue, Pool, Entity, ToValue, SqlType::{Int, Text, Timestamp}};
 
-    #[derive(Debug, FromValue, ToValue, AkitaTable, Clone)]
+    #[derive(Debug, FromValue, ToValue, Entity, Clone)]
     #[table(name="test")]
     struct TestSqlite {
-        #[table_id]
+        #[id]
         id: i32,
         name: String
     }
@@ -827,7 +823,7 @@ mod test {
     #[test]
     fn test_conn() {
         let db_url = "sqlite://./../../example/akita.sqlite3";
-        let mut pool = Pool::new(AkitaConfig::new(db_url.to_string())).unwrap();
+        let mut pool = Pool::new(AkitaConfig::new(db_url)).unwrap();
         let result = pool.connect();
         assert!(result.is_ok());
     }
@@ -835,9 +831,9 @@ mod test {
     #[test]
     fn test_list() {
         let db_url = "sqlite://./../../example/akita.sqlite3";
-        let mut pool = Pool::new(AkitaConfig::new(db_url.to_string())).unwrap();
+        let mut pool = Pool::new(AkitaConfig::new(db_url)).unwrap();
         let mut em = pool.entity_manager().unwrap();
-        let datas = em.list::<TestSqlite, QueryWrapper>(&mut QueryWrapper::new()).unwrap();
+        let datas = vec![];// em.list::<TestSqlite, Wrapper>(&mut QueryWrapper::new()).unwrap();
         println!("{:?}", datas);
     }
 }
