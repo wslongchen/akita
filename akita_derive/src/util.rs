@@ -295,10 +295,10 @@ pub fn find_extra_for_field(
     let mut has_field = false;
 
     for attr in &field.attrs {
-        if attr.path != parse_quote!(field) && attr.path != parse_quote!(table_id) {
+        if attr.path != parse_quote!(field) && attr.path != parse_quote!(id) {
             continue;
         }
-        if attr.path == parse_quote!(field) || attr.path != parse_quote!(table_id) {
+        if attr.path == parse_quote!(field) || attr.path != parse_quote!(id) {
             has_field = true;
         }
 

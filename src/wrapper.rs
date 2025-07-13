@@ -281,8 +281,9 @@ fn basic_test() {
 
 #[test]
 fn test_params() {
+    use crate::params;
     let foo = 42;
-    let v = params!{
+    let v = crate::params!{
         foo,
         "foo2x" => foo * 2,
     };
