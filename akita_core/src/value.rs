@@ -59,8 +59,8 @@ pub enum Value {
 // Implement Serialize
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         match self {
             Value::Null => serializer.serialize_unit(),
@@ -97,8 +97,8 @@ impl Serialize for Value {
 // Implement Deserialize
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         struct ValueVisitor;
 
@@ -138,8 +138,8 @@ impl<'de> Deserialize<'de> for Value {
             }
 
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                where
-                    E: de::Error,
+            where
+                E: de::Error,
             {
                 if let Ok(uuid) = value.parse::<Uuid>() {
                     return Ok(Value::Uuid(uuid));
@@ -163,8 +163,8 @@ impl<'de> Deserialize<'de> for Value {
             }
 
             fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
-                where
-                    M: MapAccess<'de>,
+            where
+                M: MapAccess<'de>,
             {
                 let mut object = IndexMap::new();
                 while let Some((key, value)) = map.next_entry()? {
@@ -200,7 +200,7 @@ impl Interval {
             months,
         }
     }
-    
+
 }
 
 impl ToString for Interval {
@@ -253,7 +253,7 @@ impl Value {
 
     pub fn is_number(&self) -> bool {
         match *self {
-            Value::Tinyint(_) | Value::Smallint(_) | Value::Int(_)  
+            Value::Tinyint(_) | Value::Smallint(_) | Value::Int(_)
             | Value::Bigint(_)  | Value::Float(_) | Value::BigDecimal(_) | Value::Double(_)  => true,
             _ => false,
         }
@@ -354,18 +354,18 @@ impl Value {
         }
     }
 
-    pub fn get_obj_value(&self, s: &str) -> Option<&Value> { 
+    pub fn get_obj_value(&self, s: &str) -> Option<&Value> {
         match self {
             Value::Object(data) => data.get(s),
             _ => None,
         }
-     }
+    }
 
-    pub fn remove_obj(&mut self, s: &str) -> Option<Value> { 
+    pub fn remove_obj(&mut self, s: &str) -> Option<Value> {
         match self {
             Value::Object(v) => v.shift_remove(s),
             _ => None,
-        } 
+        }
     }
 
     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
@@ -641,7 +641,7 @@ where
     T: ToValue,
 {
     fn to_value(&self) -> Value {
-        
+
         match self {
             Some(v) => v.to_value(),
             None => Value::Null,
@@ -938,23 +938,9 @@ where
 
 impl FromValue for Vec<Value> {
     fn from_value_opt(_v: &Value) -> Result<Self, AkitaDataError> {
-       Ok(vec![])
+        Ok(vec![])
     }
 }
-
-impl<T> FromValue for &T
-where
-    T: FromValue,
-{
-    fn from_value_opt(v: &Value) -> Result<Self, AkitaDataError> {
-        match *v {
-            Value::Null => Err(AkitaDataError::NoSuchValueError(format!("{:?} can not get value", v))),
-            _ => FromValue::from_value_opt(v),
-        }
-        
-    }
-}
-
 
 impl FromValue for Value
 {

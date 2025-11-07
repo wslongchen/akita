@@ -42,11 +42,15 @@ pub fn build_from_akita(name: &syn::Ident, _generics: &syn::Generics, fields: &V
         .map(|field| {
             let default_value = get_field_default_value(&field.field.ty, field.field.ident.as_ref().unwrap());
             let mut field_name = field.name.to_string();
+            let mut exist = true;
             let field_info = field.field.ident.as_ref().unwrap();
             for ext in field.extra.iter() {
                 match ext {
                     FieldExtra::Name(v) => {
                         field_name = v.to_string();
+                    }
+                    FieldExtra::Exist(v) => {
+                        exist = *v;
                     }
                     FieldExtra::Converter(revert) => {
                         validate_converter_field_type(&field.name, &field.field.ty);
@@ -60,7 +64,12 @@ pub fn build_from_akita(name: &syn::Ident, _generics: &syn::Generics, fields: &V
                     }
                 }
             }
-            quote!( #field_info: match data.get_obj(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
+            if exist {
+                quote!( #field_info: match data.get_obj(#field_name) { Ok(v) => v, Err(_) => { #default_value } },)
+            } else {
+                quote!( #field_info: #default_value,)
+            }
+
 
         })
         .collect();
@@ -95,12 +104,16 @@ pub fn build_to_akita(name: &syn::Ident, generics: &syn::Generics, fields: &Vec<
         .iter()
         .map(|field| {
             let mut field_name = field.name.to_string();
+            let mut exist = true;
             let field_info = field.field.ident.as_ref().unwrap();
             let mut converter = None;
             for ext in field.extra.iter() {
                 match ext {
                     FieldExtra::Name(v) => {
                         field_name = v.to_string();
+                    }
+                    FieldExtra::Exist(v) => {
+                        exist = *v;
                     }
                     FieldExtra::Converter(convert) => {
                         validate_converter_field_type(&field.name, &field.field.ty);
@@ -111,15 +124,21 @@ pub fn build_to_akita(name: &syn::Ident, generics: &syn::Generics, fields: &Vec<
                     }
                 }
             }
-            // insert with alias
-            if let Some(converter) = converter {
-                // 动态解析用户提供的路径（无需导入）
-                let converter_ident: syn::Path = syn::parse_str(&converter)
-                    .expect("Invalid converter path");
-                quote!( data.insert_obj(#field_name, #converter_ident::convert(&self.#field_info));)
+            // 存在才进行insert
+            if exist {
+                // insert with alias
+                if let Some(converter) = converter {
+                    // 动态解析用户提供的路径（无需导入）
+                    let converter_ident: syn::Path = syn::parse_str(&converter)
+                        .expect("Invalid converter path");
+                    quote!( data.insert_obj(#field_name, #converter_ident::convert(&self.#field_info));)
+                } else {
+                    quote!( data.insert_obj(#field_name, &self.#field_info );)
+                }
             } else {
-                quote!( data.insert_obj(#field_name, &self.#field_info );)
+                quote!()
             }
+
         })
         .collect();
     let res = quote!(

@@ -28,23 +28,15 @@ pub trait Converter<T>: Send + Sync {
 
 // 对 Option<T> 的支持
 impl<T, C> Converter<Option<T>> for C
-    where
-        C: Converter<T>,
+where
+    C: Converter<T>,
 {
-    fn convert(value: &Option<T>) -> Option<T> {
-        if let Some(v) = value {
-            Some(C::convert(v))
-        } else {
-            None
-        }
+    fn convert(data: &Option<T>) -> Option<T> {
+        data.as_ref().map(C::convert)
     }
 
-    fn revert(value: &Option<T>) -> Option<T> {
-        if let Some(v) = value {
-            Some(C::revert(v))
-        } else {
-            None
-        }
+    fn revert(data: &Option<T>) -> Option<T> {
+        data.as_ref().map(C::revert)
     }
 }
 

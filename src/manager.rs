@@ -154,13 +154,21 @@ impl AkitaMapper for AkitaTransaction {
     fn update_by_id<T>(&self, entity: &T) -> Result<u64>
     where
         T: GetTableName + GetFields + ToValue {
-            let mut conn = self.conn.borrow_mut();
+        let mut conn = self.conn.borrow_mut();
         conn.update_by_id(entity)
         
     }
 
+    fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64>
+    where
+        T: GetTableName + GetFields + ToValue
+    {
+        let mut conn = self.conn.borrow_mut();
+        conn.update_batch_by_id(entities)
+    }
+
     #[allow(unused_variables)]
-    fn save_batch<T>(&self, entities: &[&T]) -> Result<()>
+    fn save_batch<T>(&self, entities: &Vec<T>) -> Result<()>
     where
         T: GetTableName + GetFields + ToValue
     {
@@ -250,13 +258,13 @@ impl AkitaEntityManager{
         conn.get_database_name()
     }
 
-    fn save_batch_inner<T>(&self, entities: &[&T]) -> Result<()>
+    fn save_batch_inner<T>(&self, entities: &Vec<T>) -> Result<()>
     where
         T: GetTableName + GetFields + ToValue
     {
         let mut conn = self.acquire()?;
         let columns = T::fields();
-        let sql = build_insert_clause(&conn, entities);
+        let sql = build_insert_clause(&conn, &entities.iter().collect::<Vec<_>>());
 
         let mut values: Vec<Value> = Vec::with_capacity(entities.len() * columns.len());
         for entity in entities.iter() {
@@ -350,7 +358,6 @@ pub fn identifier_generator_value(field_name: &FieldName, mut value: Value) -> (
     if let Some(id_type) = field_name.get_table_id_type() {
         if let Some(id) = match id_type {
             IdentifierType::Auto => {
-                value = Value::Null;
                 is_auto = true;
                 None
             },
@@ -738,6 +745,84 @@ impl AkitaMapper for AkitaEntityManager {
         Ok(conn.affected_rows())
     }
 
+
+    fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64>
+    where
+        T: GetTableName + GetFields + ToValue
+    {
+        let mut conn = self.acquire()?;
+        if entities.is_empty() {
+            return Ok(0);
+        }
+
+        let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+        }
+
+        let columns = T::fields();
+        let id_field = columns
+            .iter()
+            .find(|f| matches!(f.field_type, FieldType::TableId(_)))
+            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+
+        let mut sql = format!("UPDATE {} SET ", table.name);
+
+        // 构建每个字段的 CASE WHEN 子句
+        let mut sets = Vec::new();
+        for col in columns.iter().filter(|c| matches!(c.field_type, FieldType::TableField) && c.exist) {
+            let col_name = col.alias.as_ref().unwrap_or(&col.name);
+            let mut case_stmt = format!("`{}` = CASE", col_name);
+
+            for entity in entities.iter() {
+                let data = entity.to_value();
+                let id_value = data
+                    .get_obj_value(id_field.alias.as_ref().unwrap_or(&id_field.name))
+                    .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+
+                let mut field_value = data.get_obj_value(col_name);
+                if let Some(fill) = &col.fill {
+                    match fill.mode.as_str() {
+                        "update" | "default" => field_value = fill.value.as_ref(),
+                        _ => {}
+                    }
+                }
+
+                let value_sql = match field_value {
+                    Some(Value::Text(s)) => format!("'{}'", s.replace("'", "''")),
+                    Some(Value::Null) => "NULL".to_string(),
+                    Some(v) => v.to_string(),
+                    None => "NULL".to_string(),
+                };
+
+                case_stmt.push_str(&format!(" WHEN `{}` = {} THEN {}", id_field.name, id_value, value_sql));
+            }
+
+            case_stmt.push_str(&format!(" ELSE `{}` END", col_name));
+            sets.push(case_stmt);
+        }
+
+        sql.push_str(&sets.join(", "));
+
+        // WHERE id IN (...)
+        let ids: Vec<String> = entities
+            .iter()
+            .map(|e| {
+                let data = e.to_value();
+                let id_val = data
+                    .get_obj_value(id_field.alias.as_ref().unwrap_or(&id_field.name))
+                    .unwrap();
+                id_val.to_string()
+            })
+            .collect();
+
+        sql.push_str(&format!(" WHERE `{}` IN ({})", id_field.name, ids.join(",")));
+
+        // 执行 SQL
+        conn.execute_result(&sql, ().into())?;
+        Ok(conn.affected_rows())
+    }
+
     /// Update the records by id.
     fn update_by_id<T>(&self, entity: &T) -> Result<u64>
     where
@@ -815,7 +900,7 @@ impl AkitaMapper for AkitaEntityManager {
     }
 
     #[allow(unused_variables)]
-    fn save_batch<T>(&self, entities: &[&T]) -> Result<()>
+    fn save_batch<T>(&self, entities: &Vec<T>) -> Result<()>
     where
         T: GetTableName + GetFields + ToValue
     {
@@ -1055,7 +1140,7 @@ mod test {
         let mut pool = Pool::new(AkitaConfig::default()).unwrap();
         let mut em = pool.entity_manager().expect("must be ok");
         let user = SystemUser { id: 1.into(), username: "fff".to_string(), age: 1 };
-        match em.save_batch::<_>(&vec![&user]) {
+        match em.save_batch::<_>(&vec![user]) {
             Ok(_res) => {
                 println!("success update data!");
             }

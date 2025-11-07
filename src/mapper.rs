@@ -55,7 +55,9 @@ pub trait BaseMapper{
     fn insert<I, M: AkitaMapper>(&self, entity_manager: &M) -> Result<Option<I>> where Self::Item : GetTableName + GetFields, I: FromValue;
 
     /// Insert Data Batch.
-    fn insert_batch<M: AkitaMapper>(datas: &[&Self::Item], entity_manager: &M) -> Result<()> where Self::Item : GetTableName + GetFields;
+    fn insert_batch<M: AkitaMapper>(datas: &Vec<Self::Item>, entity_manager: &M) -> Result<()> where Self::Item : GetTableName + GetFields;
+
+    fn update_batch_by_id<M: AkitaMapper>(datas: &Vec<Self::Item>, entity_manager: &M) -> Result<u64> where Self::Item : GetTableName + GetFields;
 
     /// Update Data With Wrapper.
     fn update<M: AkitaMapper>(&self, wrapper: Wrapper, entity_manager: &M) -> Result<u64> where Self::Item : GetTableName + GetFields;
@@ -142,7 +144,12 @@ pub trait AkitaMapper {
         T: GetTableName + GetFields + ToValue;
 
     #[allow(unused_variables)]
-    fn save_batch<T>(&self, entities: &[&T]) -> Result<()>
+    fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64>
+    where
+        T: GetTableName + GetFields + ToValue;
+
+    #[allow(unused_variables)]
+    fn save_batch<T>(&self, entities: &Vec<T>) -> Result<()>
     where
         T: GetTableName + GetFields + ToValue;
 

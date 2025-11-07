@@ -441,6 +441,82 @@ impl DatabasePlatform {
         Ok(self.affected_rows())
     }
 
+    pub fn update_batch_by_id<T>(&mut self, entities: &Vec<T>) -> Result<u64>
+    where
+        T: GetTableName + GetFields + ToValue,
+    {
+        if entities.is_empty() {
+            return Ok(0);
+        }
+
+        let table = T::table_name();
+        if table.complete_name().is_empty() {
+            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+        }
+
+        let columns = T::fields();
+        let id_field = columns
+            .iter()
+            .find(|f| matches!(f.field_type, FieldType::TableId(_)))
+            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+
+        let mut sql = format!("UPDATE {} SET ", table.name);
+
+        // 构建每个字段的 CASE WHEN 子句
+        let mut sets = Vec::new();
+        for col in columns.iter().filter(|c| matches!(c.field_type, FieldType::TableField) && c.exist) {
+            let col_name = col.alias.as_ref().unwrap_or(&col.name);
+            let mut case_stmt = format!("`{}` = CASE", col_name);
+
+            for entity in entities.iter() {
+                let data = entity.to_value();
+                let id_value = data
+                    .get_obj_value(id_field.alias.as_ref().unwrap_or(&id_field.name))
+                    .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+
+                let mut field_value = data.get_obj_value(col_name);
+                if let Some(fill) = &col.fill {
+                    match fill.mode.as_str() {
+                        "update" | "default" => field_value = fill.value.as_ref(),
+                        _ => {}
+                    }
+                }
+
+                let value_sql = match field_value {
+                    Some(Value::Text(s)) => format!("'{}'", s.replace("'", "''")),
+                    Some(Value::Null) => "NULL".to_string(),
+                    Some(v) => v.to_string(),
+                    None => "NULL".to_string(),
+                };
+
+                case_stmt.push_str(&format!(" WHEN `{}` = {} THEN {}", id_field.name, id_value, value_sql));
+            }
+
+            case_stmt.push_str(&format!(" ELSE `{}` END", col_name));
+            sets.push(case_stmt);
+        }
+
+        sql.push_str(&sets.join(", "));
+
+        // WHERE id IN (...)
+        let ids: Vec<String> = entities
+            .iter()
+            .map(|e| {
+                let data = e.to_value();
+                let id_val = data
+                    .get_obj_value(id_field.alias.as_ref().unwrap_or(&id_field.name))
+                    .unwrap();
+                id_val.to_string()
+            })
+            .collect();
+
+        sql.push_str(&format!(" WHERE `{}` IN ({})", id_field.name, ids.join(",")));
+
+        // 执行 SQL
+        self.execute_result(&sql, ().into())?;
+        Ok(self.affected_rows())
+    }
+
     /// Update the records by id.
     pub fn update_by_id<T>(&mut self, entity: &T) -> Result<u64>
         where
@@ -517,12 +593,12 @@ impl DatabasePlatform {
     }
 
     #[allow(unused_variables)]
-    pub fn save_batch<T>(&mut self, entities: &[&T]) -> Result<()>
+    pub fn save_batch<T>(&mut self, entities: &Vec<T>) -> Result<()>
         where
             T: GetTableName + GetFields + ToValue
     {
         let columns = T::fields();
-        let sql = build_insert_clause(&self, entities);
+        let sql = build_insert_clause(&self, &entities.iter().collect::<Vec<_>>());
 
         let mut values: Vec<Value> = Vec::with_capacity(entities.len() * columns.len());
         for entity in entities.iter() {

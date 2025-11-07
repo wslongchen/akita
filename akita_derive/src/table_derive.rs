@@ -198,7 +198,7 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
                 entity_manager.save(self)
             }
 
-            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &M) -> akita::Result<()> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
+            fn insert_batch<M: akita::AkitaMapper>(datas: &Vec<Self::Item>, entity_manager: &M) -> akita::Result<()> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
                 entity_manager.save_batch::<Self::Item>(datas)
             }
 
@@ -212,6 +212,10 @@ fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
 
             fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
                 entity_manager.update_by_id::<Self::Item>(self)
+            }
+
+            fn update_batch_by_id<M: akita::AkitaMapper>(datas: &Vec<Self::Item>, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
+                entity_manager.update_batch_by_id::<Self::Item>(datas)
             }
 
             fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {

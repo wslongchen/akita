@@ -23,7 +23,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use getset::{Getters, Setters};
-use crate::datasource::INameConvert;
+use crate::datasource::{INameConvert, TargetLang};
 use regex::Regex;
 use akita::{AkitaConfig, Pool};
 use akita::comm::DOT;
@@ -210,7 +210,7 @@ impl ConfigBuilder {
     /// 表名匹配
     fn table_name_matches(set_table_name: &str, db_table_name: &str) -> bool {
         set_table_name.eq_ignore_ascii_case(db_table_name)
-            || set_table_name.matches(db_table_name).count() > 0
+            // || set_table_name.matches(db_table_name).count() > 0
     }
 
     fn get_tables_info(&mut self) {
@@ -237,7 +237,6 @@ impl ConfigBuilder {
                 table_info.set_name(table_name.to_string());
 
                 let table_comment = row.get_obj::<String>(&self.db_query.table_comment()).unwrap();
-                eprintln!("table:{}【{}】", table_comment, table_name.to_string());
                 if *self.strategy_config.skip_view() && table_comment.eq("View") {
                     // 跳过视图
                     continue;
@@ -323,11 +322,12 @@ impl ConfigBuilder {
             let column_name = row.get_obj::<String>(&self.db_query.field_name()).unwrap();
             // 避免多重主键设置，目前只取第一个找到ID，并放到list中的索引为0的位置
             let key = row.get_obj::<String>(&self.db_query.field_key()).unwrap();
+            let key_identity_flag = MySqlQuery::is_key_identity(row.clone());
             let is_id = !key.is_empty() && key.to_uppercase().eq("PRI");
             // 处理ID
             if is_id && !have_id {
                 field.set_key_flag(true);
-
+                field.set_key_identity_flag(key_identity_flag);
                 have_id = true;
             } else {
                 field.set_key_flag(false);
@@ -359,10 +359,9 @@ impl ConfigBuilder {
             } else {
                 field.set_property_name_with_strategy(&self.strategy_config, self.process_name_with_naming(field.name()));
             }
-
             // let property_name = Self::process_name_with_naming(field.name(), self.strategy_config.get_column_naming_strategy().clone(), config.clone());
             // field.set_property_name(property_name.to_string());
-            field.set_column_type(MySqlTypeConvert::process_type_convert(field.column_type().get_type()));
+            field.set_column_type(MySqlTypeConvert::process_type_convert(field.r#type().to_string(), TargetLang::Rust));
             field.set_comment(row.get_obj::<String>(&self.db_query.field_comment()).unwrap());
             // 设置首字母大写名称
             field.set_capital_name(field.get_inner_capital_name());
@@ -386,6 +385,7 @@ impl ConfigBuilder {
         let table_prefix = self.strategy_config.table_prefix();
         for table_info in table_list.iter_mut() {
             let entity_name = self.lang._capital_first(&Self::process_name(table_info.name(), self.strategy_config.naming().clone(), &table_prefix.iter().map(|s| s.as_str()).collect::<Vec<&str>>()[..]));
+            
             if !self.global_config.entity_name().is_empty() {
                 table_info.set_convert(true);
                 table_info.set_entity_name(self.global_config.entity_name().replace(PLACE_HOLDER, &entity_name));
@@ -399,10 +399,16 @@ impl ConfigBuilder {
                 table_info.set_mapper_name(format!("{}{}", entity_name, MAPPER));
             }
 
-            if !self.global_config.mapper_name().is_empty() {
-                table_info.set_mapper_name(self.global_config.mapper_name().replace(PLACE_HOLDER, &entity_name));
+            if let Some(request_name) = self.global_config.request_name() {
+                table_info.set_request_name(request_name.replace(PLACE_HOLDER, &entity_name));
             } else {
-                table_info.set_mapper_name(format!("{}{}", entity_name, MAPPER));
+                table_info.set_request_name(format!("{}{}", entity_name, REQUEST));
+            }
+
+            if let Some(response_name) = self.global_config.response_name() {
+                table_info.set_response_name(response_name.replace(PLACE_HOLDER, &entity_name));
+            } else {
+                table_info.set_response_name(format!("{}{}", entity_name, REQUEST));
             }
 
             if !self.global_config.service_name().is_empty() {
@@ -427,6 +433,14 @@ impl ConfigBuilder {
         }
         table_list
     }
+}
+
+
+
+#[test]
+fn test_table_name_matches() {
+    let result = ConfigBuilder::table_name_matches("sys_user_role", "sys_user");
+    assert_eq!(result, true);
 }
 
 

@@ -209,8 +209,16 @@ impl AkitaMapper for Akita {
         conn.update_by_id(entity)
     }
 
+    fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64, AkitaError>
+    where
+        T: GetTableName + GetFields + ToValue
+    {
+        let mut conn = self.acquire()?;
+        conn.update_batch_by_id(entities)
+    }
+
     #[allow(unused_variables)]
-    fn save_batch<T>(&self, entities: &[&T]) -> Result<(), AkitaError>
+    fn save_batch<T>(&self, entities: &Vec<T>) -> Result<(), AkitaError>
         where
             T: GetTableName + GetFields + ToValue
     {

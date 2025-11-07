@@ -78,7 +78,7 @@ impl Rows {
     pub fn push(&mut self, row: Row) { self.data.push(row) }
 
     /// Returns an iterator over the `Row`s.
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             iter: self.data.iter(),
         }

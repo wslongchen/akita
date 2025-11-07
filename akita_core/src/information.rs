@@ -197,6 +197,10 @@ impl FieldName {
         }
     }
 
+    pub fn name(&self) -> String {
+        self.name.to_owned()
+    }
+
     pub fn safe_complete_name(&self) -> String {
         match self.table {
             Some(ref table) => format!("{}.{}", keywords_safe(table), self.name),
@@ -241,6 +245,15 @@ pub struct TableInfo {
     pub table_key: Vec<TableKey>,
 }
 
+impl TableInfo {
+    pub fn name(&self) -> String {
+        self.name.name()
+    }
+    pub fn comment(&self) -> Option<String> {
+        self.comment.to_owned()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ColumnInfo {
     pub table: TableName,
@@ -248,6 +261,18 @@ pub struct ColumnInfo {
     pub comment: Option<String>,
     pub specification: ColumnSpecification,
     pub stat: Option<ColumnStat>,
+}
+
+impl ColumnInfo {
+    pub fn name(&self) -> String {
+        self.name.name()
+    }
+    pub fn comment(&self) -> Option<String> {
+        self.comment.to_owned()
+    }
+    pub fn data_type(&self) -> String {
+        self.specification.sql_type.as_string()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -393,6 +418,15 @@ pub enum TableKey {
     UniqueKey(Key),
     Key(Key),
     ForeignKey(ForeignKey),
+}
+
+impl TableKey {
+    pub fn is_pri(&self) -> bool {
+        match self {
+            TableKey::PrimaryKey(_) => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug)]

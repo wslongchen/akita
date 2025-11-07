@@ -31,7 +31,7 @@ strategy:
   entity_table_field_annotation_enable: false
   table_prefix: []
   field_prefix: []
-  include: []
+  include: ["sys_post", "sys_user_post"]
   exclude: []
   skip_view: false
   table_fill_list: []
@@ -39,8 +39,8 @@ strategy:
 datasource:
   driver_name: 'com.mysql.cj.jdbc.Driver'
   username: 'root'
-  password: 'longchen'
-  url: 'mysql://localhost:3306/test'
+  password: 'MIMAlongchen520'
+  url: 'mysql://rm-uf678lk3e0ze6bn482o.mysql.rds.aliyuncs.com:3306/snack_upms'
   db_type: Mysql
 template:
   entity: ./templates/entity.rs
