@@ -19,32 +19,24 @@
  *
  */
 
-/// 字段转换器
+/// Field converter
 #[allow(unused)]
 pub trait Converter<T>: Send + Sync {
     fn convert(data: &T) -> T;
     fn revert(data: &T) -> T;
 }
 
-// 对 Option<T> 的支持
+// Support for Option<T>
 impl<T, C> Converter<Option<T>> for C
-    where
-        C: Converter<T>,
+where
+    C: Converter<T>,
 {
-    fn convert(value: &Option<T>) -> Option<T> {
-        if let Some(v) = value {
-            Some(C::convert(v))
-        } else {
-            None
-        }
+    fn convert(data: &Option<T>) -> Option<T> {
+        data.as_ref().map(C::convert)
     }
 
-    fn revert(value: &Option<T>) -> Option<T> {
-        if let Some(v) = value {
-            Some(C::revert(v))
-        } else {
-            None
-        }
+    fn revert(data: &Option<T>) -> Option<T> {
+        data.as_ref().map(C::revert)
     }
 }
 
@@ -66,18 +58,19 @@ impl Converter<String> for UpperCaseConverter {
 #[cfg(test)]
 #[allow(unused)]
 mod test {
-    use crate::{AkitaMapper, Entity, BaseMapper, self as akita, ToValue, IdentifierGenerator};
+    use std::borrow::Borrow;
+    use crate::prelude::{Entity, self as akita, IdentifierGenerator};
     use crate::key::SnowflakeGenerator;
 
     #[test]
     fn test_converter() {
         let user = SystemUsers {
             id: None,
-            username: "Longchen".to_string(),
+            username: "".to_string(),
             age: 0,
         };
 
-        println!("ddddd{:?}", user.to_value());
+        // println!("ddddd{:?}", user.to_value());
     }
 
     #[test]
@@ -98,4 +91,5 @@ mod test {
         #[field(name = "ssss")]
         age: i32,
     }
+    
 }

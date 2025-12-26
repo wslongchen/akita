@@ -20,9 +20,12 @@
  */
 
 use proc_macro::TokenStream;
+use proc_macro2::{Span};
 use quote::quote;
-use syn::{DeriveInput};
-use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{FieldExtra}, util::{find_struct_annotions, collect_field_info, to_snake_name}};
+use syn::{DeriveInput, LitStr};
+use crate::{convert_derive::{build_to_akita, build_from_akita}, comm::{FieldExtra}, util::{collect_field_info, to_snake_name}};
+use crate::comm::crate_ident;
+use crate::util::find_struct_annotations;
 
 pub fn impl_get_table(input: TokenStream) -> TokenStream {
     let derive_input = syn::parse::<DeriveInput>(input).unwrap();
@@ -31,22 +34,39 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
 }
 
 fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
-    // extra annotion info
+    // extra annotation info
     // Struct specific definitions
+    let crate_ident = crate_ident();
     let generics = &ast.generics;
     let fields = collect_field_info(ast);
     let struct_info = &ast.ident;
     let struct_name = &ast.ident.to_string();
-    let structs = find_struct_annotions(&ast.attrs);
+    let structs = find_struct_annotations(&ast.attrs);
     let mut table_name = structs.iter().find(|st| match st { FieldExtra::Table(_) => true, _ => false })
     .map(|extra| match extra {
         FieldExtra::Table(name) => name.clone(),
         _ => String::default()
     }).unwrap_or_default();
 
+    let schema_expr = if let Some(schema) = structs.iter().find_map(|st| {
+        match st {
+            FieldExtra::Schema(s) => Some(s),
+            _ => None
+        }
+    }) {
+        let schema_lit = LitStr::new(schema, Span::call_site());
+        quote! { Some(#schema_lit.to_string()) }
+    } else {
+        quote! { None }
+    };
+
     if table_name.is_empty() {
         table_name = to_snake_name(struct_name);
     }
+
+    let primary_key_field = fields.iter().find(|field| {
+        field.extra.iter().any(|extra| matches!(extra, FieldExtra::TableId))
+    });
 
     let from_fields: Vec<proc_macro2::TokenStream> = fields
         .iter()
@@ -56,7 +76,7 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
             let mut exist = true;
             let mut select = true;
             let mut identify = false;
-            let mut identifier_type = quote!(akita::IdentifierType::None);
+            let mut identifier_type = quote!( #crate_ident::prelude::IdentifierType::None);
             let mut fill_function = String::default();
             let mut fill_mode = None;
 
@@ -80,12 +100,12 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                         identify = true;
                     }
                     FieldExtra::IdType(ty) => {
-                        identifier_type = match ty.as_str() {
-                            "auto" => quote!(akita::IdentifierType::Auto),
-                            "input" => quote!(akita::IdentifierType::Input),
-                            "assign_id" => quote!(akita::IdentifierType::AssignId),
-                            "assign_uuid" => quote!(akita::IdentifierType::AssignUuid),
-                            _ => quote!(akita::IdentifierType::None)
+                        identifier_type = match ty.to_lowercase().as_str() {
+                            "auto" => quote!(#crate_ident::prelude::IdentifierType::Auto),
+                            "input" => quote!(#crate_ident::prelude::IdentifierType::Input),
+                            "assign_id" => quote!(#crate_ident::prelude::IdentifierType::AssignId),
+                            "assign_uuid" => quote!(#crate_ident::prelude::IdentifierType::AssignUuid),
+                            _ => quote!(#crate_ident::prelude::IdentifierType::None)
                         }
 
                     }
@@ -93,18 +113,18 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
                 }
             }
 
-            let field_type = if identify { quote!(akita::FieldType::TableId(#identifier_type)) } else { quote!(akita::FieldType::TableField) };
+            let field_type = if identify { quote!(#crate_ident::prelude::FieldType::TableId(#identifier_type)) } else { quote!(#crate_ident::prelude::FieldType::TableField) };
             let fill_mode = fill_mode.unwrap_or(String::from("default")).to_lowercase();
             let fill = if fill_function.is_empty() { quote!(None) } else {
                 let fn_ident: syn::Path = syn::parse_str(&fill_function).unwrap();
-                quote!(akita::core::Fill {
-                        value: Some(#fn_ident().to_value()),
+                quote!(#crate_ident::prelude::Fill {
+                        value: Some(#fn_ident().into_value()),
                         mode: #fill_mode.to_string()
                     }.into())
             };
 
             quote!(
-                akita::core::FieldName {
+                #crate_ident::prelude::FieldName {
                     name: #name.to_string(),
                     table: #table_name.to_string().into(),
                     alias: #alias.to_string().into(),
@@ -135,21 +155,37 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
             }
             if exist {
                 quote!(
+
                     pub fn #field_name() -> String {
                         #name.to_string()
                     }
-
-                    // #[allow(dead_code)]
-                    // fn get_value(&self) -> akita::Value {
-                    //     // 这里可以根据需要获取结构体值
-                    //     self.#field_name.to_value()
-                    // }
                 )
             } else {
                 quote!(
                 )
             }
         }).collect();
+
+    // Generate primary key related methods
+    let primary_key_methods = if let Some(pk_field) = primary_key_field {
+        let _pk_field_ident = pk_field.field.ident.as_ref().unwrap();
+        let pk_field_name = &pk_field.name;
+
+        quote! {
+            pub fn primary_key_field() -> String {
+                #pk_field_name.to_string()
+            }
+
+
+        }
+    } else {
+        quote! {
+            pub fn primary_key_field() -> String {
+                "".to_string()
+            }
+        }
+    };
+
     let impl_mapper = impl_table_mapper(struct_info);
     let impl_to_akita = build_to_akita(struct_info, generics, &fields);
     let impl_from_akita = build_from_akita(struct_info, generics, &fields);
@@ -161,18 +197,38 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
 
         #impl_from_akita
 
-        impl #generics akita::core::GetTableName for #struct_info #generics {
-            fn table_name() -> akita::core::TableName {
-                akita::core::TableName{
+        impl #generics #crate_ident::prelude::GetTableName for #struct_info #generics {
+            fn table_name() -> #crate_ident::prelude::TableName {
+                #crate_ident::prelude::TableName{
                     name: #table_name.to_string(),
-                    schema: None,
+                    schema: #schema_expr,
                     alias: #struct_name.to_lowercase().into(),
+                    ignore_interceptors: std::collections::HashSet::new(),
                 }
             }
         }
 
-        impl #generics akita::core::GetFields for #struct_info #generics {
-            fn fields() -> Vec<akita::core::FieldName> {
+        impl #generics #crate_ident::prelude::GetTableName for &#struct_info #generics {
+            fn table_name() -> #crate_ident::prelude::TableName {
+                #crate_ident::prelude::TableName{
+                    name: #table_name.to_string(),
+                    schema: #schema_expr,
+                    alias: #struct_name.to_lowercase().into(),
+                    ignore_interceptors: std::collections::HashSet::new(),
+                }
+            }
+        }
+
+        impl #generics #crate_ident::prelude::GetFields for #struct_info #generics {
+            fn fields() -> Vec<#crate_ident::prelude::FieldName> {
+                vec![
+                    #(#from_fields)*
+                ]
+            }
+        }
+
+        impl #generics #crate_ident::prelude::GetFields for &#struct_info #generics {
+            fn fields() -> Vec<#crate_ident::prelude::FieldName> {
                 vec![
                     #(#from_fields)*
                 ]
@@ -183,60 +239,299 @@ fn parse_table(ast: &syn::DeriveInput) -> TokenStream {
 
             #(#cols)*
 
+            #primary_key_methods
         }
 
     ).into()
 }
 
 fn impl_table_mapper(name: &syn::Ident) -> proc_macro2::TokenStream {
+    let crate_ident = crate_ident();
     quote!(
-        impl akita::BaseMapper for #name {
+        
+        #[cfg(all(
+            any(
+                feature = "mysql-sync",
+                feature = "postgres-sync",
+                feature = "sqlite-sync",
+                feature = "oracle-sync",
+                feature = "mssql-sync"
+            ),
+            not(any(
+                feature = "mysql-async",
+                feature = "postgres-async",
+                feature = "sqlite-async",
+                feature = "mssql-async",
+                feature = "oracle-async"
+            ))
+        ))]
+        impl #name {
 
-            type Item = #name;
-
-            fn insert<I, M: akita::AkitaMapper>(&self, entity_manager: &M) -> akita::Result<Option<I>> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue, I: akita::core::FromValue {
-                entity_manager.save(self)
+            /// Query individual entities
+            pub fn select_one<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<Option<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.select_one(wrapper)
             }
 
-            fn insert_batch<M: akita::AkitaMapper>(datas: &[&Self::Item], entity_manager: &M) -> akita::Result<()> where Self::Item : akita::core::GetTableName + akita::core::GetFields {
-                entity_manager.save_batch::<Self::Item>(datas)
+            /// Find entities based on ID
+            pub fn select_by_id<M, I>(mapper: &M, id: I) -> std::result::Result<Option<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.select_by_id(id)
             }
 
-            fn update<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                entity_manager.update(self, wrapper)
+            /// Pagination query
+            pub fn page<M>(mapper: &M, page: u64, size: u64, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<#crate_ident::prelude::IPage<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.page(page, size, wrapper)
             }
 
-            fn list<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<Vec<Self::Item>> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
-                entity_manager.list(wrapper)
+            /// Count
+            pub fn count<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.count::<Self>(wrapper)
             }
 
-            fn update_by_id<M: akita::AkitaMapper>(&self, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                entity_manager.update_by_id::<Self::Item>(self)
+            /// Delete the current entity (according to ID)
+            pub fn remove_by_id<M, I>(&self, mapper: &M, id: I) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.remove_by_id::<Self, I>(id)
             }
 
-            fn delete<M: akita::AkitaMapper>(&self, wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                entity_manager.remove::<Self::Item>(wrapper)
+            /// Removed according to conditions
+            pub fn remove<M>(&self, mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.remove::<Self>(wrapper)
             }
 
-            fn delete_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &M, id: I) -> akita::Result<u64> where Self::Item : akita::core::GetFields + akita::core::GetTableName + akita::core::ToValue {
-                entity_manager.remove_by_id::<Self::Item, I>(id)
+            /// Bulk deletion (based on ID list)
+            pub fn remove_by_ids<M, I>(mapper: &M, ids: Vec<I>) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.remove_by_ids::<Self, I>(ids)
             }
 
-            fn page<M: akita::AkitaMapper>(page: usize, size: usize, wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<akita::IPage<Self::Item>> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
-                entity_manager.page::<Self::Item>(page, size, wrapper)
+            /// Update the current entity (based on ID)
+            pub fn update_by_id<M>(&self, mapper: &M) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.update_by_id(self)
             }
 
-            fn count<M: akita::AkitaMapper>(&mut self, wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<usize> {
-                entity_manager.count::<Self::Item>(wrapper)
+            /// Save or update the current entity
+            pub fn save_or_update<M, I>(&self, mapper: &M) -> std::result::Result<Option<I>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                I: #crate_ident::prelude::FromAkitaValue + Sync + Send,
+            {
+                mapper.save_or_update(self)
             }
 
-            fn find_one<M: akita::AkitaMapper>(wrapper: akita::Wrapper, entity_manager: &M) -> akita::Result<Option<Self::Item>> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
-                entity_manager.select_one(wrapper)
+            /// Batch update (based on ID)
+            pub fn update_batch_by_id<M>(mapper: &M, entities: &Vec<Self>) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.update_batch_by_id(entities)
             }
 
-            /// Find Data With Table's Ident.
-            fn find_by_id<I: akita::core::ToValue, M: akita::AkitaMapper>(&self, entity_manager: &M, id: I) -> akita::Result<Option<Self::Item>> where Self::Item : akita::core::GetTableName + akita::core::GetFields + akita::core::FromValue {
-                entity_manager.select_by_id(id)
+            /// Updated according to conditions
+            pub fn update<M>(&self, mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.update(self, wrapper)
+            }
+
+            /// Save the current entity (insert)
+            pub fn save<M, I>(&self, mapper: &M) -> std::result::Result<Option<I>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                I: #crate_ident::prelude::FromAkitaValue + Sync + Send,
+            {
+                mapper.save(self)
+            }
+
+            /// Bulk insertion
+            pub fn save_batch<M, E>(mapper: &M, entities: E) -> std::result::Result<(), #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+                E: IntoIterator<Item = Self>
+            {
+                mapper.save_batch(entities)
+            }
+
+
+            /// Query all records
+            pub fn list<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<Vec<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AkitaMapper,
+            {
+                mapper.list(wrapper)
+            }
+
+            /// Create a query wrapper
+            pub fn query() -> #crate_ident::prelude::Wrapper {
+                #crate_ident::prelude::Wrapper::new()
+            }
+        }
+        
+        #[cfg(all(
+            any(
+                feature = "mysql-async",
+                feature = "postgres-async",
+                feature = "sqlite-async",
+                feature = "oracle-async",
+                feature = "mssql-async"
+            ),
+            not(any(
+                feature = "mysql-sync",
+                feature = "postgres-sync",
+                feature = "sqlite-sync",
+                feature = "mssql-sync",
+                feature = "oracle-sync"
+            ))
+        ))]
+        impl #name {
+
+            /// Query individual entities
+            pub async fn select_one<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<Option<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.select_one(wrapper).await
+            }
+
+            /// Find entities based on ID
+            pub async fn select_by_id<M, I>(mapper: &M, id: I) -> std::result::Result<Option<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.select_by_id(id).await
+            }
+
+            /// Pagination query
+            pub async fn page<M>(mapper: &M, page: u64, size: u64, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<#crate_ident::prelude::IPage<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.page(page, size, wrapper).await
+            }
+
+            /// Count
+            pub async fn count<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.count::<Self>(wrapper).await
+            }
+
+            /// Delete the current entity (according to ID)
+            pub async fn remove_by_id<M, I>(&self, mapper: &M, id: I) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.remove_by_id::<Self, I>(id).await
+            }
+
+            /// Removed according to conditions
+            pub async fn remove<M>(&self, mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.remove::<Self>(wrapper).await
+            }
+
+            /// Bulk deletion (based on ID list)
+            pub async fn remove_by_ids<M, I>(mapper: &M, ids: Vec<I>) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                I: #crate_ident::prelude::IntoAkitaValue + Sync + Send,
+            {
+                mapper.remove_by_ids::<Self, I>(ids).await
+            }
+
+            /// Update the current entity (based on ID)
+            pub async fn update_by_id<M>(&self, mapper: &M) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.update_by_id(self).await
+            }
+
+            /// Save or update the current entity
+            pub async fn save_or_update<M, I>(&self, mapper: &M) -> std::result::Result<Option<I>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                I: #crate_ident::prelude::FromAkitaValue + Sync + Send,
+            {
+                mapper.save_or_update(self).await
+            }
+
+            /// Batch update (based on ID)
+            pub async fn update_batch_by_id<M>(mapper: &M, entities: &Vec<Self>) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.update_batch_by_id(entities).await
+            }
+
+            /// Updated according to conditions
+            pub async fn update<M>(&self, mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<u64, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.update(self, wrapper).await
+            }
+
+            /// Save the current entity (insert)
+            pub async fn save<M, I>(&self, mapper: &M) -> std::result::Result<Option<I>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                I: #crate_ident::prelude::FromAkitaValue + Sync + Send,
+            {
+                mapper.save(self).await
+            }
+
+            /// Bulk insertion
+            pub async fn save_batch<M, E>(mapper: &M, entities: E) -> std::result::Result<(), #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+                E: IntoIterator<Item = Self> + Sync + Send
+            {
+                mapper.save_batch(entities).await
+            }
+
+
+            /// Query all records
+            pub async fn list<M>(mapper: &M, wrapper: #crate_ident::prelude::Wrapper) -> std::result::Result<Vec<Self>, #crate_ident::prelude::AkitaError>
+            where
+                M: #crate_ident::prelude::AsyncAkitaMapper,
+            {
+                mapper.list(wrapper).await
+            }
+
+            /// Create a query wrapper
+            pub fn query() -> #crate_ident::prelude::Wrapper {
+                #crate_ident::prelude::Wrapper::new()
             }
         }
     )

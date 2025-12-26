@@ -21,7 +21,7 @@
 
 //!
 //! Common Params
-//! 
+//!
 
 use crate::information::Capacity;
 
@@ -158,15 +158,23 @@ pub fn maybe_trim_parenthesis(arg: &str) -> &str {
     }
 }
 
-fn is_keyword(s: &str) -> bool {
-    let keywords = ["user", "role"];
-    keywords.contains(&s)
-}
-
-pub fn keywords_safe(s: &str) -> String {
-    if is_keyword(s) {
-        format!("\"{}\"", s)
-    } else {
-        s.to_string()
+pub fn is_sql_expression(value: &str) -> bool {
+    // 检查是否是 SQL 函数（带括号）
+    if value.contains('(') && value.ends_with(')') {
+        return true;
     }
+
+    // 检查是否是常见的 SQL 表达式模式
+    let patterns = [
+        "sysdate", "now()", "current_timestamp", "current_date",
+        "concat(", "upper(", "lower(", "trim(",
+        "+", "-", "*", "/",  // 包含运算符
+        "||",  // 字符串连接（某些数据库）
+        "case ", "coalesce(", "nullif(",
+        "age+", "age-",  // 像 "age+10000" 这样的表达式
+    ];
+
+    patterns.iter().any(|&pattern| {
+        value.to_lowercase().contains(pattern)
+    })
 }

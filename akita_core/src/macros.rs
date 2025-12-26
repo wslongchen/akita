@@ -271,8 +271,6 @@ macro_rules! akita_expect_expr_comma {
     ($e:expr , $($tt:tt)*) => {};
 }
 
-
-
 #[macro_export]
 macro_rules! cfg_if {
     // match if/else chains with a final `else`
@@ -346,6 +344,7 @@ macro_rules! cfg_if {
 
 
 
+
 /// This macro is a convenient way to pass named parameters to a statement.
 ///
 /// ```ignore
@@ -359,10 +358,10 @@ macro_rules! cfg_if {
 macro_rules! params {
     () => {};
     (@to_pair $name:expr => $value:expr) => (
-        (std::string::String::from($name), akita_core::Value::from($value))
+        (std::string::String::from($name), AkitaValue::from($value))
     );
     (@to_pair $name:ident) => (
-        (std::string::String::from(stringify!($name)), akita_core::Value::from($name))
+        (std::string::String::from(stringify!($name)), AkitaValue::from($name))
     );
     (@expand $vec:expr;) => {};
     (@expand $vec:expr; $name:expr => $value:expr, $($tail:tt)*) => {

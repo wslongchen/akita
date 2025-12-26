@@ -122,9 +122,14 @@ impl TemplateEngine {
             }
 
             // DTO
+            // Request
+            let mut request_name = lang._name(table_info.request_name());
+            if request_name.is_empty() {
+                request_name = entity_name.to_string();
+            }
             let request_path = path_info.get(REQUEST_PATH).map(Clone::clone).unwrap_or_default();
-            if !entity_name.is_empty() && !request_path.is_empty() {
-                let output_dto_file = format!("{}{}{}{}", request_path, SEPARATOR, entity_name, suffix);
+            if !request_name.is_empty() && !request_path.is_empty() {
+                let output_dto_file = format!("{}{}{}{}", request_path, SEPARATOR, request_name, suffix);
                 if self.is_create(&output_dto_file) {
                     if let Some(request) = template.get_request() {
                         self.writer(&context, self.template_file_path(request.to_string()), output_dto_file.to_string());
@@ -132,9 +137,14 @@ impl TemplateEngine {
                 }
             }
 
+            // Response
+            let mut response_name = lang._name(table_info.response_name());
+            if response_name.is_empty() {
+                response_name = entity_name.to_string();
+            }
             let response_path = path_info.get(RESPONSE_PATH).map(Clone::clone).unwrap_or_default();
-            if !entity_name.is_empty() && !response_path.is_empty() {
-                let output_dto_file = format!("{}{}{}{}", response_path, SEPARATOR, entity_name, suffix);
+            if !response_name.is_empty() && !response_path.is_empty() {
+                let output_dto_file = format!("{}{}{}{}", response_path, SEPARATOR, response_name, suffix);
                 if self.is_create(&output_dto_file) {
                     if let Some(response) = template.get_response() {
                         self.writer(&context, self.template_file_path(response.to_string()), output_dto_file);

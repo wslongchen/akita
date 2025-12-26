@@ -393,6 +393,8 @@ pub struct GlobalConfig {
     author: String,
     /// 各层文件名称方式，例如： %sAction 生成 UserAction %s 为占位符
     service_name: String,
+    request_name: Option<String>,
+    response_name: Option<String>,
     entity_name: String,
     service_impl_name: String,
     mapper_name: String,
@@ -420,6 +422,8 @@ impl Default for GlobalConfig {
             open: false,
             author: "".to_string(),
             service_name: "".to_string(),
+            request_name: None,
+            response_name: None,
             entity_name: "".to_string(),
             service_impl_name: "".to_string(),
             mapper_name: "".to_string(),

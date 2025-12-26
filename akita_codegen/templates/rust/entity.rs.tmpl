@@ -18,13 +18,16 @@ pub struct {{ entity }} {
 {%- if field.keyFlag -%}
 {%- set keyPropertyName = field.propertyName %}
 {%- endif %}
-{%- if field.comment != "" -%}
+{%- if field.comment != "" %}
      /// {{ field.comment }}
-{%- endif %}
+{%- else %}
+{%- endif -%}
 {% if field.keyFlag -%}
 {#- 主键 -#}
-{%- if field.keyIdentityFlag -%}
-	#[id]
+{%- if field.keyIdentityFlag %}
+	#[id(id_type = "auto")]
+{%- else %}
+    #[id(id_type = "none")]
 {%- endif %}
 {#- 普通字段 -#}
 {%- elif field.fill -%}

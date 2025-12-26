@@ -61,6 +61,6 @@ pub const UNDERLINE: &str = "_";
 pub const PLACE_HOLDER: &str = "%s";
 
 pub const DOT_JAVA: &str = ".java";
-pub const SUPER_MAPPER_CLASS: &str = "com.baomidou.mybatisplus.core.mapper.BaseMapper";
-pub const SUPER_SERVICE_CLASS: &str = "com.baomidou.mybatisplus.extension.service.IService";
-pub const SUPER_SERVICE_IMPL_CLASS: &str = "com.baomidou.mybatisplus.extension.service.impl.ServiceImpl";
+pub const SUPER_MAPPER_CLASS: &str = "com.BaseMapper";
+pub const SUPER_SERVICE_CLASS: &str = "com.IService";
+pub const SUPER_SERVICE_IMPL_CLASS: &str = "com.ServiceImpl";

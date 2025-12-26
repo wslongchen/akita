@@ -20,11 +20,11 @@
  */
 
 use quote::{quote, ToTokens};
-use syn::{self, Type, Ident, parse_quote, spanned::Spanned, ItemFn, ReturnType, FnArg, Pat};
+use syn::{self, Type, Ident, parse_quote, spanned::Spanned, ItemFn, ReturnType, FnArg, Pat, PathArguments};
 use std::collections::HashMap;
 use proc_macro2::{Span};
 use proc_macro_error::{abort};
-use crate::{comm::{FieldExtra, FieldInformation, CustomArgument, NUMBER_TYPES, COW_TYPE, CUSTOM_ARG_LIFETIME, CUSTOM_ARG_ALLOWED_COPY_TYPES, ValueOrPath}};
+use crate::{comm::{FieldExtra, FieldInformation, CustomArgument, NUMBER_TYPES, CUSTOM_ARG_LIFETIME, CUSTOM_ARG_ALLOWED_COPY_TYPES, ValueOrPath}};
 use crate::comm::ALLOW_TABLE_ID_TYPES;
 
 
@@ -71,123 +71,293 @@ pub fn get_field_type(ty: &syn::Type) -> Option<String> {
 
 
 #[allow(unused)]
+/// Get the field default value with the FromAkitaValue check
 pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenStream {
     let ident_name = ident.to_string();
-    let ori_ty = get_field_type(ty).unwrap_or_default();
-    let mut ft = String::default();
-    if let Type::Path(r#path) = ty {
-        ft = r#path.path.segments[0].ident.to_string();
+
+    // Check if it's <T>an Option
+    if is_option_type(ty) {
+        // For Option<T>, check whether T implements FromAkitaValue
+        if let Some(inner_ty) = extract_option_inner_type(ty) {
+            if !is_builtin_type(&inner_ty) && !is_known_type(&inner_ty) {
+                // Generates the FromAkitaValue check
+                return generate_from_value_check(&inner_ty, &ident_name, "Option");
+            }
+        }
+        return quote!(None);
     }
 
-    if ft.eq("Option") {
-        quote!(None)
-    } else {
-        match ori_ty.as_str() {
-            "f64" | "f32" => quote!(0.0),
-            "u8" | "u128" | "u16" | "u64" | "u32" | "i8" | "i16" | "i32" | "i64" | "i128" | "usize" | "isize" => quote!(0),
-            "bool" => quote!(false),
-            "str" => quote!(""),
-            "String" => quote!(String::default()),
-            "NaiveDate"  => quote!(Local::now().naive_local().date()),
-            "NaiveDateTime" => quote!(Local::now().naive_local()),
-            "Vec" => quote!(Vec::new()),
-            "Value" => quote!(serde_json::Value::default()),
-            _ => {
-                // 如果字段没有定义Option，则抛错
-                let error_message = format!(
-                    "Field `{}` with type `{}` must be `Option` .",
-                    ident_name,
-                    ori_ty
-                );
-                // 显式地抛出编译错误
-                quote! {
-                    compile_error!(#error_message);
+    // Checks for a type that requires special handling
+    let type_name = get_type_name(ty);
+
+    match type_name.as_str() {
+        // Known built-in types (for which FromAkitaValue has been implemented)
+        "f64" | "f32" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "bool" |
+        "String" | "char" | "NaiveDate" | "NaiveDateTime" | "DateTime" |
+        "Vec" | "Value" | "JsonValue" | "Uuid" | "BigDecimal" => {
+            // These types already have default implementations that use default values
+            get_builtin_default_value(ty, &type_name)
+        }
+
+        // Reference types
+        _ if type_name.starts_with('&') => {
+            // A reference type cannot have a default value; it must be an Option
+            let error_message = format!(
+                "Field `{}` has reference type `{}`.\n\
+                 Reference fields must be `Option<{}>` to allow NULL values.",
+                ident_name, type_name, type_name.trim_start_matches('&')
+            );
+            quote! { compile_error!(#error_message) }
+        }
+
+        // Custom type: Checks if FromAkitaValue is implemented
+        _ => {
+            if is_builtin_type(ty) || is_known_type(ty) {
+                get_builtin_default_value(ty, &type_name)
+            } else {
+                // generate_from_value_check(ty, &ident_name, &type_name)
+                quote!(<#ty as std::default::Default>::default())
+            }
+        }
+    }
+}
+
+/// Checks if it is a built-in type
+fn is_builtin_type(ty: &Type) -> bool {
+    let type_name = get_type_name(ty);
+    matches!(
+        type_name.as_str(),
+        "bool" | "i8" | "i16" | "i32" | "i64" | "i128" |
+        "u8" | "u16" | "u32" | "u64" | "u128" |
+        "f32" | "f64" | "isize" | "usize" |
+        "char" | "str" | "String"
+    )
+}
+
+/// Check if it's a known type (FromAkitaValue implemented)
+fn is_known_type(ty: &Type) -> bool {
+    let type_name = get_type_name(ty);
+    matches!(
+        type_name.as_str(),
+        "NaiveDate" | "NaiveDateTime" | "DateTime" |
+        "Vec" | "Value" | "JsonValue" | "Uuid" | "BigDecimal"
+    )
+}
+
+/// Check if it's an Option<T>
+pub fn is_option_type(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return segment.ident == "Option";
+        }
+    }
+    false
+}
+
+/// Extract T from Option<T>
+pub fn extract_option_inner_type(ty: &Type) -> Option<&Type> {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            if segment.ident == "Option" {
+                if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        return Some(inner_ty);
+                    }
                 }
             }
         }
+    }
+    None
+}
+
+fn get_type_name(ty: &Type) -> String {
+    match ty {
+        Type::Path(type_path) => {
+            if let Some(segment) = type_path.path.segments.last() {
+                let mut type_name = segment.ident.to_string();
+
+                // If there are generic arguments, add Angle brackets
+                match &segment.arguments {
+                    PathArguments::AngleBracketed(args) => {
+                        if !args.args.is_empty() {
+                            type_name.push('<');
+                            // Generic parameters can be handled further
+                            type_name.push_str("...");
+                            type_name.push('>');
+                        }
+                    }
+                    _ => {}
+                }
+
+                type_name
+            } else {
+                "Unknown".to_string()
+            }
+        }
+
+        Type::Reference(type_ref) => {
+            let base_type = get_type_name(&type_ref.elem);
+            if type_ref.mutability.is_some() {
+                format!("&mut {}", base_type)
+            } else {
+                format!("&{}", base_type)
+            }
+        }
+
+        Type::Slice(type_slice) => {
+            // Handling slice types, such as [u8]
+            format!("[{}]", get_type_name(&type_slice.elem))
+        }
+
+        Type::Array(type_array) => {
+            // Handle array types, such as [u8; 32]
+            format!("[{}; {:?}]", get_type_name(&type_array.elem), type_array.len)
+        }
+
+        Type::Tuple(type_tuple) => {
+            // Working with tuple types such as (i32, String)
+            let elements: Vec<String> = type_tuple.elems.iter().map(get_type_name).collect();
+            format!("({})", elements.join(", "))
+        }
+
+        _ => "Unknown".to_string(),
+    }
+}
+
+fn get_builtin_default_value(ty: &Type, type_name: &str) -> proc_macro2::TokenStream {
+    match type_name {
+        "f64" | "f32" => quote!(0.0),
+        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" => quote!(0),
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => quote!(0),
+        "bool" => quote!(false),
+        "String" => quote!(String::new()),
+        "char" => quote!(' '),
+        "NaiveDate" => quote!(chrono::Local::now().naive_local().date()),
+        "NaiveDateTime" => quote!(chrono::Local::now().naive_local()),
+        "DateTime" => quote!(chrono::Local::now().fixed_offset()),
+        "Vec" => quote!(Vec::new()),
+        "Value" | "JsonValue" => quote!(serde_json::Value::Null),
+        "Uuid" => quote!(uuid::Uuid::nil()),
+        "BigDecimal" => quote!(bigdecimal::BigDecimal::from(0)),
+        _ => quote!(<#ty as std::default::Default>::default()),
+    }
+}
+
+/// Generate the FromAkitaValue check code
+fn generate_from_value_check(ty: &Type, field_name: &str, type_name: &str) -> proc_macro2::TokenStream {
+    let error_message = format!(
+        "Type `{}` for field `{}` must implement `FromAkitaValue`.\n\n\
+         To fix this:\n\
+         1. Implement `FromAkitaValue` for `{}`\n\
+         2. Or wrap it in `Option<{}>` if the field can be NULL\n\
+         3. Or use a supported type that already implements `FromAkitaValue`\n\n\
+         Supported types include:\n\
+         - All primitive types (i32, f64, bool, etc.)\n\
+         - String, char\n\
+         - chrono types (NaiveDate, NaiveDateTime, DateTime)\n\
+         - Option<T> (if T implements FromAkitaValue)\n\
+         - Vec<T> (if T implements FromAkitaValue)\n\
+         - serde_json::Value\n\
+         - And any type that implements FromAkitaValue",
+        type_name, field_name, type_name, type_name
+    );
+    quote! {
+        compile_error!(#error_message)
     }
 }
 
 /// Finds all struct schema annotion
-pub fn find_struct_annotions(struct_attrs: &[syn::Attribute]) -> Vec<FieldExtra> {
-    struct_attrs
-        .iter()
-        .find(|attribute| {
-            attribute.path == parse_quote!(table)
-        })
-        .map(|attribute| find_struct_annotion(attribute)).unwrap_or(vec![])
-}
+pub fn find_struct_annotations(struct_attrs: &[syn::Attribute]) -> Vec<FieldExtra> {
+    let mut annotations = Vec::new();
 
-pub fn find_struct_annotion(attr: &syn::Attribute) -> Vec<FieldExtra> {
-    let mut extras = vec![];
-    let error = |span: Span, msg: &str| -> ! {
-        abort!(span, "Invalid table annotion: {}", msg);
-    };
-
-    if attr.path != parse_quote!(table) {
-        error(attr.span(), "missing annotion for `table` ");
-    }
-
-    match attr.parse_meta() {
-        Ok(syn::Meta::List(syn::MetaList { ref nested, .. })) => {
-            let meta_items = nested.iter().collect::<Vec<_>>();
-            // only field from there on
-            for meta_item in meta_items {
-                match *meta_item {
-                    syn::NestedMeta::Meta(ref item) => match *item {
-                        // name
-                        syn::Meta::Path(ref name) => {
-                            match name.get_ident().unwrap().to_string() {
-                                _ => {
-                                    let mut ident = proc_macro2::TokenStream::new();
-                                    name.to_tokens(&mut ident);
-                                    abort!(name.span(), "Unexpected annotion: {}", ident)
-                                }
-                            }
-                        }
-                        // fill, name, select, numberic_scale, exist
-                        syn::Meta::NameValue(syn::MetaNameValue { ref path, ref lit, .. }) => {
-                            let ident = path.get_ident().unwrap();
-                            match ident.to_string().as_ref() {
-                                "name" => {
-                                    match lit_to_string(lit) {
-                                        Some(s) => extras.push(FieldExtra::Table(s)),
-                                        None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
-                                    };
-                                }
-                                v => abort!(path.span(),"unexpected name value annotion: {:?}",v),
-                            };
-                        }
-                        _ => unreachable!("Found a non Meta while looking for annotions"),
-                    },
-                    _ => unreachable!("Found a non Meta while looking for annotions"),
-                };
+    for attr in struct_attrs {
+        if attr.path == parse_quote!(table) {
+            if let Ok(extras) = parse_table_attribute(attr) {
+                annotations.extend(extras);
+            }
+        } else if attr.path == parse_quote!(schema) {
+            if let Ok(extra) = parse_schema_attribute(attr) {
+                annotations.push(extra);
             }
         }
-        Ok(syn::Meta::Path(ref name)) => extras.push(FieldExtra::Name(name.get_ident().unwrap().to_string())),
-        Ok(syn::Meta::NameValue(syn::MetaNameValue { ref lit, ref path, .. })) => {
-            let ident = path.get_ident().unwrap();
-            match ident.to_string().as_ref() {
-                "name" => {
-                    match lit_to_string(lit) {
-                        Some(s) => extras.push(FieldExtra::Name(s)),
-                        None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
-                    };
-                }
-                v => abort!(path.span(),"unexpected name value annotion: {:?}",v),
-            };
-        },
-        Err(e) => {
-            abort!(attr.span(), "Unable to parse this attribute for the table with the error: {:?}", e );
-        },
     }
-
-    if extras.is_empty() {
-        abort!(attr.span(), "Unable to parse this attribute for the table");
-    }
-    extras
+    annotations
 }
 
+fn parse_table_attribute(attr: &syn::Attribute) -> syn::Result<Vec<FieldExtra>> {
+    parse_attribute(attr, false)
+}
+
+fn parse_schema_attribute(attr: &syn::Attribute) -> syn::Result<FieldExtra> {
+    let extras = parse_attribute(attr, true)?;
+
+    if extras.len() == 1 {
+        Ok(extras.into_iter().next().unwrap())
+    } else {
+        Err(syn::Error::new(attr.span(), "schema attribute must contain exactly one name"))
+    }
+}
+
+fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<FieldExtra>> {
+    let meta = attr.parse_meta()?;
+
+    let extract_name = |meta_item: &syn::Meta| -> syn::Result<String> {
+        match meta_item {
+            syn::Meta::Path(path) => {
+                path.get_ident()
+                    .map(|ident| ident.to_string())
+                    .ok_or_else(|| syn::Error::new(path.span(), "expected identifier"))
+            }
+            syn::Meta::NameValue(nv) if nv.path.is_ident("name") => {
+                match &nv.lit {
+                    syn::Lit::Str(s) => Ok(s.value()),
+                    _ => Err(syn::Error::new(nv.lit.span(), "name must be a string")),
+                }
+            }
+            _ => Err(syn::Error::new(
+                meta_item.span(),
+                format!("expected `name = \"...\"` or a single identifier")
+            )),
+        }
+    };
+
+    match &meta {
+        syn::Meta::Path(_) | syn::Meta::NameValue(_) => {
+            let name = extract_name(&meta)?;
+            Ok(vec![create_field_extra(is_schema, &name)])
+        }
+        syn::Meta::List(list) => {
+            let mut names = Vec::new();
+
+            for nested in &list.nested {
+                if let syn::NestedMeta::Meta(meta_item) = nested {
+                    let name = extract_name(meta_item)?;
+                    names.push(create_field_extra(is_schema, &name));
+                } else {
+                    return Err(syn::Error::new(
+                        nested.span(),
+                        "unexpected nested meta item"
+                    ));
+                }
+            }
+
+            if names.is_empty() {
+                Err(syn::Error::new(list.span(), "must specify at least one name"))
+            } else {
+                Ok(names)
+            }
+        }
+    }
+}
+
+fn create_field_extra(is_schema: bool, name: &str) -> FieldExtra {
+    if is_schema {
+        FieldExtra::Schema(name.to_string())
+    } else {
+        FieldExtra::Table(name.to_string())
+    }
+}
 
 pub fn collect_field_info(ast: &syn::DeriveInput) -> Vec<FieldInformation> {
     let mut fields = collect_fields(ast);
@@ -195,13 +365,14 @@ pub fn collect_field_info(ast: &syn::DeriveInput) -> Vec<FieldInformation> {
     fields.drain(..).fold(vec![], |mut acc, field| {
         let key = field.ident.clone().unwrap().to_string();
         let (name, extra) = find_extra_for_field(&field, &field_types);
-        // table_id仅支持数字类型及字符串类型
+        // TABLE_ID ONLY SUPPORTS NUMERIC AND STRING TYPES
         let has_table_id = extra.iter().find(|ext| match ext {
             FieldExtra::TableId => true,
             _ => false,
         }).is_some();
         let file_type = field_types.get(&key).map(Clone::clone).unwrap_or_default().to_string();
-        if has_table_id && !ALLOW_TABLE_ID_TYPES.contains(&file_type.as_str()) {
+        let type_string_no_space = file_type.replace(' ', "");
+        if has_table_id && !ALLOW_TABLE_ID_TYPES.contains(&type_string_no_space.as_str()) {
             abort!(ast.span(), "#[id] can only be used with Long、Integer or String Types.")
         }
         acc.push(FieldInformation::new(
@@ -663,30 +834,13 @@ pub fn extract_fill_custom(
 }
 
 pub fn assert_has_number(field_name: String, type_name: &str, field_type: &syn::Type) {
-    if !NUMBER_TYPES.contains(&type_name) {
+    let type_string_no_space = type_name.replace(' ', "");
+    if !NUMBER_TYPES.contains(&type_string_no_space.as_str()) {
         abort!(
             field_type.span(),
             "Entity `numberic_scale` can only be used on number types but found `{}` for field `{}`",
             type_name,
             field_name
-        );
-    }
-}
-
-#[allow(unused)]
-pub fn assert_string_type(name: &str, type_name: &str, field_type: &syn::Type) {
-    if type_name != "String"
-        && type_name != "&str"
-        && !COW_TYPE.is_match(type_name)
-        && type_name != "Option<String>"
-        && type_name != "Option<Option<String>>"
-        && !(type_name.starts_with("Option<") && type_name.ends_with("str>"))
-        && !(type_name.starts_with("Option<Option<") && type_name.ends_with("str>>"))
-    {
-        abort!(
-            field_type.span(),
-            "`{}` annotion can only be used on String, &str, Cow<'_,str> or an Option of those",
-            name
         );
     }
 }
@@ -724,7 +878,8 @@ pub fn assert_custom_arg_type(field_span: &Span, field_type: &syn::Type) {
             let segments = &path.path.segments;
             if segments.len() == 1 {
                 let ident = &segments.first().unwrap().ident.to_string();
-                if CUSTOM_ARG_ALLOWED_COPY_TYPES.contains(&ident.as_str()) {
+                let type_string_no_space = ident.replace(' ', "");
+                if CUSTOM_ARG_ALLOWED_COPY_TYPES.contains(&type_string_no_space.as_str()) {
                     // A known copy type that can be passed without a reference
                     return;
                 }
@@ -817,7 +972,7 @@ pub(crate) fn find_return_type(target_fn: &ItemFn) -> proc_macro2::TokenStream {
 
 pub(crate) fn is_akita_ref(ty_stream: &str) -> bool {
     if ty_stream.contains("Akita")
-        || ty_stream.contains("AkitaEntityManager") {
+        || ty_stream.contains("AkitaTransaction") {
         return true;
     }
     false

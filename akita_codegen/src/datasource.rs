@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use getset::{Getters, Setters};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::DeserializeOwned;
 use crate::config::{GlobalConfig, NamingStrategy, StrategyConfig};
 use crate::util::{contains_upper_case, remove_is_prefix_if_boolean};
@@ -197,6 +197,8 @@ pub struct TableInfo {
     comment: String,
     entity_name: String,
     mapper_name: String,
+    request_name: String,
+    response_name: String,
     xml_name: String,
     service_name: String,
     service_impl_name: String,
@@ -230,6 +232,8 @@ impl Default for TableInfo {
             comment: "".to_string(),
             entity_name: "".to_string(),
             mapper_name: "".to_string(),
+            request_name: "".to_string(),
+            response_name: "".to_string(),
             xml_name: "".to_string(),
             service_name: "".to_string(),
             entity_path: "".to_string(),
@@ -310,7 +314,7 @@ impl TableField {
         let mut set_get_name = self.property_name.to_string();
 
         // 如果列类型是布尔类型，处理去掉 "is" 前缀
-        if self.column_type.get_type().eq_ignore_ascii_case("boolean") {
+        if self.column_type.get_type().eq_ignore_ascii_case("bool") {
             set_get_name = remove_is_prefix_if_boolean(&set_get_name);
         }
 
@@ -337,7 +341,7 @@ impl Default for TableField {
             r#type: "".to_string(),
             property_name: "".to_string(),
             capital_name: "".to_string(),
-            column_type: DbColumnType::String,
+            column_type: DbColumnType::RustColumnType(RustDbColumnType::String),
             comment: "".to_string(),
             fill: "".to_string(),
             key_words: false,
@@ -347,8 +351,208 @@ impl Default for TableField {
     }
 }
 
-#[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum DbColumnType {
+    RustColumnType(RustDbColumnType),
+    JavaColumnType(JavaDbColumnType),
+}
+
+impl DbColumnType {
+    pub fn get_type(&self) -> String {
+        match self {
+            DbColumnType::RustColumnType(v) => v.to_string(),
+            DbColumnType::JavaColumnType(v) => v.to_string(),
+        }
+    }
+}
+
+impl ToString for DbColumnType {
+    fn to_string(&self) -> String {
+        match self {
+            DbColumnType::RustColumnType(v) => v.to_string(),
+            DbColumnType::JavaColumnType(v) => v.to_string(),
+        }
+    }
+}
+
+impl Serialize for DbColumnType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            DbColumnType::RustColumnType(r) => serializer.serialize_str(&format!("{}", r.to_string())),
+            DbColumnType::JavaColumnType(j) => serializer.serialize_str(&format!("{}", j.to_string())),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DbColumnType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let r = RustDbColumnType::from_str(&s);
+        if RustDbColumnType::Unknown != r {
+            return Ok(DbColumnType::RustColumnType(r));
+        }
+        let j = JavaDbColumnType::from_str(&s);
+        if JavaDbColumnType::Unknown != j {
+            return Ok(DbColumnType::JavaColumnType(j));
+        }
+        // 默认兜底
+        Ok(DbColumnType::RustColumnType(RustDbColumnType::String))
+    }
+}
+
+//
+// ---------------------- Rust Column Types ----------------------
+//
+#[derive(PartialEq, Clone, Debug)]
+pub enum RustDbColumnType {
+    // 基本数值类型
+    I8,
+    I16,
+    I32,
+    I64,
+    F32,
+    F64,
+    Bool,
+    Char,
+    String,
+
+    // 时间与日期
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
+    DateTimeUtc,
+    Instant,
+
+    // 数组 / 二进制
+    ByteArray,
+    Blob,
+    Clob,
+
+    // 其他
+    BigInt,
+    Decimal,
+    Json,
+    Uuid,
+    Object,
+    Unknown
+}
+
+impl RustDbColumnType {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            // 基本数值
+            "i8" => Self::I8,
+            "i16" => Self::I16,
+            "i32" => Self::I32,
+            "i64" => Self::I64,
+            "f32" => Self::F32,
+            "f64" => Self::F64,
+            "bool" => Self::Bool,
+            "char" => Self::Char,
+            "string" => Self::String,
+
+            // 时间
+            "naivedate" => Self::NaiveDate,
+            "naivetime" => Self::NaiveTime,
+            "naivedatetime" => Self::NaiveDateTime,
+            "datetimeutc" => Self::DateTimeUtc,
+            "instant" => Self::Instant,
+
+            // 二进制
+            "bytearray" | "vec<u8>" | "bytes" => Self::ByteArray,
+            "blob" => Self::Blob,
+            "clob" => Self::Clob,
+
+            // 其他
+            "bigint" => Self::BigInt,
+            "decimal" | "bigdecimal" => Self::Decimal,
+            "json" => Self::Json,
+            "uuid" => Self::Uuid,
+            "object" => Self::Object,
+
+            _ => Self::Unknown,
+        }
+    }
+
+    pub fn process_type_convert(field_type: &str) -> DbColumnType {
+        let t = field_type.to_lowercase();
+        let ctype = if t.contains("char") {
+            RustDbColumnType::String
+        } else if t.contains("bigint") {
+            RustDbColumnType::I64
+        } else if t.contains("tinyint(1)") {
+            RustDbColumnType::Bool
+        } else if t.contains("int") {
+            RustDbColumnType::I32
+        } else if t.contains("text") {
+            RustDbColumnType::String
+        } else if t.contains("bit") {
+            RustDbColumnType::Bool
+        } else if t.contains("decimal") || t.contains("numeric") {
+            RustDbColumnType::Decimal
+        } else if t.contains("clob") {
+            RustDbColumnType::ByteArray
+        } else if t.contains("blob") {
+            RustDbColumnType::ByteArray
+        } else if t.contains("binary") {
+            RustDbColumnType::ByteArray
+        } else if t.contains("float") {
+            RustDbColumnType::F32
+        } else if t.contains("double") {
+            RustDbColumnType::F64
+        } else if t.contains("json") || t.contains("enum") {
+            RustDbColumnType::String
+        } else if t.contains("datetime") {
+            RustDbColumnType::NaiveDateTime
+        } else if t.contains("date") {
+            RustDbColumnType::NaiveDate
+        } else if t.contains("time") {
+            RustDbColumnType::NaiveTime
+        } else if t.contains("year") {
+            RustDbColumnType::String
+        } else {
+            RustDbColumnType::String
+        };
+        DbColumnType::RustColumnType(ctype)
+    }
+}
+
+impl ToString for RustDbColumnType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::I8 => "i8".to_string(),
+            Self::I16 => "i16".to_string(),
+            Self::I32 => "i32".to_string(),
+            Self::I64 => "i64".to_string(),
+            Self::F32 => "f32".to_string(),
+            Self::Decimal | Self::F64 => "f64".to_string(),
+            Self::Bool => "bool".to_string(),
+            Self::Json | Self::Char | Self::String => "String".to_string(),
+            Self::NaiveDate => "NaiveDate".to_string(),
+            Self::NaiveTime => "NaiveTime".to_string(),
+            Self::NaiveDateTime => "NaiveDateTime".to_string(),
+            Self::DateTimeUtc => "DateTimeUtc".to_string(),
+            Self::Instant => "Instant".to_string(),
+            Self::Clob | Self::Blob | Self::ByteArray => "Vec<u8>".to_string(),
+            Self::BigInt => "i64".to_string(),
+            Self::Uuid => "Uuid".to_string(),
+            Self::Object => "Value".to_string(),
+            _ => "Unknown".to_string()
+        }
+    }
+}
+
+//
+// ---------------------- Java Column Types ----------------------
+//
+#[derive(PartialEq, Clone, Debug)]
+pub enum JavaDbColumnType {
     // 基本类型
     BaseByte,
     BaseShort,
@@ -385,60 +589,147 @@ pub enum DbColumnType {
     LocalDateTime,
     Instant,
 
-    // 其他杂类
+    // 其他
     ByteArray,
     Object,
     Date,
     BigInteger,
     BigDecimal,
 
+    Unknown
 }
 
-impl DbColumnType {
-    pub fn get_type(&self) -> String {
-        match self {
-            DbColumnType::BaseByte => "byte".to_string(),
-            DbColumnType::BaseShort => "short".to_string(),
-            DbColumnType::BaseChar => "char".to_string(),
-            DbColumnType::BaseInt => "int".to_string(),
-            DbColumnType::BaseLong => "long".to_string(),
-            DbColumnType::BaseFloat => "float".to_string(),
-            DbColumnType::BaseDouble => "double".to_string(),
-            DbColumnType::BaseBoolean => "boolean".to_string(),
+impl JavaDbColumnType {
+    pub fn from_str(s: &str) -> Self {
+        use JavaDbColumnType::*;
+        match s {
+            // 基本类型
+            "byte" => BaseByte,
+            "short" => BaseShort,
+            "char" => BaseChar,
+            "int" => BaseInt,
+            "long" => BaseLong,
+            "float" => BaseFloat,
+            "double" => BaseDouble,
+            "boolean" => BaseBoolean,
 
             // 包装类型
-            DbColumnType::Byte => "Byte".to_string(),
-            DbColumnType::Short => "Short".to_string(),
-            DbColumnType::Character => "Character".to_string(),
-            DbColumnType::Integer => "Integer".to_string(),
-            DbColumnType::Long => "Long".to_string(),
-            DbColumnType::Float => "Float".to_string(),
-            DbColumnType::Double => "Double".to_string(),
-            DbColumnType::Boolean => "Boolean".to_string(),
-            DbColumnType::String => "String".to_string(),
+            "Byte" => Byte,
+            "Short" => Short,
+            "Character" => Character,
+            "Integer" => Integer,
+            "Long" => Long,
+            "Float" => Float,
+            "Double" => Double,
+            "Boolean" => Boolean,
+            "String" => String,
 
-            // sql 包下数据类型
-            DbColumnType::DateSql => "Date".to_string(),
-            DbColumnType::Time => "Time".to_string(),
-            DbColumnType::Timestamp => "Timestamp".to_string(),
-            DbColumnType::Blob => "Blob".to_string(),
-            DbColumnType::Clob => "Clob".to_string(),
+            // SQL 类型
+            "Date" => DateSql,
+            "Time" => Time,
+            "Timestamp" => Timestamp,
+            "Blob" => Blob,
+            "Clob" => Clob,
 
-            // java8 新时间类型
-            DbColumnType::LocalDate => "LocalDate".to_string(),
-            DbColumnType::LocalTime => "LocalTime".to_string(),
-            DbColumnType::Year => "Year".to_string(),
-            DbColumnType::YearMonth => "YearMonth".to_string(),
-            DbColumnType::LocalDateTime => "LocalDateTime".to_string(),
-            DbColumnType::Instant => "Instant".to_string(),
+            // Java8 时间
+            "LocalDate" => LocalDate,
+            "LocalTime" => LocalTime,
+            "Year" => Year,
+            "YearMonth" => YearMonth,
+            "LocalDateTime" => LocalDateTime,
+            "Instant" => Instant,
 
-            // 其他杂类
-            DbColumnType::ByteArray => "byte[]".to_string(),
-            DbColumnType::Object => "Object".to_string(),
-            DbColumnType::Date => "Date".to_string(),
-            DbColumnType::BigInteger => "BigInteger".to_string(),
-            DbColumnType::BigDecimal => "BigDecimal".to_string(),
+            // 其他
+            "byte[]" => ByteArray,
+            "Object" => Object,
+            "java.util.Date" => Date,
+            "BigInteger" => BigInteger,
+            "BigDecimal" => BigDecimal,
+            _ => Unknown,
         }
+    }
+
+    pub fn process_type_convert(field_type: &str) -> DbColumnType {
+        let t = field_type.to_lowercase();
+        let ctype = if t.contains("char") {
+            JavaDbColumnType::String
+        } else if t.contains("bigint") {
+            JavaDbColumnType::Long
+        } else if t.contains("tinyint(1)") {
+            JavaDbColumnType::Boolean
+        } else if t.contains("int") {
+            JavaDbColumnType::Integer
+        } else if t.contains("text") {
+            JavaDbColumnType::String
+        } else if t.contains("bit") {
+            JavaDbColumnType::Boolean
+        } else if t.contains("decimal") {
+            JavaDbColumnType::BigDecimal
+        } else if t.contains("clob") {
+            JavaDbColumnType::Clob
+        } else if t.contains("blob") {
+            JavaDbColumnType::Blob
+        } else if t.contains("binary") {
+            JavaDbColumnType::ByteArray
+        } else if t.contains("float") {
+            JavaDbColumnType::Float
+        } else if t.contains("double") {
+            JavaDbColumnType::Double
+        } else if t.contains("json") || t.contains("enum") {
+            JavaDbColumnType::String
+        } else if t.contains("date") {
+            JavaDbColumnType::Date
+        } else if t.contains("time") || t.contains("datetime") {
+            JavaDbColumnType::LocalTime
+        } else if t.contains("year") {
+            JavaDbColumnType::Year
+        } else {
+            JavaDbColumnType::String
+        };
+        DbColumnType::JavaColumnType(ctype)
+    }
+}
+
+impl ToString for JavaDbColumnType {
+    fn to_string(&self) -> String {
+        use JavaDbColumnType::*;
+        match self {
+            BaseByte => "byte",
+            BaseShort => "short",
+            BaseChar => "char",
+            BaseInt => "int",
+            BaseLong => "long",
+            BaseFloat => "float",
+            BaseDouble => "double",
+            BaseBoolean => "boolean",
+            Byte => "Byte",
+            Short => "Short",
+            Character => "Character",
+            Integer => "Integer",
+            Long => "Long",
+            Float => "Float",
+            Double => "Double",
+            Boolean => "Boolean",
+            String => "String",
+            DateSql => "Date",
+            Time => "Time",
+            Timestamp => "Timestamp",
+            Blob => "Blob",
+            Clob => "Clob",
+            LocalDate => "LocalDate",
+            LocalTime => "LocalTime",
+            Year => "Year",
+            YearMonth => "YearMonth",
+            LocalDateTime => "LocalDateTime",
+            Instant => "Instant",
+            ByteArray => "byte[]",
+            Object => "Object",
+            Date => "java.util.Date",
+            BigInteger => "BigInteger",
+            BigDecimal => "BigDecimal",
+            _ => "Unknown"
+        }
+            .to_string()
     }
 }
 
@@ -1082,43 +1373,18 @@ impl MySqlKeyWordsHandler {
 /// MYSQL 数据库字段类型转换
 pub struct MySqlTypeConvert;
 
+pub enum TargetLang {
+    Java,
+    Rust,
+}
+
 impl MySqlTypeConvert {
-    pub fn process_type_convert(field_type: String) -> DbColumnType {
-        let t = field_type.to_lowercase();
-        if t.contains("char") {
-            return DbColumnType::String;
-        } else if t.contains("bigint") {
-            return DbColumnType::Long;
-        } else if t.contains("tinyint(1)") {
-            return DbColumnType::Boolean;
-        } else if t.contains("int") {
-            return DbColumnType::Integer;
-        } else if t.contains("text") {
-            return DbColumnType::String;
-        } else if t.contains("bit") {
-            return DbColumnType::Boolean;
-        } else if t.contains("decimal") {
-            return DbColumnType::BigDecimal;
-        } else if t.contains("clob") {
-            return DbColumnType::Clob;
-        } else if t.contains("blob") {
-            return DbColumnType::Blob;
-        } else if t.contains("binary") {
-            return DbColumnType::ByteArray;
-        } else if t.contains("float") {
-            return DbColumnType::Float;
-        } else if t.contains("double") {
-            return DbColumnType::Double;
-        } else if t.contains("json") || t.contains("enum") {
-            return DbColumnType::String;
-        } else if t.contains("date") {
-            return DbColumnType::Date;
-        } else if t.contains("time") {
-            return DbColumnType::LocalTime;
-        } else if t.contains("year") {
-            return DbColumnType::Year;
+
+    pub fn process_type_convert(field_type: String, target: TargetLang) -> DbColumnType {
+        match target {
+            TargetLang::Java => JavaDbColumnType::process_type_convert(&field_type),
+            TargetLang::Rust => RustDbColumnType::process_type_convert(&field_type),
         }
-        DbColumnType::String
     }
 }
 

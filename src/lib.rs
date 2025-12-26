@@ -1,3 +1,4 @@
+#![allow(unused_imports,unreachable_patterns,dead_code,missing_docs, incomplete_features,unused_variables)]
 /*
  *
  *  *
@@ -31,214 +32,247 @@
 //!
 //! ## Installation
 //!
-//! Put the desired version of the crate into the `dependencies` section of your `Cargo.toml`:
 //!
+//! Add this to your `Cargo.toml`:
+//! 
 //! ```toml
 //! [dependencies]
-//! akita = "0.4.0"
+//! akita = { version = "0.6", features = ["mysql-sync"] }
+//! chrono = "0.4"
 //! ```
-//!
 //! 
-//! ## Feature.
+//! For SQLite support:
+//! ```toml
+//! [dependencies]
+//! akita = { version = "0.4", features = ["sqlite-sync"] }
+//! ```
 //! 
-//! * ```akita-mysql``` - to use mysql
-//! * ```akita-sqlite``` - to use sqlite
-//! 
-//! 
-//! ## Annotions.
-//! * Table - to make Akita work with structs
-//! * column - to make struct field with own database.
-//! * name - work with column, make the table's field name. default struct' field name.
-//! * exist - ignore struct's field with table. default true.
-//!
-//! ## Support Field Types.
-//! 
-//! * ```Option<T>```
-//! * ```u8, u32, u64```
-//! * ```i32, i64```
-//! * ```usize```
-//! * ```f32, f64```
-//! * ```bool```
-//! * ```serde_json::Value```
-//! * ```str, String```
-//! * ```NaiveDate, NaiveDateTime```
-//! 
-//! ## Example
+//! ## 🚀 Quick Start
+//! ### 1. Define Your Entity
 //! 
 //! ```rust
-//! # use akita::*;
-//! # use chrono::{NaiveDateTime, NaiveDate};
-//! # use std::time::Duration;
-//! # use once_cell::sync::Lazy;
-//! /// Annotion Support: Entity、id、field (name, exist)
-//! #[derive(Entity, Clone, Default)]
-//! #[table(name = "t_system_user")]
+//! use akita::prelude::*;
+//! use chrono::{NaiveDate, NaiveDateTime};
+//! use serde_json::Value;
+//! 
+//! #[derive(Entity, Clone, Default, Debug)]
+//! #[table(name = "users")]
 //! pub struct User {
 //!     #[id(name = "id")]
-//!     pub pk: i64,
-//!     pub id: String,
-//!     pub headline: Option<NaiveDateTime>,
-//!     /// 状态
-//!     pub status: u8,
-//!     /// 用户等级 0.普通会员 1.VIP会员
+//!     pub id: i64,
+//!     
+//!     #[field(name = "user_name")]
+//!     pub username: String,
+//!     
+//!     pub email: String,
+//!     
+//!     pub age: Option<u8>,
+//!     
+//!     #[field(name = "is_active")]
+//!     pub active: bool,
+//!     
 //!     pub level: u8,
-//!     /// 生日
+//!     
+//!     pub metadata: Option<Value>,
+//!     
 //!     pub birthday: Option<NaiveDate>,
-//!     /// 性别
-//!     pub gender: u8,
+//!     
+//!     pub created_at: Option<NaiveDateTime>,
+//!     
 //!     #[field(exist = "false")]
-//!     pub is_org: bool,
-//!     #[field(name = "token")]
-//!     pub url_token: String,
-//! }
-//!
-//!
-//! fn main() {
-//!
-//! let cfg = AkitaConfig::new(String::from("mysql://root:password@localhost:3306/akita"))
-//!         .set_connection_timeout(Duration::from_secs(6))
-//!         .set_log_level(LogLevel::Info).set_max_size(6);
-//!     let akita = Akita::new(cfg).expect("must be ok");
-//!     // The Wrapper to build query condition
-//!     let wrapper = Wrapper::new()
-//!         .eq("username", "ussd") // username = 'ussd'
-//!         .gt("age", 1) //! age > 1
-//!         .lt("age", 10) // age < 10
-//!         .inside("user_type", vec!["admin", "super"]) // user_type in ('admin', 'super')
-//!         .and(|wrapper| { // or
-//!             wrapper.like("username", &name)
-//!                 .or_direct().like("username", &name)
-//!         });
-//!     // CRUD with Akita
-//!     let insert_id: Option<i32> = akita.save(&User::default()).unwrap();
-//!     let _ = akita.save_batch(&[&User::default()]).unwrap();
-//!     // Update with wrapper
-//!     let res = akita.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Update with primary id
-//!     let res = akita.update_by_id(&User::default());
-//!     // Query return List
-//!     let list: Vec<User> = akita.list(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Query return Page
-//!     let pageNo = 1;
-//!     let pageSize = 10;
-//!     let page: IPage<User> = akita.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Remove with wrapper
-//!     let res = akita.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Remove with primary id
-//!     let res = akita.remove_by_id::<User,_>(0).unwrap();
-//!     // Get the record count
-//!     let count = akita.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
-//!     // Query with original sql
-//!     let user: User = akita.exec_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
-//!     // Or
-//!     let user: User = akita.exec_first("select * from t_system_user where name = :name and id = :id", params! {
-//!         "name" => "Jack",
-//!         "id" => 1
-//!     }).unwrap();
-//!     let res = akita.exec_drop("select now()", ()).unwrap();
-//!
-//!     // Transaction
-//!     akita.start_transaction().and_then(|mut transaction| {
-//!         let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
-//!         let insert_id: Option<i32> = transaction.save(&User::default())?;
-//!         transaction.commit()
-//!     }).unwrap();
-//!
-//!     // CRUD with Entity
-//!     let model = User::default();
-//!     // insert
-//!     let insert_id = model.insert::<Option<i32>, _>(&akita).unwrap();
-//!     // update
-//!     let res = model.update_by_id::<_>(&akita).unwrap();
-//!     // delete
-//!     let res = model.delete_by_id::<i32,_>(&akita, 1).unwrap();
-//!     // list
-//!     let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &akita).unwrap();
-//!     // page
-//!     let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &akita).unwrap();
-//!
-//!     // Fast with sql
-//!     pub static AK: Lazy<Akita> = Lazy::new(|| {
-//!         let mut cfg = AkitaConfig::new("xxxx".to_string()).set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
-//!         Akita::new(cfg).unwrap()
-//!     });
-//!
-//!     #[sql(AK,"select * from user where id = ?")]
-//!     fn select_example(id: &str) -> Vec<User> { todo!() }
-//!
-//!     // or:
-//!     #[sql(AK,"select * from user where mch_no = ?")]
-//!     fn select_example2(ak: &AKita, id: &str) -> Vec<User> { todo!() }
+//!     pub full_name: String,
 //! }
 //! ```
-//! ## API Documentation
-//! ## Wrapper
-//! ```ignore
 //! 
-//! let mut wrapper = Wrapper::new().like(true, "column1", "ffff")
-//! .eq(true, "column2", 12)
-//! .eq(true, "column3", "3333")
-//! .inside(true, "column4", vec![1,44,3])
-//! .not_between(true, "column5", 2, 8)
-//! .set(true, "column1", 4);
+//! ### 2. Initialize Akita
+//! 
+//! ```rust
+//! use akita::prelude::*;
+//! use std::time::Duration;
 //!
+//! async fn main() -> Result<(), AkitaError> {
+//!     // Configuration
+//!     let cfg = AkitaConfig::new().url("mysql://!root:password@localhost:3306/mydb")
+//!         .max_size(10)                     //! Connection pool size
+//!         .connection_timeout(Duration::from_secs(5));
+//!     
+//!     // Create Akita instance
+//!     let akita = Akita::new(cfg)?;
+//!     
+//!     Ok(())
+//! }
 //! ```
-//! Update At 2021.12.08 10:21
+//! 
+//! ### 3. Basic Operations
+//! 
+//! ```rust
+//! // Create
+//! let user = User {
+//! username: "john_doe".to_string(),
+//! email: "john@example.com".to_string(),
+//! active: true,
+//! level: 1,
+//! ..Default::default()
+//! };
+//! 
+//! let user_id: Option<i64> = akita.save(&user)?;
+//! 
+//! // Read
+//! let user: Option<User> = akita.select_by_id(user_id.unwrap())?;
+//! 
+//! // Update
+//! let mut user = user.unwrap();
+//! user.level = 2;
+//! akita.update_by_id(&user)?;
+//! 
+//! // Delete
+//! akita.remove_by_id::<User, _>(user_id.unwrap())?;
+//! ```
+//! 
+//! ## 📚 Detailed Usage
+//! ### Query Builder
+//! 
+//! Akita provides a powerful, type-safe query builder:
+//! ```rust
+//! use akita::prelude::*;
+//! 
+//! let wrapper = Wrapper::new()
+//!     // Select specific columns
+//!     .select(vec!["id", "username", "email"])
+//!     
+//!     // Conditions
+//!     .eq("status", 1)
+//!     .ne("deleted", true)
+//!     .gt("age", 18)
+//!     .ge("score", 60)
+//!     .lt("age", 65)
+//!     .le("level", 10)
+//!     
+//!     // String operations
+//!     .like("username", "%john%")
+//!     .not_like("email", "%test%")
+//!     
+//!     // List operations
+//!     .r#in("role", vec!["admin", "user"])
+//!     .not_in("status", vec![0, 9])
+//!     
+//!     // Null checks
+//!     .is_null("deleted_at")
+//!     .is_not_null("created_at")
+//!     
+//!     // Between
+//!     .between("age", 18, 65)
+//!     .not_between("score", 0, 60)
+//!     
+//!     // Logical operations
+//!     .and(|w| {
+//!         w.eq("status", 1).or_direct().eq("status", 2)
+//!     })
+//!     .or(|w| {
+//!         w.like("username", "%admin%").like("email", "%admin%")
+//!     })
+//!     
+//!     // Ordering
+//!     .order_by_asc(vec!["created_at"])
+//!     .order_by_desc(vec!["id", "level"])
+//!     
+//!     // Grouping
+//!     .group_by(vec!["department", "level"])
+//!     
+//!     // Having clause
+//!     .having("COUNT(*)", SqlOperator::Gt, 1)
+//!     
+//!     // Pagination
+//!     .limit(10)
+//!     .offset(20);
+//! ```
+//! 
+//! ### Complex Queries
+//! ```rust
+//! // Join queries
+//! let users: Vec<User> = akita.list(
+//!     Wrapper::new()
+//!         .eq("u.status", 1)
+//!         .inner_join("departments d","u.department_id = d.id")
+//!         .select(vec!["u.*", "d.name as department_name"])
+//! )?;
+//! 
+//! // Subqueries
+//! let active_users: Vec<User> = akita.list(
+//!     Wrapper::new()
+//!         .r#in("id", |w| {
+//!             w.select(vec!["user_id"])
+//!              .from("user_logs")
+//!              .eq("action", "login")
+//!              .gt("created_at", "2023-01-01")
+//!         })
+//! )?;
+//! ```
+//! 
+//! ### Raw SQL Queries
+//! ```rust
+//! // Parameterized queries
+//! let users: Vec<User> = akita.exec_raw(
+//!     "SELECT * FROM users WHERE status = ? AND level > ?",
+//!     (1, 0)
+//! )?;
+//! 
+//! // Named parameters
+//! let user: Option<User> = akita.exec_first(
+//!     "SELECT * FROM users WHERE username = :name AND email = :email",
+//!     params! {
+//!         "name" => "john",
+//!         "email" => "john@example.com"
+//!     }
+//! )?;
+//! 
+//! // Executing DDL
+//! akita.exec_drop(
+//!     "CREATE TABLE IF NOT EXISTS users (
+//!         id BIGINT PRIMARY KEY AUTO_INCREMENT,
+//!         username VARCHAR(50) NOT NULL,
+//!         email VARCHAR(100) NOT NULL
+//!     )",
+//!     ()
+//! )?;
+//! ```
+//! Update At 2025.12.13 12:13
 //! By Mr.Pan
 //! 
 //! 
-//! 
-mod wrapper;
-mod segment;
+//!
+
+// Common core module
 mod errors;
-mod mapper;
-mod pool;
-mod database;
-mod platform;
-#[cfg(feature = "akita-auth")]
-mod auth;
-mod manager;
-#[allow(unused)]
-mod akita;
 mod config;
 mod converter;
 mod key;
+mod xml;
+mod comm;
+mod ext;
+mod interceptor;
+mod mapper;
+mod transaction;
+mod driver;
+mod core;
+mod sql;
+mod pool;
+#[cfg(all(
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync",
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    ),
+    not(any(
+        feature = "mysql-async",
+        feature = "postgres-async",
+        feature = "sqlite-async",
+        feature = "mssql-async",
+        feature = "oracle-async"
+    ))
+))]
+mod repository;
 
-
-#[doc(inline)]
-pub use wrapper::Wrapper;
-pub use converter::{*};
-pub use key::{IdentifierGenerator};
-#[doc(inline)]
-pub use database::Platform;
-#[doc(inline)]
-pub use mapper::{BaseMapper, IPage, AkitaMapper};
-#[doc(inline)]
-pub use segment::{Segment, AkitaKeyword, ISegment};
-#[doc(inline)]
-pub use errors::{AkitaError, Result};
-pub use config::AkitaConfig;
-#[doc(inline)]
-pub use pool::{Pool};
-#[cfg(feature = "akita-auth")]
-pub use auth::*;
-pub use akita::*;
-#[doc(inline)]
-pub use manager::{AkitaEntityManager, AkitaTransaction};
-#[doc(inline)]
-pub use chrono::{Local, NaiveDate, NaiveDateTime};
-// Re-export #[derive(Entity)].
-//
-// The reason re-exporting is not enabled by default is that disabling it would
-// be annoying for crates that provide handwritten impls or data formats. They
-// would need to disable default features and then explicitly re-enable std.
-#[allow(unused_imports)]
-#[macro_use]
-extern crate akita_derive;
-#[doc(hidden)]
-pub use akita_derive::*;
-pub use akita_core as core;
-
-pub use akita_core::*;
-
-pub use crate::core::{FieldName, FieldType, GetFields, GetTableName, Table, ToValue, FromValue};
+pub mod prelude;

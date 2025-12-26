@@ -19,15 +19,16 @@
  *
  */
 use std::fmt::Debug;
+use uuid::Uuid;
 use akita_core::Snowflake;
 
-/// ID生成器
+/// ID generator
 pub trait IdentifierGenerator: Send + Sync + Debug {
     fn next_id(&self) -> u64;
 
-    /// 默认不含中划线的UUID生成
+    /// By default, UUIDs without a breakdown are generated
     fn next_uuid(&self) -> String {
-        uuid::Uuid::new_v4().to_simple().to_string()
+        Uuid::new_v4().simple().to_string()
     }
 }
 
