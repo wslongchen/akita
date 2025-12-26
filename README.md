@@ -1,280 +1,834 @@
-# Akita &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![akita: rustc 1.13+]][Rust 1.13] [![akita_derive: rustc 1.31+]][Rust 1.31]
+# Akita
 
-<div>
-    <p align="center">
-      <img src="http://img.snackcloud.cn/snackcloud/shop/snack_logo.png" alt="猫狗试验室" width="248" height="248">
-    </p>
-    <p align="center"><strong>猫狗试验室出品</strong></p>
-    <p align="center">
-      这是一个热爱🫶技术，热爱🔥生活的团队. <br>很欢迎大家能够一起学习📑、沟通💬 .
-    </p>
-  </div>
+<p align="center">
+  <img src="http://img.snackcloud.cn/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
+</p>
 
-[Build Status]: https://img.shields.io/docsrs/akita/0.5.0?style=plastic
-[actions]: https://github.com/wslongchen/akita/actions?query=branch%3Amaster
-[Latest Version]: https://img.shields.io/crates/v/akita?style=plastic
-[crates.io]: https://crates.io/crates/akita
-[akita: rustc 1.13+]: https://img.shields.io/badge/akita-rustc__1.31%2B-lightgrey
-[akita_derive: rustc 1.31+]: https://img.shields.io/badge/akita__derive-rustc__1.31%2B-lightgrey
-[Rust 1.13]: https://blog.rust-lang.org/2016/11/10/Rust-1.13.html
-[Rust 1.31]: https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018.html
+<p align="center">
+  <strong>A lightweight, fast and easy-to-use ORM framework for Rust</strong>
+</p>
 
-```Akita - Mini orm for rust ```
+<p align="center">
+  <a href="https://crates.io/crates/akita">
+    <img src="https://img.shields.io/crates/v/akita.svg" alt="Crates.io">
+  </a>
+  <a href="https://docs.rs/akita">
+    <img src="https://docs.rs/akita/badge.svg" alt="Documentation">
+  </a>
+  <a href="https://github.com/wslongchen/akita/actions">
+    <img src="https://img.shields.io/badge/akita-rustc__1.31%2B-lightgrey" alt="Minimum Rust">
+  </a>
+  <a href="https://github.com/wslongchen/akita/blob/master/LICENSE-APACHE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License Apache 2.0">
+  </a>
+  <a href="https://github.com/wslongchen/akita/blob/master/LICENSE-MIT">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License MIT">
+  </a>
+</p>
 
-This Crate offers:
-* MySql database's helper in pure rust;
-* SQLite database's helper in pure rust;
-* A mini orm framework (With MySQL/SQLite)。
+## 🎯 Features
 
-Features:
+- **🚀 High Performance**: Pure Rust implementation, zero runtime overhead
+- **🎯 Easy to Use**: Intuitive API, quick to learn
+- **🔧 Flexible Query**: Powerful query builder with type safety
+- **📦 Multi-Database**: Native support for MySQL, PostgreSQL, SQLite, and any MySQL-compatible databases (TiDB, MariaDB, etc.)
+- **🔌 Dual Runtime**: Both synchronous and asynchronous operation modes
+- **🛡️ Type Safe**: Full Rust type system support with compile-time checking
+- **🔄 Transaction**: Complete ACID transaction management with savepoint support
+- **⚡ Connection Pool**: Built-in high-performance connection pooling
+- **🎨 Annotation Driven**: Simplify entity definition with derive macros
+- **🔌 Interceptors**: Extensible interceptor system for AOP (Aspect-Oriented Programming)
+- **📊 Pagination**: Built-in smart pagination with total count
+- **🔍 Complex Query**: Support for joins, subqueries, and complex SQL operations
+- **🛠️ Raw SQL**: Direct SQL execution when needed
 
-* Other Database support, i.e. support Oracle, MSSQL...;
-* support of named parameters for custom condition;
----
+## 📦 Installation
 
-You may be looking for:
+Add this to your `Cargo.toml`:
 
-- [An overview of Akita](https://crates.io/crates/akita)
-- [Examples](https://github.com/wslongchen/akita/blob/0.4.0/example/simple.rs)
-- [API documentation](https://docs.rs/akita/0.4.0/akita/)
-- [Release notes](https://github.com/wslongchen/akita/releases)
-
-## Akita in action
-
-<details>
-<summary>
-Click to show Cargo.toml.
-<a href="https://play.rust-lang.org/?version=nightly&mode=debug&edition=2018&gist=bc95328e2b8691b4396222b080fdb1c3" target="_blank">Run this code in the playground.</a>
-</summary>
-
+### For MySQL (Synchronous)
 ```toml
 [dependencies]
-
-# The core APIs, including the Table traits. Always
-# required when using Akita. using #[derive(Entity)] 
-# to make Akita work with structs defined in your crate.
-akita = { version = "0.4.0", features = ["akita-mysql"] }
-
+akita = { version = "0.6", features = ["mysql-sync"] }
 ```
 
-</details>
-<p></p>
+### For MySQL (Asynchronous)
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["mysql-async"] }
+```
 
-## API Documentation
+### For PostgreSQL:
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["postgres-sync"] }
+```
+### For Oracle:
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["oracle-sync"] }
+```
+### SqlServer:
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["mssql-sync"] }
+```
+### For SQLite:
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["sqlite-sync"] }
+```
+### For TiDB and MySQL-compatible Databases:
+TiDB, MariaDB, and other MySQL-compatible databases can use the MySQL features:
+```toml
+[dependencies]
+akita = { version = "0.6", features = ["mysql-sync"] }  # or "mysql-async"
+chrono = "0.4"
+```
+
+## 🚀 Quick Start
+### 1. Define Your Entity
 
 ```rust
 use akita::*;
+use chrono::{NaiveDate, NaiveDateTime};
+use serde_json::Value;
 
-/// Annotion Support: Entity、id、field (name, exist, fill(function, mode))
-#[derive(Entity, Clone, Default)]
-#[table(name = "t_system_user")]
+#[derive(Entity, Clone, Default, Debug)]
+#[table(name = "users")]
 pub struct User {
     #[id(name = "id")]
-    pub pk: i64,
-    pub id: String,
-    pub headline: Option<NaiveDateTime>,
-    /// 状态
-    pub status: u8,
-    /// 用户等级 0.普通会员 1.VIP会员
+    pub id: i64,
+    
+    #[field(name = "user_name")]
+    pub username: String,
+    
+    pub email: String,
+    
+    pub age: Option<u8>,
+    
+    #[field(name = "is_active")]
+    pub active: bool,
+    
     pub level: u8,
-    /// 生日
+    
+    pub metadata: Option<Value>,
+    
     pub birthday: Option<NaiveDate>,
-    /// 性别
-    pub gender: u8,
-    #[field(exist = "false", fill="is_org_build")]
-    pub is_org: bool,
-    #[field(name = "token", fill(function = "token_build", mode="default"))]
-    pub url_token: String,
+    
+    pub created_at: Option<NaiveDateTime>,
+    
+    #[field(exist = "false")]
+    pub full_name: String,
 }
-
-static area: &str = "china"; 
-
-fn is_org_build() -> bool {
-    area.eq("china")
-}
-
-fn token_build() -> String {
-    // generate the token
-    todo!()
-}
-
 ```
- ### CRUD with Akita
+
+### 2. Initialize Akita
+
+#### Synchronous Mode
+
 ```rust
+use akita::prelude::*;
+use std::time::Duration;
 
+fn main() -> Result<()> {
+    // Configuration for MySQL
+    let cfg = AkitaConfig::new()
+        .url("mysql://root:password@localhost:3306/mydb")
+        .max_size(10)                     // Connection pool size
+        .connection_timeout(Duration::from_secs(5));
 
+    // Create Akita instance
+    let akita = Akita::new(cfg)?;
+
+    // For TiDB (uses MySQL protocol)
+    let tidb_cfg = AkitaConfig::new()
+        .url("mysql://root:@tidb-host:4000/mydb")
+        .max_size(20);
+    Ok(())
+}
+```
+
+#### Asynchronous Mode
+```rust
+use akita::*;
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Async configuration
+    let cfg = AkitaConfig::new()
+        .url("mysql://root:password@localhost:3306/mydb")
+        .max_size(10)
+        .connection_timeout(Duration::from_secs(5));
+    
+    // Create async Akita instance
+    let akita = Akita::new(cfg).await?;
+    
+    Ok(())
+}
+```
+
+### 3. Basic Operations
+
+#### Synchronous Operations
+
+```rust
 fn main() {
-    let cfg = AkitaConfig::new(String::from("mysql://root:password@localhost:3306/akita"))
-        .set_connection_timeout(Duration::from_secs(6))
-        .set_log_level(LogLevel::Info).set_max_size(6);
-    let akita = Akita::new(cfg).expect("must be ok");
-    // The Wrapper to build query condition
+    // Create
+    let user = User {
+        username: "john_doe".to_string(),
+        email: "john@example.com".to_string(),
+        active: true,
+        level: 1,
+        ..Default::default()
+    };
+
+    let user_id: Option<i64> = akita.save(&user)?;
+
+    // Read
+    let user: Option<User> = akita.select_by_id(user_id.unwrap())?;
+
+    // Update
+    let mut user = user.unwrap();
+    user.level = 2;
+    akita.update_by_id(&user)?;
+
+    // Delete
+    akita.remove_by_id::<User, _>(user_id.unwrap())?;
+}
+```
+
+#### Asynchronous Operations
+```rust
+fn main() {
+    // Create
+    let user = User {
+        username: "jane_doe".to_string(),
+        email: "jane@example.com".to_string(),
+        active: true,
+        level: 1,
+        ..Default::default()
+    };
+
+    let user_id: Option<i64> = akita.save(&user).await?;
+
+    // Read
+    let user: Option<User> = akita.select_by_id(user_id.unwrap()).await?;
+
+    // Update
+    let mut user = user.unwrap();
+    user.level = 2;
+    akita.update_by_id(&user).await?;
+
+    // Delete
+    akita.remove_by_id::<User, _>(user_id.unwrap()).await?;
+}
+```
+
+
+## ⬆️Database Compatibility Matrix
+
+| Database | Sync Feature | Async Feature | Protocol | Sync Implementation | Async Implementation | Status | Notes |
+|----------|--------------|---------------|----------|---------------------|----------------------|--------|-------|
+| MySQL | `mysql-sync` | `mysql-async` | MySQL | `mysql` crate | `mysql_async` crate | ✅ Production Ready | Native Rust implementations |
+| PostgreSQL | `postgres-sync` | `postgres-async` | PostgreSQL | `tokio-postgres` (blocking) | `tokio-postgres` (async) | ✅ Production Ready | Both use tokio-postgres under the hood |
+| SQLite | `sqlite-sync` | `sqlite-async` | SQLite | `rusqlite` crate | `sqlx` with async runtime | ✅ Production Ready | Different implementation strategies |
+| Oracle | `oracle-sync` | `oracle-async` | Oracle | `oracle` crate (blocking) | `oracle` crate + async runtime | ✅ Production Ready | Oracle driver with async wrapper |
+| SQL Server | `sqlserver-sync` | `sqlserver-async` | TDS | `tiberius` (blocking) | `tiberius` (async) | ✅ Production Ready | Tiberius driver support |
+| TiDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
+| MariaDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
+| OceanBase | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | MySQL compatible mode |
+
+## Implementation Details Summary
+
+### PostgreSQL Implementation
+- **Sync**: Uses `tokio-postgres` with blocking wrapper
+- **Async**: Direct `tokio-postgres` async client
+- **Both share same underlying library**
+
+### Oracle Implementation
+- **Sync**: Native `oracle` crate (synchronous driver)
+- **Async**: `oracle` crate wrapped with async runtime
+- **Same driver, different execution model**
+
+### SQLite Implementation
+- **Sync**: `rusqlite` crate (synchronous SQLite)
+- **Async**: `sqlx` with async SQLite support
+- **Different libraries, same protocol**
+
+### SQL Server Implementation
+- **Sync**: `tiberius` with blocking API
+- **Async**: `tiberius` native async API
+- **Same library, different APIs**
+
+## Feature Comparison
+
+| Feature | MySQL/TiDB | PostgreSQL | SQLite | Oracle | SQL Server |
+|---------|-----------|------------|--------|--------|------------|
+| ACID Transactions | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Connection Pool | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Native Async | ✅ | ✅ | ⚠️ (via sqlx) | ⚠️ (wrapped) | ✅ |
+| Sync via Async Runtime | ❌ | ✅ (blocking) | ❌ | ❌ | ✅ (blocking) |
+| JSON Support | ✅ (JSON) | ✅ (JSONB) | ✅ (JSON1) | ✅ | ⚠️ (limited) |
+| Full-text Search | ✅ | ✅ | ✅ (FTS5) | ✅ | ✅ |
+| Spatial Data | ✅ | ✅ | ✅ (R*Tree) | ✅ | ✅ |
+| Stored Procedures | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Replication | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Distributed | TiDB ✅ | ❌ | ❌ | ❌ | ❌ |
+| Protocol | MySQL | PostgreSQL | SQLite | Oracle | TDS |
+
+## Key Implementation Notes
+
+1. **PostgreSQL**: Both sync and async use `tokio-postgres`, sync is just a blocking wrapper
+2. **Oracle**: Sync is native driver, async is wrapper around same driver
+3. **SQLite**: Different libraries for sync (`rusqlite`) and async (`sqlx`)
+4. **SQL Server**: `tiberius` provides both sync (blocking) and async APIs
+5. **MySQL**: Separate sync (`mysql`) and async (`mysql_async`) crates
+6. **TiDB/MariaDB/OceanBase**: Use MySQL drivers with full compatibility
+
+
+## 📚 Detailed Usage
+
+### Query Builder
+
+Akita provides a powerful, type-safe query builder that works across all supported databases:
+
+
+```rust
+fn main() {
+    use akita::*;
+
+    // Database-agnostic query builder
     let wrapper = Wrapper::new()
-        .eq("username", "ussd") // username = 'ussd'
-        .gt("age", 1) // age > 1
-        .lt("age", 10) // age < 10
-        .inside("user_type", vec!["admin", "super"]) // user_type in ('admin', 'super')
-        .and(|wrapper| { // or
-            wrapper.like("username", &name)
-                .or_direct().like("username", &name)
-        });
-    // CRUD with Akita
-    let insert_id: Option<i32> = akita.save(&User::default()).unwrap();
-    let _ = akita.save_batch(&[&User::default()]).unwrap();
-    // Update with wrapper
-    let res = akita.update(&User::default(), Wrapper::new().eq("name", "Jack")).unwrap();
-    // Update with primary id
-    let res = akita.update_by_id(&User::default());
-    // Query return List
-    let list: Vec<User> = akita.list(Wrapper::new().eq("name", "Jack")).unwrap();
-    // Query return Page
-    let pageNo = 1;
-    let pageSize = 10;
-    let page: IPage<User> = akita.page(pageNo, pageSize, Wrapper::new().eq("name", "Jack")).unwrap();
-    // Remove with wrapper
-    let res = akita.remove::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
-    // Remove with primary id
-    let res = akita.remove_by_id::<User,_>(0).unwrap();
-    // Get the record count
-    let count = akita.count::<User>(Wrapper::new().eq("name", "Jack")).unwrap();
-    // Query with original sql
-    let user: User = akita.exec_first("select * from t_system_user where name = ? and id = ?", ("Jack", 1)).unwrap();
-    // Or
-    let user: User = akita.exec_first("select * from t_system_user where name = :name and id = :id", params! {
-        "name" => "Jack",
-        "id" => 1
-    }).unwrap();
-    let res = akita.exec_drop("select now()", ()).unwrap();
+        // Select specific columns
+        .select(vec!["id", "username", "email"])
 
-    // Transaction
-    akita.start_transaction().and_then(|mut transaction| {
-        let list: Vec<User> = transaction.list(Wrapper::new().eq("name", "Jack"))?;
-        let insert_id: Option<i32> = transaction.save(&User::default())?;
-        transaction.commit()
-    }).unwrap();
-}
+        // Universal conditions (works on all databases)
+        .eq("status", 1)
+        .ne("deleted", true)
+        .gt("age", 18)
+        .ge("score", 60)
+        .lt("age", 65)
+        .le("level", 10)
 
-```
- ### CRUD with Entity
-```rust
+        // String operations
+        .like("username", "%john%")
+        .not_like("email", "%test%")
 
+        // List operations
+        .r#in("role", vec!["admin", "user"])
+        .not_in("status", vec![0, 9])
 
-fn main() {
-    let cfg = AkitaConfig::new(String::from("mysql://root:password@localhost:3306/akita"))
-        .set_connection_timeout(Duration::from_secs(6))
-        .set_log_level(LogLevel::Info).set_max_size(6);
-    let akita = Akita::new(cfg).expect("must be ok");
-    // CRUD with Entity
-    let model = User::default();
-    // insert
-    let insert_id = model.insert::<Option<i32>, _>(&akita).unwrap();
-    // update
-    let res = model.update_by_id::<_>(&akita).unwrap();
-    // delete
-    let res = model.delete_by_id::<i32,_>(&akita, 1).unwrap();
-    // list
-    let list = User::list::<_>(Wrapper::new().eq("name", "Jack"), &akita).unwrap();
-    // page
-    let page = User::page::<_>(pageNo, pageSize, Wrapper::new().eq("name", "Jack"), &akita).unwrap();
+        // Null checks
+        .is_null("deleted_at")
+        .is_not_null("created_at")
+
+        // Between
+        .between("age", 18, 65)
+        .not_between("score", 0, 60)
+
+        // Logical operations
+        .and(|w| {
+            w.eq("status", 1).or_direct().eq("status", 2)
+        })
+        .or(|w| {
+            w.like("username", "%admin%").like("email", "%admin%")
+        })
+
+        // Ordering
+        .order_by_asc(vec!["created_at"])
+        .order_by_desc(vec!["id", "level"])
+
+        // Grouping
+        .group_by(vec!["department", "level"])
+
+        // Having clause (database-specific optimizations)
+        .having("COUNT(*)", SqlOperator::Gt, 1)
+
+        // Pagination (optimized for each database)
+        .limit(10)
+        .offset(20);
 }
 ```
- ### Fast with sql
-```rust
 
+### Complex Queries with Database Optimizations
+
+```rust
+fn main() {
+    // Join queries with database-specific optimizations
+    let users: Vec<User> = akita.list(
+        Wrapper::new()
+            .eq("u.status", 1)
+            .inner_join("departments d", "u.department_id = d.id")
+            .select(vec!["u.*", "d.name as department_name"])
+    )?;
+
+    // Subqueries (automatically optimized for target database)
+    let active_users: Vec<User> = akita.list(
+        Wrapper::new()
+            .r#in("id", |w| {
+                w.select(vec!["user_id"])
+                    .from("user_logs")
+                    .eq("action", "login")
+                    .gt("created_at", "2023-01-01")
+            })
+    )?;
+
+    // Database-specific optimizations
+    let query = Wrapper::new()
+        .eq("status", 1)
+        .order_by_desc(vec!["created_at"]);
+
+    // For MySQL/TiDB: Uses LIMIT optimization
+    // For PostgreSQL: Uses LIMIT OFFSET
+    // For SQLite: Uses LIMIT OFFSET
+    let result = akita.list::<User>(query.limit(100))?;
+}
+```
+
+### Database-Specific Features
+#### MySQL/TiDB Specific Features
+```rust
+fn main() {
+    // MySQL JSON functions
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users WHERE JSON_EXTRACT(metadata, '$.premium') = true",
+        ()
+    )?;
+
+    // MySQL full-text search
+    let users: Vec<User> = akita.list(
+        Wrapper::new()
+            .raw("MATCH(username, email) AGAINST(:search IN BOOLEAN MODE)")
+            .set_param("search", "john*")
+    )?;
+}
+```
+
+#### PostgreSQL Specific Features
+```rust
+fn main() {
+    // PostgreSQL JSONB operations
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users WHERE metadata @> '{\"premium\": true}'",
+        ()
+    )?;
+
+    // PostgreSQL array operations
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users WHERE 'admin' = ANY(roles)",
+        ()
+    )?;
+}
+```
+
+#### SQLite Specific Features
+```rust
+fn main() {
+    // SQLite JSON1 extension
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users WHERE json_extract(metadata, '$.premium') = 1",
+        ()
+    )?;
+
+    // SQLite full-text search (FTS5)
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users_fts WHERE users_fts MATCH 'john'",
+        ()
+    )?;
+}
+```
+
+### Raw SQL Queries with Database Portability
+```rust
+fn main() {
+    // Parameterized queries
+    let users: Vec<User> = akita.exec_raw(
+        "SELECT * FROM users WHERE status = ? AND level > ?",
+        (1, 0)
+    )?;
+
+    // Named parameters
+    let user: Option<User> = akita.exec_first(
+        "SELECT * FROM users WHERE username = :name AND email = :email",
+        params! {
+        "name" => "john",
+        "email" => "john@example.com"
+    }
+    )?;
+
+    // Executing DDL
+    akita.exec_drop(
+        "CREATE TABLE IF NOT EXISTS users (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        username VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL
+    )",
+        ()
+    )?;
+}
+```
+
+### Transactions with Database-Specific Features
+
+```rust
+fn main() {
+    // Simple transaction
+    akita.start_transaction().and_then(|mut tx| {
+        tx.save(&user1)?;
+        tx.save(&user2)?;
+        tx.update(&user3, wrapper)?;
+        tx.commit()
+    })?;
+
+    // Nested transactions (savepoints)
+    akita.start_transaction().and_then(|mut tx| {
+        tx.save(&user1)?;
+
+
+        match tx.save(&user2) {
+            Ok(_) => {
+                tx.commit()
+            }
+            Err(e) => {
+                // Continue with other operations or rollback
+                tx.rollback()
+            }
+        }
+    })?;
+}
+```
+
+### Interceptors with Database Awareness
+
+Akita supports powerful interceptor system that can adapt to different databases:
+
+```rust
+use akita::*;
+use std::sync::Arc;
+use std::time::Duration;
 
 fn main() {
-    pub static AK:Lazy<Akita> = Lazy::new(|| {
-        let mut cfg = AkitaConfig::new("xxxx".to_string()).set_max_size(5).set_connection_timeout(Duration::from_secs(5)).set_log_level(LogLevel::Info);
-        Akita::new(cfg).unwrap()
-    });
+    // Create interceptor-enabled Akita
+    let akita = Akita::new(config).unwrap()
+    .with_interceptor_builder(
+        InterceptorBuilder::new()
+            .register(tenant_interceptor)
+            .register(performance_interceptor)
+            .register(logging_interceptor)
+            .enable("trackable_tenant").unwrap()
+            .enable("trackable_performance").unwrap()
+            .enable("trackable_logging").unwrap()
+    )?;
+}
+
+// Custom interceptor
+#[derive(Debug)]
+struct AuditInterceptor {
+    user_id: String,
+}
+
+impl AkitaInterceptor for AuditInterceptor {
+    fn name(&self) -> &'static str {
+        "audit"
+    }
     
-    #[sql(AK,"select * from mch_info where mch_no = ?")]
-    fn select_example(name: &str) -> Vec<MchInfo> { todo!() }
+    fn interceptor_type(&self) -> InterceptorType {
+        InterceptorType::Audit
+    }
+    
+    fn order(&self) -> i32 {
+        50
+    }
+    
+    fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<()> {
+        // Add audit information to query
+        ctx.set_metadata("audit_user", self.user_id.clone());
+        ctx.set_metadata("audit_time", chrono::Utc::now().to_rfc3339());
         
-    // or:
-    #[sql(AK,"select * from mch_info where mch_no = ?")]
-    fn select_example2(ak: &AKita, name: &str) -> Vec<MchInfo> { todo!() }
-    // ...
-    
+        Ok(())
+    }
+}
+```
+
+### Entity Methods with Database Portability
+Entities can have their own methods:
+
+```rust
+impl User {
+    // Custom finder methods
+    pub fn find_active(akita: &Akita) -> Result<Vec<User>> {
+        akita.list(Wrapper::new().eq("status", 1))
+    }
+
+    pub fn find_by_email(akita: &Akita, email: &str) -> Result<Option<User>> {
+        akita.exec_first(
+            "SELECT * FROM users WHERE email = ?",
+            (email,)
+        )
+    }
+
+    // Business logic methods
+    pub fn promote(&mut self) {
+        self.level += 1;
+        // Add other business logic
+    }
+
+    pub fn is_vip(&self) -> bool {
+        self.level >= 2
+    }
 }
 
+fn main() {
+    // Usage
+    let active_users = User::find_active(&akita)?;
+    let user = User::find_by_email(&akita, "john@example.com")?;
+    let mut user = create_test_user();
+
+    // Testing entity updates
+    let result = user.update_by_id::<_>(&akita);
+    assert!(result.is_ok(), "The entity update method should succeed");
+
+    // Testing entity deletion
+    let result = user.remove_by_id::<_,i32>(&akita, 1);
+    assert!(result.is_ok(), "The entity deletion method should succeed");
+
+    // Test the entity list query
+
+    let result = User::list(&akita, Wrapper::new().eq("name", "Jack"));
+    assert!(result.is_ok(), "The entity list query should succeed");
+
+    // Testing entity paging queries
+    let result = User::page::<_>(&akita, 1, 1, Wrapper::new().eq("name", "Jack"));
+    assert!(result.is_ok(), "The entity paging query should succeed");
+}
 ```
- ### Wrapper
- ```ignore
 
- let mut wrapper = Wrapper::new().like(true, "column1", "ffff")
- .eq(true, "column2", 12)
- .eq(true, "column3", "3333")
- .inside(true, "column4", vec![1,44,3])
- .not_between(true, "column5", 2, 8)
- .set(true, "column1", 4);
- 
+### Pagination with Database Optimization
+
+```rust
+fn main() {
+    // Simple pagination
+    let page: IPage<User> = akita.page(1, 10, Wrapper::new().eq("status", 1))?;
+
+    println!("Page {} of {}", page.current, page.size);
+    println!("Total records: {}", page.total);
+    println!("Records on this page: {}", page.records.len());
+
+    // Complex pagination with custom ordering
+    let _page = akita.page(
+        1,
+        10,
+        Wrapper::new()
+            .eq("department", "engineering")
+            .ge("level", 3)
+    )?;
+
+    // Manual pagination
+    let ipage = akita.page::<User>(
+        1,
+        10,
+        Wrapper::new().eq("active", true)
+    )?;
+}
 ```
-## Feature.
 
-* ```akita-mysql``` - to use mysql
-* ```akita-sqlite``` - to use sqlite
-* ```akita-auth``` - to use some auth mehod
-* ```akita-fuse``` - to use some fuse feature
+### Batch Operations with Database Optimization
 
-## Annotions.
+```rust
+fn main() {
+    // Batch insert
+    let users = vec![
+        User { username: "user1".to_string(), ..Default::default() },
+        User { username: "user2".to_string(), ..Default::default() },
+        User { username: "user3".to_string(), ..Default::default() },
+    ];
 
-* ```Entity``` - to make Akita work with structs
-* ```FromValue``` - from value with akita
-* ```ToValue``` - to value with akita
-* ```id``` - to make Table Ident
-* ```field``` - to make struct field with own database.
-* ```name``` - work with column, make the table's field name. default struct' field name.
-* ```exist``` - ignore struct's field with table. default true.
+    let _ = akita.save_batch(&users)?;
 
-## Support Field Types.
- 
-* ```Option<T>```
-* ```u8, u32, u64```
-* ```i32, i64```
-* ```usize```
-* ```bool```
-* ```f32, f64```
-* ```str, String```
-* ```serde_json::Value```
-* ```NaiveDate, NaiveDateTime```
- 
-## Developing
+    // Batch update
+    let mut users_to_update = vec![];
+    for mut user in users {
+        user.level += 1;
+        users_to_update.push(user);
+    }
 
-To setup the development envrionment run `cargo run`.
+    akita.update_batch_by_id(&users_to_update)?;
 
-## Contributers
+    // Batch delete
+    akita.remove_by_ids::<User, _>(vec![1, 2, 3, 4, 5])?;
+}
+```
 
-	MrPan <1049058427@qq.com>
+## 🔧 Configuration
+### AkitaConfig Options
+```rust
+fn main() {
+    let config = AkitaConfig::new().url("mysql://root:password@localhost:3306/mydb")
+        .max_size(20)                    // Maximum connection pool size
+        .min_size(Some(5))                     // Minimum connection pool size
+        .connection_timeout(Duration::from_secs(30))
+        .idle_timeout(Duration::from_secs(300))
+        .max_lifetime(Duration::from_secs(1800));
+}
+```
 
-## Getting help
+### Environment-based Configuration
+```rust
+fn main() {
+    use std::env;
 
-Akita is a personal project. At the beginning, I just like Akita dog because of my hobbies.
-I hope this project will grow more and more lovely. Many practical database functions will 
-be added in the future. I hope you can actively help this project grow and put forward suggestions.
-I believe the future will be better and better.
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "mysql://root:password@localhost:3306/mydb".to_string());
 
-[#general]: https://discord.com/channels/273534239310479360/274215136414400513
-[#beginners]: https://discord.com/channels/273534239310479360/273541522815713281
-[#rust-usage]: https://discord.com/channels/442252698964721669/443150878111694848
-[zulip]: https://rust-lang.zulipchat.com/#narrow/stream/122651-general
-[stackoverflow]: https://stackoverflow.com/questions/tagged/rust
-[/r/rust]: https://www.reddit.com/r/rust
-[discourse]: https://users.rust-lang.org
+    let max_connections: u32 = env::var("DATABASE_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
 
-<br>
+    let config = AkitaConfig::new().url(&database_url)
+        .max_size(max_connections);
+}
+```
 
-#### License
+## 🎨 Advanced Features
+### Custom Type Conversion
+```rust
+use akita::*;
 
-<sup>
-Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
-2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
-</sup>
+#[derive(Debug, Clone)]
+pub struct Email(String);
 
-<br>
+impl FromAkitaValue for Email {
+    fn from_value(value: &AkitaValue) -> Result<Self, AkitaDataError> {
+        match value {
+            AkitaValue::Text(s) => Ok(Email(s.clone())),
+            _ => Err(AkitaDataError::ConversionError(ConversionError::conversion_error(format!("Cannot convert {:?} to Email", value)))),
+        }
+    }
+}
 
-<sub>
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in Akita by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
-</sub>
+impl IntoAkitaValue for Email {
+    fn into_value(&self) -> AkitaValue {
+        AkitaValue::Text(self.0.clone())
+    }
+}
+
+#[derive(Entity)]
+pub struct UserWithEmail {
+    pub id: i64,
+    pub email: Email,  // Custom type
+}
+```
+
+
+## 📊 Performance Tips
+1. **Connection Pooling**: Always configure appropriate pool sizes
+
++ MySQL/TiDB: 10-100 connections based on workload
+
++ PostgreSQL: 5-50 connections
+
++ SQLite: 1 connection (file-based)
+
+2. **Batch Operations**: Use database-specific batch methods
+
++ MySQL: Multi-value INSERT statements
+
++ PostgreSQL: COPY command for large datasets
+
++ SQLite: Transactions around batch operations
+
+3. **Query Optimization**:
+
++ Use EXPLAIN on MySQL/PostgreSQL to analyze query plans
+
++ SQLite: Use appropriate indexes and avoid expensive operations in WHERE
+
+4. **Statement Caching**: Akita caches prepared statements automatically
+
++ Reduces parsing overhead on all databases
+
++ Especially beneficial for repeated queries
+
+5. **Connection Reuse**: Keep connections alive for related operations
+
++ Reduces connection establishment overhead
+
++ Maintains session state
+
+6. **Database-Specific Features**:
+
++ MySQL/TiDB: Use connection compression for remote connections
+
++ PostgreSQL: Use prepared statements for complex queries
+
++ SQLite: Enable WAL mode for better concurrency
+
+## 🤝 Contributing
+We welcome contributions! Here's how you can help:
+
+1. ***Report Bugs***: Create an issue with database-specific details
+
+2. ***Suggest Features***: Start a discussion about new database support or features
+
+3. ***Submit PRs***: Follow our contributing guide
+
+4. ***Improve Documentation***: Help us make the docs better for all database backends
+
+5. ***Add Database Support***: Implement support for new databases
+
+## Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/wslongchen/akita.git
+cd akita
+
+# Run tests for specific databases
+cargo test --features mysql-sync
+cargo test --features mysql-async
+cargo test --features postgres-sync
+cargo test --features sqlite-sync
+cargo test --features oracle-sync
+
+# Run all tests
+cargo test --all-features
+
+# Run examples
+cargo run --example basic --features mysql-sync
+cargo run --example async-basic --features mysql-async
+
+# Build documentation
+cargo doc --open --all-features
+```
+
+## 📄 License
+Licensed under either of:
+
++ Apache License, Version 2.0 (LICENSE-APACHE)
+
++ MIT license (LICENSE-MIT)
+
+at your option.
+
+## 🙏 Acknowledgments
+
++ Thanks to all contributors who have helped shape Akita
+
++ Inspired by great ORMs like Diesel, SQLx, and MyBatis
+
++ Built with ❤️ by the Cat&Dog Lab team
+
+## 📞 Contact
+
++ Author: Mr.Pan
+
++ Email: 1049058427@qq.com
+
++ GitHub: @wslongchen
+
++ Project: Akita on GitHub
+
+<p align="center"> Made with ❤️ by <a href="https://github.com/wslongchen">Mr.Pan</a> and the Cat&Dog Lab Team </p>

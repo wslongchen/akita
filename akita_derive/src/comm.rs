@@ -21,7 +21,8 @@
 
 use regex::Regex;
 use lazy_static::lazy_static;
-use proc_macro2::{Span};
+use proc_macro2::{Ident, Span};
+use proc_macro_crate::{crate_name, FoundCrate};
 use syn::{self, Expr, Type};
 
 
@@ -143,6 +144,7 @@ pub enum FieldExtra {
     Name(String),
     IdType(String),
     Table(String),
+    Schema(String),
     Select(bool),
     Exist(bool),
     Converter(String),
@@ -154,10 +156,11 @@ pub enum FieldExtra {
         argument: Option<CustomArgument>,
     },
     NumericScale(ValueOrPath<u64>),
+    EnumStorage(String),
 }
 
 /// This struct stores information about defined custom arguments that will be passed in
-/// by the user in the annotion step.
+/// by the user in the annotation step.
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct CustomArgument {
@@ -182,4 +185,14 @@ impl CustomArgument {
 pub enum ValueOrPath<T: std::fmt::Debug + Clone + PartialEq> {
     Value(T),
     Path(String),
+}
+
+
+pub fn crate_ident() -> Ident {
+    let crate_ident = match crate_name("akita") {
+        Ok(FoundCrate::Itself) => syn::Ident::new("crate", Span::call_site()),
+        Ok(FoundCrate::Name(name)) => syn::Ident::new(&name, Span::call_site()),
+        Err(_) => syn::Ident::new("akita", Span::call_site()), // fallback
+    };
+    crate_ident
 }

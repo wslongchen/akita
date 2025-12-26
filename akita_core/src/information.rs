@@ -18,13 +18,13 @@
  *  *
  *
  */
-
+use std::collections::HashSet;
 use std::hash::{Hasher, Hash};
-
+use regex::Regex;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
-use crate::{types::SqlType, comm::keywords_safe, Value};
+use crate::{types::SqlType, AkitaValue};
 
 /// Table
 
@@ -55,6 +55,18 @@ pub struct TableName {
     pub schema: Option<String>,
     /// table alias
     pub alias: Option<String>,
+    pub ignore_interceptors: HashSet<String>,
+}
+
+impl Default for TableName {
+    fn default() -> Self {
+        Self {
+            name: "".to_string(),
+            schema: None,
+            alias: None,
+            ignore_interceptors: Default::default(),
+        }
+    }
 }
 
 impl Hash for TableName {
@@ -67,28 +79,53 @@ impl Hash for TableName {
 impl TableName {
     /// create table with name
     pub fn from(name: &str) -> Self {
-        if name.contains('.') {
-            let splinters = name.split('.').collect::<Vec<&str>>();
-            assert!(splinters.len() == 2, "There should only be 2 parts");
-            let schema = splinters[0].to_owned();
-            let table = splinters[1].to_owned();
-            TableName {
-                schema: Some(schema),
-                name: table,
-                alias: None,
-            }
-        } else {
-            TableName {
-                schema: None,
-                name: name.to_owned(),
-                alias: None,
-            }
+        let name = name.trim();
+
+        // Separate aliases (if any)
+        let (table_part, alias) = Self::split_table_and_alias(name);
+
+        // Separate schema and table names
+        let (schema, name) = Self::split_schema_and_table(&table_part);
+
+        TableName {
+            name,
+            schema,
+            alias,
+            ignore_interceptors: HashSet::new(),
         }
     }
 
+    pub fn parse_table_name(sql: &str) -> TableName {
+        let tables = TableName::parse_from_sql(sql);
+        // Store the first table
+        if let Some(first_table) = tables.first() {
+            first_table.clone()
+        } else {
+            TableName::default()
+        }
+
+    }
+    
     pub fn name(&self) -> String { self.name.to_string() }
 
-    pub fn safe_name(&self) -> String { keywords_safe(&self.name) }
+    pub fn parse_from_sql(sql: &str) -> Vec<TableName> {
+        let normalized_sql = Self::normalize_sql(sql);
+
+        // Try parsing different types of SQL statements
+        if let Some(tables) = Self::parse_insert_update_delete(&normalized_sql) {
+            return tables;
+        }
+
+        if let Some(tables) = Self::parse_select(&normalized_sql) {
+            return tables;
+        }
+
+        if let Some(tables) = Self::parse_ddl(&normalized_sql) {
+            return tables;
+        }
+
+        vec![]
+    }
 
     /// return the long name of the table using schema.table_name
     pub fn complete_name(&self) -> String {
@@ -98,12 +135,145 @@ impl TableName {
         }
     }
 
-    pub fn safe_complete_name(&self) -> String {
-        match self.schema {
-            Some(ref schema) => format!("{}.{}", schema, self.safe_name()),
-            None => self.name.to_owned(),
+    pub fn sql_reference(&self) -> String {
+        let full_name = self.complete_name();
+
+        if let Some(alias) = &self.alias {
+            format!("{} AS {}", full_name, alias)
+        } else {
+            full_name
         }
     }
+
+    pub fn equals_ignore_alias(&self, other: &TableName) -> bool {
+        self.name == other.name && self.schema == other.schema
+    }
+
+    fn normalize_sql(sql: &str) -> String {
+        let sql = sql.trim();
+
+        // Remove a one-line comment
+        let re_comment = Regex::new(r"--.*$|/\*.*?\*/").unwrap();
+        let sql = re_comment.replace_all(sql, "");
+
+        // Replace multiple whitespace characters with a single space
+        let re_whitespace = Regex::new(r"\s+").unwrap();
+        re_whitespace.replace_all(&sql, " ").to_string()
+    }
+
+    fn parse_insert_update_delete(sql: &str) -> Option<Vec<TableName>> {
+        let patterns = [
+            // INSERT INTO/INSERT
+            (r"(?i)^\s*INSERT\s+(?:INTO\s+)?(\S+)", "INSERT"),
+            // UPDATE
+            (r"(?i)^\s*UPDATE\s+(\S+)", "UPDATE"),
+            // DELETE FROM/DELETE
+            (r"(?i)^\s*DELETE\s+(?:FROM\s+)?(\S+)", "DELETE"),
+        ];
+
+        for (pattern, _) in patterns {
+            if let Some(caps) = Regex::new(pattern).unwrap().captures(sql) {
+                let table_expr = &caps[1];
+                // Remove possible semicolons
+                let table_expr = table_expr.split(';').next().unwrap_or(table_expr);
+                return Some(vec![TableName::from(table_expr)]);
+            }
+        }
+
+        None
+    }
+
+    fn parse_select(sql: &str) -> Option<Vec<TableName>> {
+        let re_from = Regex::new(r"(?i)FROM\s+([^;]+?)(?:\s+(?:WHERE|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET))?(?:;|$)").unwrap();
+
+        if let Some(caps) = re_from.captures(sql) {
+            let from_clause = &caps[1];
+
+            let tables = Self::split_table_list(from_clause);
+
+            if !tables.is_empty() {
+                return Some(tables.into_iter()
+                    .map(|v| TableName::from(v.as_str()))
+                    .collect());
+            }
+        }
+
+        None
+    }
+
+    /// Parse DDL statements（CREATE/DROP/ALTER TABLE）
+    fn parse_ddl(sql: &str) -> Option<Vec<TableName>> {
+        let pattern = r"(?i)^\s*(?:CREATE|DROP|ALTER|TRUNCATE|RENAME)\s+(?:TEMPORARY\s+)?TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(\S+)";
+
+        if let Some(caps) = Regex::new(pattern).unwrap().captures(sql) {
+            let table_expr = &caps[1];
+            let table_expr = table_expr.split(';').next().unwrap_or(table_expr);
+            return Some(vec![TableName::from(table_expr)]);
+        }
+
+        None
+    }
+
+    /// Split table list (handles commas and joins)
+    fn split_table_list(from_clause: &str) -> Vec<String> {
+        let mut tables = Vec::new();
+        let mut current = String::new();
+        let mut paren_depth = 0;
+
+        for ch in from_clause.chars() {
+            match ch {
+                '(' => paren_depth += 1,
+                ')' => paren_depth -= 1,
+                ',' if paren_depth == 0 => {
+                    if !current.trim().is_empty() {
+                        tables.push(current.trim().to_string());
+                    }
+                    current.clear();
+                    continue;
+                }
+                _ => {}
+            }
+            current.push(ch);
+        }
+
+        if !current.trim().is_empty() {
+            tables.push(current.trim().to_string());
+        }
+
+        tables
+    }
+
+    /// Separation table and aliases
+    fn split_table_and_alias(s: &str) -> (String, Option<String>) {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+
+        if parts.len() >= 3 && parts[1].to_uppercase() == "AS" {
+            // Format: table AS alias
+            (parts[0].to_string(), Some(parts[2].to_string()))
+        } else if parts.len() >= 2 {
+            // Format: table alias(Implicit aliases)
+            (parts[0].to_string(), Some(parts[1].to_string()))
+        } else {
+            // There are no aliases
+            (s.to_string(), None)
+        }
+    }
+
+    /// Separate schema and table names
+    fn split_schema_and_table(s: &str) -> (Option<String>, String) {
+        let parts: Vec<&str> = s.split('.').collect();
+
+        match parts.len() {
+            1 => (None, parts[0].to_string()),  // table
+            2 => (Some(parts[0].to_string()), parts[1].to_string()),  // schema.table
+            _ => {
+                // For situations like db.schema.table, take the last two parts
+                let len = parts.len();
+                (Some(parts[len-2].to_string()), parts[len-1].to_string())
+            }
+        }
+    }
+
 }
 
 /// Field
@@ -123,7 +293,7 @@ pub struct FieldName {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Fill {
     pub mode: String,
-    pub value: Option<Value>,
+    pub value: Option<AkitaValue>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -201,17 +371,23 @@ impl FieldName {
         self.name.to_owned()
     }
 
-    pub fn safe_complete_name(&self) -> String {
-        match self.table {
-            Some(ref table) => format!("{}.{}", keywords_safe(table), self.name),
-            None => self.name.to_owned(),
-        }
-    }
-
     /// 判断是否主键
     pub fn is_table_id(&self) -> bool {
         match self.field_type {
             FieldType::TableId(_) => true,
+            FieldType::TableField => false,
+        }
+    }
+    pub fn is_auto_increment(&self) -> bool {
+        match &self.field_type {
+            FieldType::TableId(id_type) => { 
+                match id_type {
+                    IdentifierType::Auto | IdentifierType::None => {
+                        true
+                    }
+                    _ => false,
+                }
+            },
             FieldType::TableField => false,
         }
     }
@@ -361,8 +537,8 @@ impl Literal {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ColumnStat {
     pub avg_width: i32, /* average width of the column, (the number of characters) */
-    //most_common_values: Value,//top 5 most common values
-    pub n_distinct: f32, // the number of distinct values of these column
+    //most_common_AkitaValues: AkitaValue,//top 5 most common AkitaValues
+    pub n_distinct: f32, // the number of distinct AkitaValues of these column
 }
 
 impl From<i64> for Literal {

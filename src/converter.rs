@@ -19,14 +19,14 @@
  *
  */
 
-/// 字段转换器
+/// Field converter
 #[allow(unused)]
 pub trait Converter<T>: Send + Sync {
     fn convert(data: &T) -> T;
     fn revert(data: &T) -> T;
 }
 
-// 对 Option<T> 的支持
+// Support for Option<T>
 impl<T, C> Converter<Option<T>> for C
 where
     C: Converter<T>,
@@ -58,18 +58,19 @@ impl Converter<String> for UpperCaseConverter {
 #[cfg(test)]
 #[allow(unused)]
 mod test {
-    use crate::{AkitaMapper, Entity, BaseMapper, self as akita, ToValue, IdentifierGenerator};
+    use std::borrow::Borrow;
+    use crate::prelude::{Entity, self as akita, IdentifierGenerator};
     use crate::key::SnowflakeGenerator;
 
     #[test]
     fn test_converter() {
         let user = SystemUsers {
             id: None,
-            username: "Longchen".to_string(),
+            username: "".to_string(),
             age: 0,
         };
 
-        println!("ddddd{:?}", user.to_value());
+        // println!("ddddd{:?}", user.to_value());
     }
 
     #[test]
@@ -90,4 +91,5 @@ mod test {
         #[field(name = "ssss")]
         age: i32,
     }
+    
 }

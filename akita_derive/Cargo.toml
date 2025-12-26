@@ -1,6 +1,6 @@
 [package]
 name = "akita_derive"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2018"
 description = "Akita - Mini orm for rust."
@@ -15,6 +15,7 @@ license = "MIT"
 proc-macro = true
 
 [dependencies]
+proc-macro-crate = "1"
 syn = { version = "1.0", features = ["extra-traits","full"] }
 quote = "1.0"
 proc-macro2 = "1.0.12"
