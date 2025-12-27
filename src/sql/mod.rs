@@ -446,6 +446,9 @@ pub trait SqlBuilder: Send + Sync {
                     if matches!(value, AkitaValue::Null) {
                         return value;
                     }
+                    if value.is_number() {
+                        value = AkitaValue::Null;
+                    }
                 }
                 IdentifierType::AssignId => {
                     let id = GLOBAL_GENERATOR.next_id();
@@ -459,9 +462,6 @@ pub trait SqlBuilder: Send + Sync {
                 IdentifierType::AssignUuid => {
                     let uuid = GLOBAL_GENERATOR.next_uuid();
                     value = AkitaValue::Text(uuid);
-                }
-                IdentifierType::None => {
-                    value = AkitaValue::Null;
                 }
                 IdentifierType::Input => {
                     

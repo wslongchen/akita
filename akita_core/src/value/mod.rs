@@ -697,7 +697,7 @@ impl AkitaValue {
     {
         match self {
             AkitaValue::Object(data) => match data.get(&s.replace("r#","")) {
-                Some(v) => T::from_value_opt(v),
+                Some(v) => FromAkitaValue::from_value_opt(v),
                 None => Err(AkitaDataError::ConversionError(ConversionError::ConversionError {
                     message: format!("No such key: {}", s),
                 })),
@@ -724,7 +724,7 @@ impl AkitaValue {
                 Some(v) => {
                     match v {
                         AkitaValue::Null => Ok(None),
-                        _ => Ok(Some(T::from_value_opt(v)?)),
+                        _ => Ok(Some(FromAkitaValue::from_value_opt(v)?)),
                     }
                 }
                 None => Ok(None),
@@ -763,7 +763,7 @@ impl AkitaValue {
         match self {
             AkitaValue::Object(v) => {
                 v.values().nth(index).and_then(|v| {
-                    T::from_value_opt(v).ok()
+                    FromAkitaValue::from_value_opt(v).ok()
                 })
             },
             _ => None,
@@ -780,7 +780,7 @@ impl AkitaValue {
         match self {
             AkitaValue::Object(v) => {
                 v.values().nth(index).map(|v| {
-                    T::from_value_opt(v)
+                    FromAkitaValue::from_value_opt(v)
                 })
             },
             _ => Some(Err(AkitaDataError::ConversionError(ConversionError::ConversionError {
@@ -963,3 +963,13 @@ impl fmt::Display for AkitaValue {
     }
 }
 
+#[inline]
+pub fn from_akita_value<T: FromAkitaValue>(v: AkitaValue) -> T {
+    FromAkitaValue::from_value(&v)
+}
+
+
+#[inline]
+pub fn from_akita_value_opt<T: FromAkitaValue>(v: AkitaValue) -> Result<T, AkitaDataError> {
+    FromAkitaValue::from_value_opt(&v)
+}

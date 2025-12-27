@@ -19,7 +19,7 @@
  *  
  */
 use std::ops::Index;
-use crate::{AkitaDataError, ColumnIndex, AkitaValue, FromAkitaValue};
+use crate::{AkitaDataError, ColumnIndex, AkitaValue, FromAkitaValue, from_akita_value, from_akita_value_opt};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Row {
@@ -80,7 +80,7 @@ impl Row {
         index.idx(&*self.columns).and_then(|idx| {
             self.data
                 .get(idx)
-                .map(|x| T::from_value(x))
+                .map(|x| from_akita_value(x.clone()))
         })
     }
 
@@ -89,7 +89,7 @@ impl Row {
         T: FromAkitaValue,
     {
         self.get_value_by_column(column)
-            .map(|value| T::from_value(value))
+            .map(|value| from_akita_value(value.clone()))
     }
     
     pub fn get_by_column_opt<T>(&self, column: &str) -> Option<Result<T, AkitaDataError>>
@@ -97,7 +97,7 @@ impl Row {
         T: FromAkitaValue,
     {
         self.get_value_by_column(column)
-            .map(|value| T::from_value_opt(value))
+            .map(|value| from_akita_value_opt(value.clone()))
     }
 
     /// Will copy value at index `index` if it was not taken by `Row::take` or `Row::take_opt`
@@ -111,7 +111,7 @@ impl Row {
         index
             .idx(&*self.columns)
             .and_then(|idx| self.data.get(idx))
-            .map(|x| T::from_value_opt(x))
+            .map(|x| from_akita_value_opt(x.clone()))
     }
 
     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
@@ -124,8 +124,8 @@ impl Row {
         index.idx(&*self.columns).and_then(|idx| {
             self.data
                 .get_mut(idx)
-                .map(|x| x.take()).as_ref()
-                .map(T::from_value)
+                .map(|x| x.take())
+                .map(from_akita_value::<T>)
         })
     }
 
@@ -137,8 +137,8 @@ impl Row {
             .iter()
             .position(|c| c == column)
             .and_then(|idx| self.data.get_mut(idx))
-            .map(|value| value.take()).as_ref()
-            .map(T::from_value)
+            .map(|value| value.take())
+            .map(from_akita_value::<T>)
     }
 
     /// Will take value of a column with index `index` if it exists and wasn't taken earlier then
@@ -152,8 +152,8 @@ impl Row {
         index
             .idx(&*self.columns)
             .and_then(|idx| self.data.get_mut(idx))
-            .map(|x| x.take()).as_ref()
-            .map(T::from_value_opt)
+            .map(|x| x.take())
+            .map(from_akita_value_opt::<T>)
     }
 
     /// Unwraps values of a row.

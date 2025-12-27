@@ -54,7 +54,7 @@ impl<T: FromAkitaValue> FromAkitaValue for Option<T> {
     fn from_value_opt(value: &AkitaValue) -> Result<Self, AkitaDataError> {
         match value {
             AkitaValue::Null => Ok(None),
-            other => T::from_value_opt(other).map(Some),
+            other => FromAkitaValue::from_value_opt(other).map(Some),
         }
     }
 }
@@ -62,7 +62,7 @@ impl<T: FromAkitaValue> FromAkitaValue for Option<T> {
 // Result Type implementation (easy error handling)
 impl<T: FromAkitaValue, E: From<AkitaDataError>> FromAkitaValue for Result<T, E> {
     fn from_value_opt(value: &AkitaValue) -> Result<Self, AkitaDataError> {
-        T::from_value_opt(value).map(Ok)
+        FromAkitaValue::from_value_opt(value).map(Ok)
     }
 }
 
@@ -74,6 +74,7 @@ macro_rules! impl_from_akita_value_numeric {
                     $(AkitaValue::$variant(ref v) => Ok(v.to_owned() as $ty),
                     )*
                     AkitaValue::BigDecimal(ref v) => Ok(v.$method().unwrap_or_default()),
+                    AkitaValue::Text(ref v) => Ok(v.parse::<$ty>().unwrap_or_default()),
                     AkitaValue::Object(ref v) => {
                         let (_, v) = v.first().unwrap_or((&String::default(), &AkitaValue::Null));
                         Ok(<$ty>::from_value(v))
@@ -373,7 +374,6 @@ where
             AkitaValue::Null => Err(AkitaDataError::NoSuchValueError(format!("{:?} can not get value", v))),
             _ => FromAkitaValue::from_value_opt(v),
         }
-
     }
 }
 
