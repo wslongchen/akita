@@ -56,7 +56,6 @@ uuid = { version = "1.19", features = ["serde", "v4"] }
 # Optional generic dependencies
 bigdecimal = { version = "0.4", optional = true }
 tracing = { version = "0.1.35" }
-anyhow = "1.0.100"
 
 [dev-dependencies]
 akita_derive = { version = "0.6.0", path = "./akita_derive" }
