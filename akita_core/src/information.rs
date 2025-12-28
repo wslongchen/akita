@@ -300,7 +300,6 @@ pub struct Fill {
 pub enum IdentifierType {
     Auto,
     Input,
-    None,
     AssignId,
     AssignUuid
 }
@@ -313,7 +312,7 @@ impl IdentifierType {
             "input" => Self::Input,
             "assign_id" => Self::AssignId,
             "assign_uuid" => Self::AssignUuid,
-            _=> Self::None,
+            _=> Self::Auto,
         }
 
     }
@@ -378,11 +377,12 @@ impl FieldName {
             FieldType::TableField => false,
         }
     }
+    
     pub fn is_auto_increment(&self) -> bool {
         match &self.field_type {
             FieldType::TableId(id_type) => { 
                 match id_type {
-                    IdentifierType::Auto | IdentifierType::None => {
+                    IdentifierType::Auto => {
                         true
                     }
                     _ => false,

@@ -250,7 +250,6 @@ fn test_raw_sql_query() {
 fn test_entity_methods() {
     let akita = create_test_akita().unwrap();
     let mut user = create_test_user();
-
     // Testing entity updates
     let result = user.update_by_id::<_>(&akita);
     assert!(result.is_ok(), "The entity update method should succeed");

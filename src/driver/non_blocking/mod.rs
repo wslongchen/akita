@@ -68,7 +68,7 @@ cfg_if! {
 
 
 #[async_trait::async_trait]
-pub trait AsyncDbExecutor {
+pub trait AsyncDbExecutor: Send + Sync {
     async fn start(&self) -> crate::errors::Result<()>;
 
     async fn commit(&self) -> crate::errors::Result<()>;

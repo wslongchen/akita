@@ -154,6 +154,12 @@ pub enum SqlOperator {
     Between, NotBetween,
 }
 
+impl SqlOperator {
+    pub fn is_null_check(&self) -> bool {
+        matches!(self, SqlOperator::IsNull | SqlOperator::IsNotNull)
+    }
+}
+
 impl Display for SqlOperator {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
@@ -458,7 +464,21 @@ impl Wrapper{
         V: Into<AkitaValue>,
     {
         let value = value.into();
-        if self.should_add_condition() && !self.should_skip_condition(&value) {
+        if !self.should_add_condition() {
+            return self;
+        }
+
+        if operator.is_null_check() {
+            self.where_conditions.push(Condition {
+                column: column.into(),
+                operator,
+                value,
+                and_or: AndOr::And,
+            });
+            return self;
+        }
+
+        if !self.should_skip_condition(&value) {
             self.where_conditions.push(Condition {
                 column: column.into(),
                 operator,
@@ -1018,7 +1038,7 @@ impl Wrapper{
     
     // ========== Methods that are deprecated or marked private ==========
 
-    #[deprecated(since = "0.2.0", note = "Use SqlBuilder.build_query_sql instead")]
+    #[deprecated(since = "0.6.0", note = "Use SqlBuilder.build_query_sql instead")]
     pub fn build_select_sql(&self) -> String {
         // Backward compatibility is maintained, but only base SQL fragments are generated
         let select = self.build_select_clause();
@@ -1052,7 +1072,7 @@ impl Wrapper{
         sql
     }
 
-    #[deprecated(since = "0.2.0", note = "Use SqlBuilder.build_count_sql instead")]
+    #[deprecated(since = "0.6.0", note = "Use SqlBuilder.build_count_sql instead")]
     pub fn build_count_sql(&self) -> String {
         let from = self.build_from_clause().unwrap_or_default();
         let where_clause = self.build_where_clause();
@@ -1065,7 +1085,7 @@ impl Wrapper{
         sql
     }
 
-    #[deprecated(since = "0.2.0", note = "Use SqlBuilder.build_update_sql instead")]
+    #[deprecated(since = "0.6.0", note = "Use SqlBuilder.build_update_sql instead")]
     pub fn build_update_sql(&self) -> Option<String> {
         let table = self.table.as_ref()?;
         let set_clause = self.build_set_clause();
@@ -1079,7 +1099,7 @@ impl Wrapper{
         Some(sql)
     }
 
-    #[deprecated(since = "0.2.0", note = "Use SqlBuilder.build_delete_sql instead")]
+    #[deprecated(since = "0.6.0", note = "Use SqlBuilder.build_delete_sql instead")]
     pub fn build_delete_sql(&self) -> Option<String> {
         let table = self.table.as_ref()?;
         let where_clause = self.build_where_clause();
@@ -1129,7 +1149,8 @@ impl Wrapper{
         })
     }
 
-    // Auxiliary method: construct conditional clauses
+    /// Auxiliary method: construct conditional clauses
+    #[deprecated(since = "0.6.0", note = "Use Wrapper.build_conditions_clause instead")]
     fn build_conditions(&self, prefix: &str, conditions: &[Condition]) -> String {
         if conditions.is_empty() && self.apply_conditions.is_empty() {
             return String::new();
@@ -1300,7 +1321,8 @@ impl Wrapper{
         params
     }
 
-    // Methodology provided for DatabasePlatform
+    /// Methodology provided for DatabasePlatform
+    #[deprecated(since = "0.6.0", note = "Use Wrapper.build_where_clause instead")]
     pub fn get_sql_segment(&self) -> String {
         if self.where_conditions.is_empty() {
             return String::new();

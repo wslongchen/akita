@@ -1,6 +1,6 @@
 [package]
 name = "akita"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2021"
 description = "Akita - Mini orm for rust."
@@ -14,8 +14,8 @@ license = "MIT"
 
 [dependencies]
 # Internal dependencies
-akita_derive = { version = "0.6.0", path = "./akita_derive" }
-akita_core = { version = "0.6.0", path = "./akita_core" }
+akita_derive = { version = "0.6.1", path = "./akita_derive" }
+akita_core = { version = "0.6.1", path = "./akita_core" }
 
 # Runtime and tool libraries
 tokio = { version = "1", features = ["net"], optional = true }
@@ -146,6 +146,10 @@ required-features = ["sqlite-sync"]
 name = "basic_sqlite_async"
 required-features = ["sqlite-async"]
 
+
+[[test]]
+name = "sql_macro_async"
+required-features = ["mysql-async"]
 
 [[test]]
 name = "sql_macro"

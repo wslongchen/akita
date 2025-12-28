@@ -24,6 +24,7 @@ use crate::prelude::*;
 use std::marker::Sync;
 use crate::mapper::IPage;
 
+
 #[async_trait]
 pub trait AsyncAkitaMapper {
     /// Get all the table of records
@@ -106,7 +107,7 @@ pub trait AsyncAkitaMapper {
         Q: Into<String> + Send + Sync,
         T: FromAkitaValue + Send + Sync,
     {
-        self.query_map(query, T::from_value).await
+        self.query_map(query, from_akita_value).await
     }
 
     async fn query_opt<T, Q>(&self, query: Q) -> crate::errors::Result<Vec<crate::errors::Result<T>>>
@@ -114,7 +115,7 @@ pub trait AsyncAkitaMapper {
         Q: Into<String> + Send + Sync,
         T: FromAkitaValue + Send + Sync,
     {
-        self.query_map(query, T::from_value_opt).await.map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
+        self.query_map(query, from_akita_value_opt).await.map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
     async fn query_first<S: Into<String> + Send + Sync, R: Sync + Send>(

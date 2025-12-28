@@ -72,7 +72,13 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Entity, attributes(field, table, schema, id, fill))]
 #[proc_macro_error]
 pub fn to_table(input: TokenStream) -> TokenStream {
-    table_derive::impl_get_table(input)
+    table_derive::impl_get_table(input, false)
+}
+
+#[proc_macro_derive(AsyncEntity, attributes(field, table, schema, id, fill))]
+#[proc_macro_error]
+pub fn to_async_table(input: TokenStream) -> TokenStream {
+    table_derive::impl_get_table(input, true)
 }
 
 

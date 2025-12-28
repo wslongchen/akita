@@ -21,7 +21,7 @@
 use crate::mapper::IPage;
 use crate::prelude::{AkitaError, GetFields, GetTableName, Params};
 use crate::errors::Result;
-use akita_core::{AkitaValue, FromAkitaValue, IntoAkitaValue, Rows, Wrapper};
+use akita_core::{from_akita_value, from_akita_value_opt, AkitaValue, FromAkitaValue, IntoAkitaValue, Rows, Wrapper};
 
 pub trait AkitaMapper {
     /// Get all the table of records
@@ -106,7 +106,7 @@ pub trait AkitaMapper {
             Q: Into<String>,
             T: FromAkitaValue,
     {
-        self.query_map(query, T::from_value)
+        self.query_map(query, from_akita_value)
     }
 
     fn query_opt<T, Q>(&self, query: Q) -> Result<Vec<Result<T>>>
@@ -114,7 +114,7 @@ pub trait AkitaMapper {
             Q: Into<String>,
             T: FromAkitaValue,
     {
-        self.query_map(query, T::from_value_opt).map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
+        self.query_map(query, from_akita_value_opt).map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
     fn query_first<S: Into<String>, R>(

@@ -236,7 +236,7 @@ pub fn update < M > (& self, mapper : & M, wrapper : Wrapper) ->
              name : "id".to_string(), table :
          "t_system_user".to_string().into(), alias :
          "id".to_string().into(), field_type : FieldType ::
-         TableId(IdentifierType :: None), fill : None, select :
+         TableId(IdentifierType :: Auto), fill : None, select :
          true, exist : true,
          }, FieldName
          {
@@ -322,7 +322,7 @@ pub fn update < M > (& self, mapper : & M, wrapper : Wrapper) ->
              name : "id".to_string(), table :
          "t_system_user".to_string().into(), alias :
          "id".to_string().into(), field_type : FieldType ::
-         TableId(IdentifierType :: None), fill : None, select :
+         TableId(IdentifierType :: Auto), fill : None, select :
          true, exist : true,
          }, FieldName
          {
