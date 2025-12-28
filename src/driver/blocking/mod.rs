@@ -19,14 +19,22 @@
  *
  */
 use std::ops::Deref;
-use akita_core::{cfg_if, AkitaValue, FieldName, FieldType, FromAkitaValue, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, Rows, Wrapper};
+use akita_core::{cfg_if, AkitaValue, FieldName, FieldType, FromAkitaValue, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, Rows, SchemaContent, TableInfo, TableName, Wrapper};
 use crate::comm::ExecuteResult;
 use crate::core::GLOBAL_GENERATOR;
+
 use crate::key::IdentifierGenerator;
 use crate::errors::AkitaError;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder, SqlBuilderFactory};
+
+cfg_if! {if #[cfg(feature = "auth")]  {
+    mod auth;
+    pub use auth::*;
+    use crate::driver::{DataBaseUser, GrantUserPrivilege, Role, UserInfo};
+}}
+
 
 cfg_if! {
     if #[cfg(feature = "mysql-sync")] {
@@ -806,5 +814,188 @@ impl DbDriver {
         }
         self.commit()?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "auth")]
+impl DbManager for DbDriver {
+    fn get_table(&self, table_name: &TableName) -> crate::errors::Result<Option<TableInfo>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_table(table_name)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn exist_table(&self, table_name: &TableName) -> crate::errors::Result<bool> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.exist_table(table_name)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_grouped_tables(&self) -> crate::errors::Result<Vec<SchemaContent>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_grouped_tables()
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_all_tables(&self, schema: &str) -> crate::errors::Result<Vec<TableInfo>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_all_tables(schema)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_table_names(&self, schema: &str) -> crate::errors::Result<Vec<TableName>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_table_names(schema)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_users(&self) -> crate::errors::Result<Vec<DataBaseUser>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_users()
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn exist_user(&self, user: &UserInfo) -> crate::errors::Result<bool> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.exist_user(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_user_detail(&self, username: &str) -> crate::errors::Result<Vec<DataBaseUser>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_user_detail(username)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn get_roles(&self, username: &str) -> crate::errors::Result<Vec<Role>> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.get_roles(username)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn create_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.create_user(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn drop_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.drop_user(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn update_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.update_user_password(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn lock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.lock_user(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn unlock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.unlock_user(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn expire_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.expire_user_password(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn grant_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.grant_privileges(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn revoke_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.revoke_privileges(user)
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
+    }
+
+    fn flush_privileges(&self) -> crate::errors::Result<()> {
+        match self {
+            #[cfg(feature = "mysql-sync")]
+            DbDriver::MysqlDriver(mysql) =>  {
+                mysql.flush_privileges()
+            },
+            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+        }
     }
 }

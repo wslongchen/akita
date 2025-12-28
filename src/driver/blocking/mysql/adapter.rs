@@ -22,7 +22,7 @@ use crate::comm::ExecuteResult;
 use crate::errors::AkitaError;
 use akita_core::{AkitaValue, FromAkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use mysql::{prelude::Queryable, Params as MysqlParams, Row as MysqlRow, Value as MysqlValue};
-use serde_json::Map;
+use serde_json::{Map, Value};
 use std::convert::{TryFrom, TryInto};
 use std::sync::RwLock;
 use crate::driver::blocking::mysql::MysqlConnection;
@@ -198,7 +198,26 @@ fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
         AkitaValue::Blob(vec) => MysqlValue::from(vec),
         AkitaValue::Char(c) => MysqlValue::from(c.to_string()),
         AkitaValue::Text(s) => MysqlValue::from(s),
-        AkitaValue::Json(j) => MysqlValue::from(j.to_string()),
+        AkitaValue::Json(j) => { 
+            match j {
+                Value::Bool(v) => MysqlValue::from(v), 
+                Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        MysqlValue::from(n)
+                    } else if let Some(n) = v.as_f64() {
+                        MysqlValue::from(n)
+                    } else if let Some(n) =  v.as_i64() {
+                        MysqlValue::from(n)
+                    } else {
+                        MysqlValue::from(v.to_string())
+                    }
+                    
+                   
+                },
+                Value::String(v) => MysqlValue::from(v),
+                _ => MysqlValue::from(serde_json::to_string(&j).unwrap_or_default())
+            }
+        },
         AkitaValue::Uuid(uuid) => MysqlValue::from(uuid.to_string()),
         AkitaValue::Date(date) => MysqlValue::from(date),
         AkitaValue::Time(time) => MysqlValue::from(time),

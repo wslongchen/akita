@@ -20,6 +20,12 @@
  */
 use akita_core::cfg_if;
 
+cfg_if! {if #[cfg(feature = "auth")]  {
+    mod auth;
+    pub use auth::*;
+}}
+    
+
 cfg_if! {if #[cfg(any(
     feature = "mysql-sync",
     feature = "postgres-sync", 

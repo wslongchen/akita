@@ -25,6 +25,7 @@ use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetec
 use std::sync::{Arc};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use oracle::sql_type::{OracleType, Timestamp};
+use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
 /// Oracle Asynchronous adapters (wrapper synchronous connections)
@@ -278,10 +279,26 @@ fn convert_to_oracle_value(val: AkitaValue) -> Box<dyn oracle::sql_type::ToSql> 
         AkitaValue::BigDecimal(ref v) => Box::new(v.to_string()),
         AkitaValue::Blob(ref v) => Box::new(v.clone()),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
-        AkitaValue::Json(ref v) => {
-            // JSON is passed as a string
-            Box::new(v.to_string())
-        }
+        AkitaValue::Json(j) => {
+            match j {
+                Value::Bool(v) => Box::new(v),
+                Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        Box::new(n as i64)
+                    } else if let Some(n) = v.as_f64() {
+                        Box::new(n)
+                    } else if let Some(n) =  v.as_i64() {
+                        Box::new(n)
+                    } else {
+                        Box::new(v.to_string())
+                    }
+
+
+                },
+                Value::String(v) => Box::new(v),
+                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+            }
+        },
         AkitaValue::Uuid(ref v) => {
             // The UUID is passed as a string
             Box::new(v.to_string())
@@ -345,6 +362,46 @@ fn bind_oracle_value(stmt: &mut oracle::Statement, index: usize, value: &AkitaVa
                 AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
             })
         }
+        AkitaValue::Json(j) => {
+            match j {
+                Value::Bool(v) => {
+                    stmt.bind(pos, v).map_err(|e| {
+                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                    })
+                },
+                Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        stmt.bind(pos, &n).map_err(|e| {
+                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        })
+                    } else if let Some(n) = v.as_f64() {
+                        stmt.bind(pos, &n).map_err(|e| {
+                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        })
+                    } else if let Some(n) =  v.as_i64() {
+                        stmt.bind(pos, &n).map_err(|e| {
+                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        })
+                    } else {
+                        stmt.bind(pos, &v.to_string()).map_err(|e| {
+                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        })
+                    }
+
+
+                },
+                Value::String(v) => {
+                    stmt.bind(pos, v).map_err(|e| {
+                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                    })
+                },
+                _ => {
+                    stmt.bind(pos, &serde_json::to_string(&j).unwrap_or_default()).map_err(|e| {
+                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                    })
+                }
+            }
+        },
         AkitaValue::Null => stmt.bind(pos, &"null").map_err(|e| {
             AkitaError::DatabaseError(format!("Failed to bind null parameter: {}", e))
         }),

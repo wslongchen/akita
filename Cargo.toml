@@ -176,3 +176,5 @@ postgres-async = ["tokio-postgres", "bigdecimal", "tokio/full", "tokio-util", "f
 oracle-async = ["oracle", "tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
 mssql-async = ["tiberius", "bigdecimal", "tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
 sqlite-async = ["rusqlite", "bigdecimal","tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
+
+auth = []

@@ -33,6 +33,9 @@ pub use crate::mapper::IPage;
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
 
+#[cfg(feature = "auth")]
+pub use crate::driver::{DataBaseUser,Role, GrantUserPrivilege, Privilege, UserInfo};
+
 // re-export
 pub use akita_core::*;
 pub use akita_derive::{query,insert, update,select_one, ToValue, FromValue, sql, sql_xml, delete, list,AkitaEnum};
@@ -62,6 +65,26 @@ cfg_if! {if #[cfg(all(
     pub use crate::mapper::blocking::AkitaMapper;
     pub use crate::ext::blocking::{IService, Mapper};
     pub use akita_derive::Entity;
+}}
+
+cfg_if! {if #[cfg(all(
+    feature = "auth",
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync", 
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    ),
+    not(any(
+        feature = "mysql-async",
+        feature = "postgres-async", 
+        feature = "sqlite-async",
+        feature = "mssql-async",
+        feature = "oracle-async"
+    ))
+))] {
+    pub use crate::driver::blocking::DbManager;
 }}
 
 cfg_if! {if #[cfg(any(

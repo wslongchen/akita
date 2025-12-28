@@ -77,13 +77,6 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
 
     // Check if it's <T>an Option
     if is_option_type(ty) {
-        // For Option<T>, check whether T implements FromAkitaValue
-        if let Some(inner_ty) = extract_option_inner_type(ty) {
-            if !is_builtin_type(&inner_ty) && !is_known_type(&inner_ty) {
-                // Generates the FromAkitaValue check
-                return generate_from_value_check(&inner_ty, &ident_name, "Option");
-            }
-        }
         return quote!(None);
     }
 
@@ -98,6 +91,10 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
         "Vec" | "Value" | "JsonValue" | "Uuid" | "BigDecimal" => {
             // These types already have default implementations that use default values
             get_builtin_default_value(ty, &type_name)
+        }
+
+        "Vec<...>" => {
+            get_builtin_default_value(ty, "Vec")
         }
 
         // Reference types
@@ -138,6 +135,9 @@ fn is_builtin_type(ty: &Type) -> bool {
 /// Check if it's a known type (FromAkitaValue implemented)
 fn is_known_type(ty: &Type) -> bool {
     let type_name = get_type_name(ty);
+    if type_name.starts_with("Vec<") {
+        return true
+    }
     matches!(
         type_name.as_str(),
         "NaiveDate" | "NaiveDateTime" | "DateTime" |
@@ -176,7 +176,7 @@ fn get_type_name(ty: &Type) -> String {
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
                 let mut type_name = segment.ident.to_string();
-
+                let span = segment.span();
                 // If there are generic arguments, add Angle brackets
                 match &segment.arguments {
                     PathArguments::AngleBracketed(args) => {
