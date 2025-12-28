@@ -543,7 +543,7 @@ fn generate_explicit_sql_code(
         }
     } else {
         // Getting the connection type
-        let mut connection_info = connection_info.expect("Should have connection parameter");
+        let connection_info = connection_info.expect("Should have connection parameter");
 
         // Function argument pattern
         let (call_code, params_prepare) = if is_transaction_type(&connection_info.type_name) ||
@@ -636,15 +636,15 @@ fn generate_xml_sql_code(
             quote! {
                 pub async fn #func_name(#func_args) #return_ty {
                     use #crate_ident::prelude::{Params, XmlSqlLoader};
-    
+
                     let mut conn = #connection.acquire().await
                         .expect("Akita connection not initialized");
                     let xml_sql_loader = conn.xml_sql_loader();
                     let sql = xml_sql_loader.load_sql(#xml_file, #sql_id)
                         .expect(&format!("Failed to load SQL from {} with id {}", #xml_file, #sql_id));
-    
+
                     #params_prepare
-    
+
                     #call_code
                 }
             }
@@ -1051,17 +1051,17 @@ fn generate_async_execution_code(
 
 
 // ========== Other helper functions ==========
-
+#[allow(unused,dead_code)]
 #[derive(Debug, Clone)]
-struct ConnectionInfo {
-    name: String,
-    type_name: String,
-    is_async: bool,
-    is_transaction: bool,
-    is_db_driver: bool,
-    is_akita: bool,
+pub struct ConnectionInfo {
+    pub name: String,
+    pub type_name: String,
+    pub is_async: bool,
+    pub is_transaction: bool,
+    pub is_db_driver: bool,
+    pub is_akita: bool,
     /// The original, unprocessed type string used for error messages
-    raw_type_string: String,
+    pub raw_type_string: String,
 }
 
 impl ConnectionInfo {
@@ -1223,11 +1223,4 @@ fn analyze_connection_type(type_str: &str) -> TypeAnalysis {
 // Check if the function is async fn when parsing
 fn is_async_function(target_fn: &ItemFn) -> bool {
     target_fn.sig.asyncness.is_some()
-}
-
-#[derive(Debug)]
-enum MatchResult {
-    Ok,
-    Warning(String),
-    Mismatch(String),
 }
