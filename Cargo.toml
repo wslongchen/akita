@@ -148,6 +148,10 @@ required-features = ["sqlite-async"]
 
 
 [[test]]
+name = "sql_macro_async"
+required-features = ["mysql-async"]
+
+[[test]]
 name = "sql_macro"
 required-features = ["mysql-sync"]
 

@@ -65,7 +65,7 @@ pub struct Database {
     pub port: u16,
 }
 
-#[derive(Entity, Clone, Default, Debug)]
+#[derive(AsyncEntity, Clone, Default, Debug)]
 #[table(name = "t_system_user")]
 // #[schema(name = "TEST")]
 pub struct User {
