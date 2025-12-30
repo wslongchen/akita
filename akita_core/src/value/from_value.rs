@@ -377,18 +377,6 @@ where
     }
 }
 
-impl FromAkitaValue for () {
-    fn from_value_opt(v: &AkitaValue) -> Result<Self, AkitaDataError> {
-        match v {
-            AkitaValue::Null => Ok(()),
-            _ => Err(AkitaDataError::not_supported_error(
-                format!("{:?}", v),
-                "Vec<String>".to_string(),
-            )),
-        }
-    }
-}
-
 
 // For HashMap Realize
 impl<V: FromAkitaValue> FromAkitaValue for HashMap<String, V> {
