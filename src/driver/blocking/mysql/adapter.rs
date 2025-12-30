@@ -200,7 +200,7 @@ fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
         AkitaValue::Text(s) => MysqlValue::from(s),
         AkitaValue::Json(j) => { 
             match j {
-                Value::Bool(v) => MysqlValue::from(v), 
+                Value::Bool(v) => MysqlValue::from(v),
                 Value::Number(v) => {
                     if let Some(n) = v.as_u64() {
                         MysqlValue::from(n)
@@ -212,7 +212,7 @@ fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
                         MysqlValue::from(v.to_string())
                     }
                     
-                   
+                    
                 },
                 Value::String(v) => MysqlValue::from(v),
                 _ => MysqlValue::from(serde_json::to_string(&j).unwrap_or_default())
