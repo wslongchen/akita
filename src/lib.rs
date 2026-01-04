@@ -264,14 +264,7 @@ mod pool;
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
-    ),
-    not(any(
-        feature = "mysql-async",
-        feature = "postgres-async",
-        feature = "sqlite-async",
-        feature = "mssql-async",
-        feature = "oracle-async"
-    ))
+    )
 ))]
 mod repository;
 

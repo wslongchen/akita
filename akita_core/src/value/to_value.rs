@@ -22,7 +22,6 @@ use crate::{AkitaValue, Array, Params};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use indexmap::IndexMap;
-use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 

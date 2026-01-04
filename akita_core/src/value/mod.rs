@@ -32,6 +32,7 @@ use uuid::Uuid;
 
 mod interval;
 mod array;
+#[allow(non_snake_case, unused)]
 mod tuple;
 mod blob;
 mod expr;
@@ -45,7 +46,6 @@ pub use expr::*;
 pub use from_value::*;
 pub use interval::*;
 pub use to_value::*;
-pub use tuple::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AkitaValue {
@@ -964,12 +964,12 @@ impl fmt::Display for AkitaValue {
 }
 
 #[inline]
-pub fn from_akita_value<T: FromAkitaValue>(v: AkitaValue) -> T {
-    FromAkitaValue::from_value(&v)
+pub fn from_akita_value<T: FromAkitaValue>(v: &AkitaValue) -> T {
+    FromAkitaValue::from_value(v)
 }
 
 
 #[inline]
-pub fn from_akita_value_opt<T: FromAkitaValue>(v: AkitaValue) -> Result<T, AkitaDataError> {
-    FromAkitaValue::from_value_opt(&v)
+pub fn from_akita_value_opt<T: FromAkitaValue>(v: &AkitaValue) -> Result<T, AkitaDataError> {
+    FromAkitaValue::from_value_opt(v)
 }

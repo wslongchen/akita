@@ -47,14 +47,7 @@ cfg_if! {if #[cfg(all(
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
-    ),
-    not(any(
-        feature = "mysql-async",
-        feature = "postgres-async", 
-        feature = "sqlite-async",
-        feature = "mssql-async",
-        feature = "oracle-async"
-    ))
+    )
 ))] {
     pub use crate::transaction::blocking::AkitaTransaction;
     pub use crate::interceptor::blocking::{InterceptorChain, InterceptorBuilder, AkitaInterceptor};
@@ -75,14 +68,7 @@ cfg_if! {if #[cfg(all(
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
-    ),
-    not(any(
-        feature = "mysql-async",
-        feature = "postgres-async", 
-        feature = "sqlite-async",
-        feature = "mssql-async",
-        feature = "oracle-async"
-    ))
+    )
 ))] {
     pub use crate::driver::blocking::DbManager;
 }}
@@ -156,4 +142,6 @@ cfg_if! {if #[cfg(all(
     pub use AsyncAkitaTransaction as AkitaTransaction;
     pub use AsyncAkitaMapper as AkitaMapper;
     pub use AsyncAkitaInterceptor as AkitaInterceptor;
+    pub use AsyncEntity as Entity;
+    
 }}

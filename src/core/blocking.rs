@@ -51,14 +51,7 @@ cfg_if! {if #[cfg(all(
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
-    ),
-    not(any(
-        feature = "mysql-async",
-        feature = "postgres-async",
-        feature = "sqlite-async",
-        feature = "mssql-async",
-        feature = "oracle-async"
-    ))
+    )
 ))] {
     use crate::repository::EntityRepository;
 }}
@@ -143,14 +136,7 @@ impl Akita {
             feature = "sqlite-sync",
             feature = "oracle-sync",
             feature = "mssql-sync"
-        ),
-        not(any(
-            feature = "mysql-async",
-            feature = "postgres-async",
-            feature = "sqlite-async",
-            feature = "mssql-async",
-            feature = "oracle-async"
-        ))
+        )
     ))]
     pub fn repository<T>(&self) -> EntityRepository<Akita, T> {
         EntityRepository::new(self.clone())
