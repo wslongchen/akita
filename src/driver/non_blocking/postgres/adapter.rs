@@ -26,6 +26,7 @@ use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetec
 use std::sync::Arc;
 use bigdecimal::BigDecimal;
 use chrono::{NaiveDate, NaiveDateTime};
+use serde_json::Value;
 use tokio::sync::Mutex;
 use tokio_postgres::types::{ToSql, Type};
 use uuid::Uuid;
@@ -250,7 +251,26 @@ fn convert_pg_value_with_type(val: AkitaValue, pg_type: &Type) -> Box<dyn ToSql 
         AkitaValue::BigDecimal(v) => Box::new(v.to_string()),
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
-        AkitaValue::Json(v) => Box::new(v.clone()),
+        AkitaValue::Json(j) => {
+            match j {
+                Value::Bool(v) => Box::new(v),
+                Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        Box::new(n as i64)
+                    } else if let Some(n) = v.as_f64() {
+                        Box::new(n)
+                    } else if let Some(n) =  v.as_i64() {
+                        Box::new(n)
+                    } else {
+                        Box::new(v.to_string())
+                    }
+
+
+                },
+                Value::String(v) => Box::new(v),
+                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+            }
+        },
         AkitaValue::Uuid(v) => Box::new(v.simple().to_string()),
         AkitaValue::Date(v) => Box::new(v.clone()),
         AkitaValue::DateTime(v) => Box::new(v.clone()),

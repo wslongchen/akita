@@ -33,6 +33,9 @@ pub use crate::mapper::IPage;
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
 
+#[cfg(feature = "auth")]
+pub use crate::driver::{DataBaseUser,Role, GrantUserPrivilege, Privilege, UserInfo};
+
 // re-export
 pub use akita_core::*;
 pub use akita_derive::{query,insert, update,select_one, ToValue, FromValue, sql, sql_xml, delete, list,AkitaEnum};
@@ -44,24 +47,30 @@ cfg_if! {if #[cfg(all(
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
-    ),
-    not(any(
-        feature = "mysql-async",
-        feature = "postgres-async", 
-        feature = "sqlite-async",
-        feature = "mssql-async",
-        feature = "oracle-async"
-    ))
+    )
 ))] {
     pub use crate::transaction::blocking::AkitaTransaction;
     pub use crate::interceptor::blocking::{InterceptorChain, InterceptorBuilder, AkitaInterceptor};
     pub use crate::driver::blocking::DbDriver;
     pub use crate::repository::EntityRepository;
-    pub use crate::pool::blocking::{DBPool, DBPoolWrapper};
+    pub use crate::pool::blocking::{DBPool, DBPoolWrapper, SyncPool};
     pub use crate::core::blocking::{Akita as AkitaSync, UpdateBuilder, QueryBuilder};
     pub use crate::mapper::blocking::AkitaMapper;
     pub use crate::ext::blocking::{IService, Mapper};
     pub use akita_derive::Entity;
+}}
+
+cfg_if! {if #[cfg(all(
+    feature = "auth",
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync", 
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    )
+))] {
+    pub use crate::driver::blocking::DbManager;
 }}
 
 cfg_if! {if #[cfg(any(
@@ -74,7 +83,7 @@ cfg_if! {if #[cfg(any(
     pub use crate::transaction::non_blocking::AsyncAkitaTransaction;
     pub use crate::interceptor::non_blocking::{AsyncInterceptorChain, AsyncInterceptorBuilder, AsyncAkitaInterceptor};
     pub use crate::driver::non_blocking::{AsyncDbDriver};
-    pub use crate::pool::non_blocking::{AsyncDBPool, AsyncDBPoolWrapper};
+    pub use crate::pool::non_blocking::{AsyncDBPool, AsyncDBPoolWrapper, AsyncPool};
     pub use crate::core::non_blocking::{AkitaAsync, AsyncUpdateBuilder, AsyncQueryBuilder};
     pub use crate::mapper::non_blocking::AsyncAkitaMapper;
     pub use crate::ext::non_blocking::{AsyncService, AsyncMapper};
@@ -133,4 +142,6 @@ cfg_if! {if #[cfg(all(
     pub use AsyncAkitaTransaction as AkitaTransaction;
     pub use AsyncAkitaMapper as AkitaMapper;
     pub use AsyncAkitaInterceptor as AkitaInterceptor;
+    pub use AsyncEntity as Entity;
+    
 }}

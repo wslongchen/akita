@@ -210,7 +210,26 @@ fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
         },
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(v.to_string()),
-        AkitaValue::Json(v) => Box::new(v),
+        AkitaValue::Json(j) => {
+            match j {
+                serde_json::Value::Bool(v) => Box::new(v),
+                serde_json::Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        Box::new(n as i64)
+                    } else if let Some(n) = v.as_f64() {
+                        Box::new(n)
+                    } else if let Some(n) =  v.as_i64() {
+                        Box::new(n)
+                    } else {
+                        Box::new(v.to_string())
+                    }
+
+
+                },
+                serde_json::Value::String(v) => Box::new(v),
+                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+            }
+        },
         AkitaValue::Uuid(v) => Box::new(v.to_string()),
         AkitaValue::Date(v) => {
             let formatted = format!("{:04}-{:02}-{:02}", v.year(), v.month(), v.day());

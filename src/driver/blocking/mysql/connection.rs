@@ -61,10 +61,7 @@ impl r2d2::ManageConnection for MysqlConnectionManager {
             Ok(_) => Ok(()),
             Err(_) => {
                 // If the ping fails, try a simple query as a secondary validation
-                conn.query_drop("SELECT 1").map_err(|e| {
-                    tracing::warn!("Connection validation failed: {}", e);
-                    e
-                })
+                conn.query_drop("SELECT 1")
             }
         }
     }

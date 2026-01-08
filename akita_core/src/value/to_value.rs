@@ -22,7 +22,6 @@ use crate::{AkitaValue, Array, Params};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use indexmap::IndexMap;
-use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
@@ -72,7 +71,6 @@ impl_into_akita_value! {
     f64 => Double,
     BigDecimal => BigDecimal,
     char => Char,
-    JsonValue => Json,
     Uuid => Uuid,
     NaiveDate => Date,
     NaiveTime => Time,
@@ -86,6 +84,73 @@ impl IntoAkitaValue for &str {
     }
 }
 
+impl IntoAkitaValue for serde_json::Value {
+    fn into_value(&self) -> AkitaValue {
+        match self {
+            serde_json::Value::Null => AkitaValue::Null,
+            serde_json::Value::Bool(v) => AkitaValue::Bool(v.to_owned()),
+            serde_json::Value::Number(v) => {
+                if v.is_f64() {
+                    AkitaValue::Double(v.as_f64().unwrap_or_default())
+                } else if v.is_i64() {
+                    AkitaValue::Bigint(v.as_i64().unwrap_or_default())
+                } else if v.is_u64() {
+                    AkitaValue::Bigint(v.as_u64().unwrap_or_default() as i64)
+                } else {
+                    AkitaValue::Int(0)
+                }
+            },
+            serde_json::Value::String(v) => AkitaValue::Text(v.to_owned()),
+            serde_json::Value::Array(v) => v.clone().into_value(),
+            serde_json::Value::Object(data) => {
+                let mut map: IndexMap<String, AkitaValue> = IndexMap::new();
+                for key in data.keys() {
+                    if let Some(v) = self.get(key) {
+                        map.insert(key.to_string(), serde_json::Value::into_value(v));
+                    }
+                }
+                AkitaValue::Object(map)
+            },
+        }
+    }
+}
+
+
+impl IntoAkitaValue for Vec<serde_json::Value> {
+    fn into_value(&self) -> AkitaValue {
+        if self.is_empty() {
+            return AkitaValue::Null
+        }
+        let mut int_values = Vec::new();
+        let mut float_values = Vec::new();
+        let mut text_values = Vec::new();
+        let mut obj_values = Vec::new();
+        for v in self {
+            if v.is_f64() {
+                float_values.push(v.as_f64().unwrap_or_default());
+            } else if v.is_i64() {
+                int_values.push(v.as_i64().unwrap_or_default());
+            } else if v.is_u64() {
+                int_values.push(v.as_i64().unwrap_or_default());
+            } else if v.is_string() {
+                text_values.push(v.as_str().unwrap_or_default().to_string());
+            } else if v.is_object() {
+                obj_values.push(v.to_owned());
+            } else {
+                text_values.push(v.to_string());
+            }
+        }
+        if !int_values.is_empty() {
+            AkitaValue::Array(Array::Bigint(int_values))
+        } else if !float_values.is_empty() {
+            AkitaValue::Array(Array::Double(float_values))
+        } else if !obj_values.is_empty() {
+            AkitaValue::Array(Array::Json(obj_values))
+        } else{
+            AkitaValue::Array(Array::Text(text_values))
+        }
+    }
+}
 
 impl IntoAkitaValue for i128 {
     fn into_value(&self) -> AkitaValue {

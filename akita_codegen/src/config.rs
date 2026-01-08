@@ -24,10 +24,11 @@ use std::io::Write;
 use std::sync::OnceLock;
 use dialoguer::{Input, Confirm};
 use getset::{Getters, Setters};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
-use akita::comm::{DOT, EMPTY};
+use akita::prelude::comm::{DOT, EMPTY};
 use crate::builder::ConfigBuilder;
-use crate::constant::{TEMPLATE_CONTROLLER, TEMPLATE_DEFAULT, TEMPLATE_ENTITY_JAVA, TEMPLATE_MAPPER, TEMPLATE_SERVICE, TEMPLATE_SERVICE_IMPL, UNDERLINE};
+use crate::constant::{TEMPLATE_CONTROLLER, TEMPLATE_DEFAULT, TEMPLATE_ENTITY, TEMPLATE_MAPPER, TEMPLATE_SERVICE, TEMPLATE_SERVICE_IMPL, UNDERLINE};
 use crate::datasource::{DbType, MySqlNameConvert, MySqlQuery, NamingConvert};
 use crate::engine::TemplateEngine;
 use crate::util::{is_camel_case_with_underscores, is_capital_mode, is_uppercase_naming};
@@ -36,7 +37,6 @@ use crate::util::{is_camel_case_with_underscores, is_capital_mode, is_uppercase_
 #[derive(Debug, Clone, serde::Deserialize, Serialize, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct AutoGenerator {
-    lang: Option<Language>,
     global: GlobalConfig,
     package: PackageConfig,
     strategy: StrategyConfig,
@@ -48,7 +48,6 @@ pub struct AutoGenerator {
 impl Default for AutoGenerator {
     fn default() -> Self {
         Self {
-            lang: None,
             global: GlobalConfig::default(),
             package: PackageConfig::default(),
             strategy: StrategyConfig::default(),
@@ -59,116 +58,52 @@ impl Default for AutoGenerator {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, Serialize, PartialEq, Ord, PartialOrd, Eq)]
-pub enum Language {
-    Java,
-    Rust,
-    NodeJs,
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Self::Java
-    }
-}
-
-impl Language {
-    pub fn _suffix(&self) -> &'static str {
-        match self {
-            Language::Java => ".java",
-            Language::Rust => ".rs",
-            Language::NodeJs => ".js",
-        }
-    }
-
-    pub fn _capital_first(&self, name: &str) -> String {
-        match self {
-            _ => NamingStrategy::capital_first(name),
-            // Language::Rust | Language::NodeJs => name.to_string(),
-        }
-    }
-    pub fn _name(&self, name: &str) -> String {
-        match self {
-            Language::Rust | Language::NodeJs => NamingStrategy::camel_to_underline(name),
-            _ => name.to_string(),
-        }
-    }
-    pub fn _service_prefix(&self) -> &'static str {
-        match self {
-            Language::Rust | Language::NodeJs => "",
-            _ => "I",
-        }
-    }
-}
-
-impl From<String> for Language {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "Java" => Self::Java,
-            "Rust" => Self::Rust,
-            "NodeJs" => Self::NodeJs,
-            _ => Self::Java,
-        }
-    }
-}
-
-impl From<&str> for Language {
-    fn from(value: &str) -> Self {
-        match value {
-            "Java" => Self::Java,
-            "Rust" => Self::Rust,
-            "NodeJs" => Self::NodeJs,
-            _ => Self::Java,
-        }
-    }
-}
-
 #[derive(Debug, Clone, serde::Deserialize, Serialize, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct StrategyConfig {
-    /// 全局大写命名
+    /// Global uppercase naming
     capital_mode: bool,
-    /// 表名生成策略
+    /// Table name generation strategy
     naming: NamingStrategy,
-    /// 数据库表字段映射到实体的命名策略
-    /// 未指定按照 naming 执行
+    /// Naming policy for mapping database table fields to entities
+    /// Execution is not specified to be named
     column_naming: Option<NamingStrategy>,
-    /// Boolean类型字段是否移除is前缀处理
+    /// Whether or not the is prefix should be removed for Boolean fields
     entity_boolean_column_remove_is_prefix: bool,
     ///
     rest_controller_style: bool,
-    /// 是否生成实体时，生成字段注解
+    /// Field annotations are generated when entities are generated or not
     entity_table_field_annotation_enable: bool,
-    /// 表前缀
+    /// Table prefix
     table_prefix: Vec<String>,
     field_prefix: Vec<String>,
-    /// 需要处理的表名
+    /// The name of the table to be processed
     include: Vec<String>,
-    /// 需要排除的表名
+    /// The name of the table to exclude
     exclude: Vec<String>,
-    /// 是否跳过视图
+    /// Whether or not to skip views
     skip_view: bool,
-    /// 表填充字段
+    /// Table populating fields
     table_fill_list: Vec<TableFill>,
-    /// 名称转换
+    /// Name conversion
     name_convert: Option<NamingConvert>,
-    /// 自定义继承的 Mapper 类全称，带包名
+    /// Full name of the custom inherited Mapper class, with package name
     super_mapper_class: Option<String>,
-    /// 自定义继承的 Service 类全称，带包名
+    /// Full name of the custom inherited Service class, with package name
     super_service_class: Option<String>,
     super_entity_class: Option<String>,
-    /// 自定义继承的 ServiceImpl 类全称，带包名
+    /// Full name of the ServiceImpl class that the custom inherits from, with the package name
     super_service_impl_class: Option<String>,
-    /// 自定义继承的 Controller 类全称，带包名
+    /// Full name of the custom inherited Controller class, with package name
     super_controller_class: Option<String>,
 }
 
 impl StrategyConfig {
 
     ///
-    /// 大写命名、字段符合大写字母数字下划线命名
+    /// Uppercase names, fields conform to uppercase alphanumeric names with an underscore
     ///
-    /// @param word 待判断字符串
+    /// @param word String to be evaluated
     ///
     pub fn is_capital_mode_naming(&self, word: &str) -> bool {
         self.capital_mode && is_capital_mode(word)
@@ -183,22 +118,22 @@ impl StrategyConfig {
 #[derive(Debug, Clone, Getters, Setters, Serialize, Deserialize)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct TableFill {
-    /// 字段名称
+    /// Field name
     field_name: String,
-    /// 忽略类型
+    /// Ignoring types
     field_fill: FieldFill,
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FieldFill {
-    /// 默认不处理
+    /// Not handled by default
     Default,
-    /// 插入时填充字段
+    /// Fill the field when inserting
     Insert,
-    /// 更新时填充字段
+    /// Fill in fields when updated
     Update,
-    /// 插入和更新时填充字段
+    /// Fill in fields when inserting and updating
     InsertUpdate
 }
 
@@ -219,7 +154,7 @@ impl Default for StrategyConfig {
     fn default() -> Self {
         Self {
             capital_mode: false,
-            naming: NamingStrategy::NoChange,
+            naming: NamingStrategy::UnderlineToCamel,
             column_naming: Some(NamingStrategy::NoChange),
             entity_boolean_column_remove_is_prefix: false,
             rest_controller_style: false,
@@ -274,15 +209,15 @@ impl Default for DataSourceConfig {
 }
 
 
-/// 命名策略
+/// Naming Policy
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, Serialize)]
 pub enum NamingStrategy {
-    /// 下划线转驼峰命名
+    /// The underscore turns the hump name
     UnderlineToCamel,
-    /// 驼峰转下划线命名
+    /// The camel case is named with an underscore
     CamelToUnderline,
-    /// 不做任何改变，原样输出
+    /// Do not make any changes, output as is
     NoChange
 }
 
@@ -290,30 +225,30 @@ pub enum NamingStrategy {
 impl NamingStrategy {
 
 
-    /// 去掉下划线前缀且将后半部分转成驼峰格式
+    /// Remove the underscore prefix and convert the second half to camel case format
     pub fn remove_prefix_and_camel(name: &str, table_prefix: &[&str]) -> String {
 
         Self::underline_to_camel(&Self::remove_prefix(name, table_prefix))
     }
 
-    /// 去掉指定的前缀
+    /// Removes the specified prefix
     pub fn remove_prefix(name: &str, prefixes: &[&str]) -> String {
         if name.is_empty() {
             return String::new();
         }
 
-        // 将前缀集合转换为HashSet，以便快速查找
+        // Convert the set of prefixes to a HashSet for quick lookup
         let prefix_set: HashSet<String> = prefixes.iter().map(ToString::to_string).collect();
 
-        // 遍历前缀集合，查找匹配的前缀
+        // Iterate over the set of prefixes, looking for a matching prefix
         for prefix in &prefix_set {
             if name.starts_with(prefix) {
-                // 如果找到匹配的前缀，则返回截取后的字符串
+                // If a matching prefix is found, the truncated string is returned
                 return (&name[prefix.len()..]).to_string();
             }
         }
 
-        // 如果没有找到匹配的前缀，则返回原始字符串
+        // If no matching prefix is found, the original string is returned
         name.to_string()
     }
 
@@ -328,27 +263,27 @@ impl NamingStrategy {
     }
 
     pub fn underline_to_camel(name: &str) -> String {
-        // 快速检查
+        // Quick check
         if name.is_empty() {
-            // 没必要转换
+            // No need to convert
             return EMPTY.to_string();
         }
         let mut temp_name = name.to_string();
-        // 大写数字下划线组成转为小写 , 允许混合模式转为小写
+        // Uppercase numeric underscore composition is converted to lowercase, allowing blending mode to be converted to lowercase
         if is_uppercase_naming(&name) || is_camel_case_with_underscores(&name) {
             temp_name = name.to_lowercase();
         }
-        // 用下划线将原始字符串分割
+        // Split the original string with underscores
         let camels = temp_name.split(UNDERLINE);
-        // 跳过原始字符串中开头、结尾的下换线或双重下划线
+        // Skip the beginning or end swappings or double underscores in the original string
         let mut result = String::new();
-        // 处理真正的驼峰片段
+        // Deal with real hump segments
         camels.filter(|v| !v.is_empty()).for_each(|v| {
             if result.len() == 0 {
-                // 第一个驼峰片段，全部字母都小写
+                // The first hump segment, all lowercase letters
                 result.push_str(v);
             } else {
-                // 其他的驼峰片段，首字母大写
+                // The other hump segments are capitalized
                 result.push_str(&Self::capital_first(v))
             }
         });
@@ -362,11 +297,11 @@ impl NamingStrategy {
         let mut result = String::new();
         for (i, c) in name.chars().enumerate() {
             if c.is_uppercase() {
-                // 如果不是第一个字符，前面加下划线
+                // If it is not the first character, it is preceded by an underscore
                 if i != 0 {
                     result.push('_');
                 }
-                // 转小写
+                // Change to lowercase
                 result.push(c.to_ascii_lowercase());
             } else {
                 result.push(c);
@@ -376,22 +311,22 @@ impl NamingStrategy {
     }
 }
 
-/// 全局配置
+/// Global configuration
 #[derive(Debug, Clone, serde::Deserialize, Serialize, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct GlobalConfig {
-    /// 输出目录
+    /// Output directory
     output_dir: String,
-    /// 模版目录
+    /// Template Catalog
     template_dir: String,
-    /// 是否覆盖文件
+    /// Whether to overwrite a file
     file_override: bool,
-    /// 开启 activeRecord 模式
+    /// Enable activeRecord mode
     active_record: bool,
     open: bool,
-    /// 作者
+    /// author
     author: String,
-    /// 各层文件名称方式，例如： %sAction 生成 UserAction %s 为占位符
+    /// Layer filename, for example: %sAction generates UserAction %s as a placeholder
     service_name: String,
     request_name: Option<String>,
     response_name: Option<String>,
@@ -433,7 +368,7 @@ impl Default for GlobalConfig {
     }
 }
 
-/// 模板路径配置项
+/// Template path configuration entry
 #[derive(Debug, Clone, serde::Deserialize, Serialize, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct TemplateConfig {
@@ -473,7 +408,7 @@ impl TemplateConfig {
 impl Default for TemplateConfig {
     fn default() -> Self {
         Self {
-            entity: TEMPLATE_ENTITY_JAVA.to_string(),
+            entity: TEMPLATE_ENTITY.to_string(),
             service: TEMPLATE_SERVICE.to_string(),
             service_impl: TEMPLATE_SERVICE_IMPL.to_string(),
             request: None,
@@ -487,25 +422,25 @@ impl Default for TemplateConfig {
 #[derive(Debug, Clone, serde::Deserialize, Serialize, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct PackageConfig {
-    /// 父包名。如果为空，将下面子包名必须写全部， 否则就只需写子包名
+    /// Parent package name. If it is empty, the following child package name must be written all, otherwise only the child package name is written
     parent: String,
-    /// 父包模块名
+    /// Parent package module name
     module_name: String,
-    /// Entity包名
+    /// Entity package name
     entity: String,
-    /// Service包名
+    /// Service package name
     service: String,
-    /// Request包名
+    /// Request package name
     request: Option<String>,
-    /// Response包名
+    /// Response package name
     response: Option<String>,
-    /// Service Impl包名
+    /// Service Impl package name
     service_impl: String,
-    /// Mapper包名
+    /// Mapper package name
     mapper: String,
-    /// Controller包名
+    /// Controller package name
     controller: String,
-    /// 路径配置信息
+    /// Path configuration information
     path_info: HashMap<String, String>,
 }
 
@@ -565,60 +500,6 @@ impl PackageConfig {
     }
 }
 
-fn interactive_help() -> AutoGenerator {
-
-    let language: String = Input::new()
-        .with_prompt("Enter your Develop Language (like 'Rust')\n")
-        .default("".into())
-        .interact_text()
-        .unwrap();
-    let language: Language = Language::from(language);
-    let tables: String = Input::new()
-        .with_prompt("Enter your table_names (like 'table_a,table_b')\n")
-        .default("".into())
-        .interact_text()
-        .unwrap();
-    let database_url: String = Input::new()
-        .with_prompt("Enter your database URL\n")
-        .default("mysql://user:password@localhost/db_name".into())
-        .interact_text()
-        .unwrap();
-
-    let template_dir: String = Input::new()
-        .with_prompt("Enter your template directory path\n")
-        .default("./templates".into())
-        .interact_text()
-        .unwrap();
-
-    let output_dir: String = Input::new()
-        .with_prompt("Enter your output directory path\n")
-        .default("./output".into())
-        .interact_text()
-        .unwrap();
-    let mut global = GlobalConfig::default();
-    global.output_dir = output_dir;
-    global.template_dir = template_dir;
-    let datasource = DataSourceConfig {
-        db_type: DbType::Mysql,
-        url: database_url,
-        driver_name: "".to_string(),
-        password: "".to_string(),
-        username: "".to_string(),
-    };
-    let mut strategy = StrategyConfig::default();
-    strategy.include = tables.split(",").map(|v| v.to_string()).collect();
-    AutoGenerator {
-        template: TemplateConfig::default(),
-        lang: Some(language),
-        global,
-        package: PackageConfig::default(),
-        datasource,
-        strategy: strategy.into(),
-        plugins: vec![],
-    }
-}
-
-
 impl AutoGenerator {
 
     /// Load configuration from file or start interactive setup
@@ -641,7 +522,44 @@ impl AutoGenerator {
             }
         };
 
+        // Validate configuration fields
+        let ds_cfg = cfg.datasource.clone();
+        if ds_cfg.url.trim().is_empty() {
+            eprintln!(
+                "Error: 'datasource - url' is missing or empty.\n\n\
+            Example configuration:\n\
+            \t- database_url: \"mysql://user:password@localhost/db_name\"\n\
+            \t- template_dir: \"./templates\"\n\
+            \t- output_dir: \"./output\"\n\
+            \t- plugins: [\"plugin1\", \"plugin2\"]"
+            );
+            process::exit(1);
+        }
 
+        // Validate table names
+        let mut st_cfg = cfg.strategy;
+        if st_cfg.include.is_empty() {
+            let tables: String = Input::new()
+                .with_prompt("Enter your table_names (like 'table_a,table_b')\n")
+                // .default("".into())
+                .interact_text()
+                .unwrap();
+            if !tables.trim().is_empty() {
+                st_cfg.include = tables.split(",").map(|v| v.to_string()).collect();
+            }
+        }
+
+        if st_cfg.include.is_empty() {
+            eprintln!(
+                "Error: 'StrategyConfig - tableNames' is missing or empty.\n\n\
+                Example configuration:\n\
+                \t- include: \"table_a,table_b\"\n\
+                \t- exclude: \"table_c\""
+            );
+            process::exit(1);
+        }
+        cfg.strategy = st_cfg.into();
+        cfg.save_config(config_path);
         cfg
     }
 
@@ -672,32 +590,11 @@ impl AutoGenerator {
 
     fn interactive_with_language(config_path: &str) -> Self {
         if Confirm::new()
-            .with_prompt("Would you like to set up the configuration interactively with language?\n")
+            .with_prompt("Would you like to set up the configuration interactively?\n")
             .interact()
             .unwrap()
         {
-            // 获取语言选择
-            let language: String = Input::new()
-                .with_prompt("Please choose a language \n\
-                (1: Rust \n\
-                (2: Java \n\
-                ")
-                .default("Rust".into())
-                .interact_text()
-                .unwrap();
-            let trimmed = language.trim();
-            let language = match trimmed {
-                "1" | "rust" | "Rust" | "" => "Rust".to_string(), // 默认rust
-                "2" | "java" | "Java" => "Java".to_string(),
-                _ => {
-                    eprintln!("Invalid language choice, defaulting to Rust.\n");
-                    "Rust".to_string()
-                }
-            };
-            // 显示选择的语言
-            println!("Selected language: {}", language);
-            let language: Language = Language::from(language);
-            let config = Self::create_with_language(language);
+            let config = Self::interactive_help();
             config.save_config(config_path);
             config
         } else {
@@ -705,156 +602,21 @@ impl AutoGenerator {
         }
     }
 
-    fn create_with_language(language: Language) -> Self {
+    fn create_with_language() -> Self {
         Self::default()
     }
 
-    /// Validate configuration fields
-    fn validate_configuration_fields(self) -> Self {
-        let ds_cfg = self.datasource.clone();
-        if ds_cfg.url.trim().is_empty() {
-            eprintln!(
-                "Error: 'datasource - url' is missing or empty.\n\n\
-                Example configuration:\n\
-                \t- database_url: \"mysql://user:password@localhost/db_name\"\n\
-                \t- template_dir: \"./templates\"\n\
-                \t- output_dir: \"./output\"\n\
-                \t- plugins: [\"plugin1\", \"plugin2\"]"
-            );
-            process::exit(1);
-        }
-
-        let st_cfg = self.strategy.clone();
-        if st_cfg.include.is_empty() {
-            eprintln!(
-                "Error: 'StrategyConfig - tableNames' is missing or empty.\n\n\
-                    Example configuration:\n\
-                    \t- include: \"table_a,table_b\"\n\
-                    \t- exclude: \"table_c\""
-            );
-            process::exit(1);
-        }
-        self
-    }
-
-    /// 生成代码
+    /// Generating code
     pub fn execute(mut self) {
         // self.init_logger();
-        eprintln!("==========================准备生成文件...==========================");
-        // 初始化配置
-        let builder = ConfigBuilder::new(self.lang.unwrap_or_default(), self.package, self.datasource, self.strategy, self.template, self.global);
+        eprintln!("==========================Preparing to generate files...==========================");
+        // Initializing the configuration
+        let builder = ConfigBuilder::new(self.package, self.datasource, self.strategy, self.template, self.global);
         let engine = TemplateEngine::init(builder);
-        // 模板引擎初始化执行文件输出
+        // The template engine is initialized to execute file output
         engine.mkdirs().batch_output().open();
-        eprintln!("==========================文件生成完成！！！==========================");
+        eprintln!("==========================File generation complete！！！==========================");
     }
-
-
-    /*/// Load configuration from file or start interactive setup
-    pub fn load_or_create_config(config_path: &str) -> AutoGenerator {
-        // Attempt to read the configuration file
-        let mut cfg = match fs::read_to_string(config_path) {
-            Ok(content) => match serde_yaml::from_str::<AutoGenerator>(&content) {
-                Ok(config) => {
-                    println!("Configuration loaded successfully from '{}'.\n", config_path);
-                    config
-                }
-                Err(err) => {
-                    eprintln!("Error: Failed to parse configuration file: {}\n", err);
-                    if Confirm::new()
-                        .with_prompt("Would you like to set up the configuration interactively?\n")
-                        .interact()
-                        .unwrap()
-                    {
-                        let config = interactive_help();
-                        config.save_config(config_path);
-                        config
-                    } else {
-                        process::exit(1);
-                    }
-                }
-            },
-            Err(_) => {
-                eprintln!("Error: Configuration file '{}' not found.\n", config_path);
-                if Confirm::new()
-                    .with_prompt("Would you like to set up the configuration interactively?\n")
-                    .interact()
-                    .unwrap()
-                {
-                    let config = interactive_help();
-                    config.save_config(config_path);
-                    config
-                } else {
-                    process::exit(1);
-                }
-            }
-        };
-
-        // Validate configuration fields
-        let lang = cfg.lang.as_ref();
-        if lang.is_none() {
-            // 获取语言选择
-            let language: String = Input::new()
-                .with_prompt("Please choose a language \n\
-                (1: Rust \n\
-                (2: Java \n\
-                ")
-                .default("Rust".into())
-                .interact_text()
-                .unwrap();
-            let trimmed = language.trim();
-            let language = match trimmed {
-                "1" | "rust" | "Rust" | "" => "Rust".to_string(), // 默认rust
-                "2" | "java" | "Java" => "Java".to_string(),
-                _ => {
-                    eprintln!("Invalid language choice, defaulting to Rust.\n");
-                    "Rust".to_string()
-                }
-            };
-            // 显示选择的语言
-            println!("Selected language: {}", language);
-            let language: Language = Language::from(language);
-            cfg.lang = Some(language);
-        }
-        let ds_cfg = cfg.datasource.clone();
-        if ds_cfg.url.trim().is_empty() {
-            eprintln!(
-                "Error: 'datasource - url' is missing or empty.\n\n\
-                Example configuration:\n\
-                \t- database_url: \"mysql://user:password@localhost/db_name\"\n\
-                \t- template_dir: \"./templates\"\n\
-                \t- output_dir: \"./output\"\n\
-                \t- plugins: [\"plugin1\", \"plugin2\"]"
-            );
-            process::exit(1);
-        }
-
-        // Validate table names
-        let mut st_cfg = cfg.strategy.unwrap_or_default();
-        if st_cfg.include.is_empty() {
-            let tables: String = Input::new()
-                .with_prompt("Enter your table_names (like 'table_a,table_b')\n")
-                // .default("".into())
-                .interact_text()
-                .unwrap();
-            if !tables.trim().is_empty() {
-                st_cfg.include = tables.split(",").map(|v| v.to_string()).collect();
-            }
-        }
-
-        if st_cfg.include.is_empty() {
-            eprintln!(
-                "Error: 'StrategyConfig - tableNames' is missing or empty.\n\n\
-                    Example configuration:\n\
-                    \t- include: \"table_a,table_b\"\n\
-                    \t- exclude: \"table_c\""
-            );
-            process::exit(1);
-        }
-        cfg.strategy = st_cfg.into();
-        cfg
-    }*/
-
 
     /// Save configuration to file
     fn save_config(&self, path: &str) {
@@ -872,10 +634,120 @@ impl AutoGenerator {
         }
     }
 
+    fn has_credentials(connection_string: &str) -> bool {
+        // Regular matching mysql://user:password@host format
+        let re = Regex::new(r"^mysql://[^:]+:[^@]+@").unwrap();
+        re.is_match(connection_string)
+    }
+
+    fn interactive_help() -> AutoGenerator {
+        let tables: String = Input::new()
+            .with_prompt("Enter your table_names (like 'table_a,table_b')\n")
+            .default("".into())
+            .interact_text()
+            .unwrap();
+        let database_url: String = Input::new()
+            .with_prompt("Enter your database URL\n")
+            .default("mysql://user:password@localhost/db_name".into())
+            .interact_text()
+            .unwrap();
+        let mut uname = None;
+        let mut pwd = None;
+        if !Self::has_credentials(&database_url) {
+            let username: String = Input::new()
+                .with_prompt("Missing database username, Enter...\n")
+                .default("username".into())
+                .interact_text()
+                .unwrap();
+            uname = Some(username);
+            let password: String = Input::new()
+                .with_prompt("Missing database password, Enter...\n")
+                .default("password".into())
+                .interact_text()
+                .unwrap();
+            pwd = Some(password);
+        }
+        Self::validate_url(&database_url);
+
+        let template_dir: String = Input::new()
+            .with_prompt("Enter your template directory path\n")
+            .default("./templates".into())
+            .interact_text()
+            .unwrap();
+
+        let output_dir: String = Input::new()
+            .with_prompt("Enter your output directory path\n")
+            .default("./output".into())
+            .interact_text()
+            .unwrap();
+        let mut global = GlobalConfig::default();
+        global.output_dir = output_dir;
+        global.template_dir = template_dir;
+        let datasource = DataSourceConfig {
+            db_type: DbType::Mysql,
+            url: database_url,
+            driver_name: "".to_string(),
+            password: pwd.unwrap_or_default(),
+            username: uname.unwrap_or_default(),
+        };
+        let mut strategy = StrategyConfig::default();
+        strategy.include = tables.split(",").map(|v| v.to_string()).collect();
+        AutoGenerator {
+            template: TemplateConfig::default(),
+            global,
+            package: PackageConfig::default(),
+            datasource,
+            strategy: strategy.into(),
+            plugins: vec![],
+        }
+    }
+
+    fn validate_mysql_connection_string(conn_str: &str) -> bool {
+        // Build the full validation regex
+        let patterns = vec![
+            // Mode 1: with username and password, with port, with database
+            r"^mysql://[a-zA-Z0-9_.-]+:[^@]+@[a-zA-Z0-9_.-]+:\d+/[a-zA-Z0-9_.-]+(?:\?.*)?$",
+
+            // Mode 2: with username and password, without port, with database
+            r"^mysql://[a-zA-Z0-9_.-]+:[^@]+@[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(?:\?.*)?$",
+
+            // Mode 3: without authentication, with port, with database
+            r"^mysql://[a-zA-Z0-9_.-]+:\d+/[a-zA-Z0-9_.-]+(?:\?.*)?$",
+
+            // Mode 4: without authentication, without port, with database
+            r"^mysql://[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(?:\?.*)?$",
+
+            // Pattern 5: Only username, no password
+            r"^mysql://[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+(?:/|:\d+/)[a-zA-Z0-9_.-]+(?:\?.*)?$",
+        ];
+        for pattern in patterns {
+            let re = Regex::new(pattern).unwrap();
+            if re.is_match(conn_str) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn validate_url(conn_str: &str) {
+        if conn_str.trim().is_empty() || !Self::validate_mysql_connection_string(conn_str) {
+            eprintln!(
+                "Error: 'datasource - url' is missing or empty.\n\n\
+            Example configuration:\n\
+            \t- database_url: \"mysql://user:password@localhost/db_name\"\n\
+            \t- template_dir: \"./templates\"\n\
+            \t- output_dir: \"./output\"\n\
+            \t- plugins: [\"plugin1\", \"plugin2\"]"
+            );
+            process::exit(1);
+        }
+    }
 }
 
 
-/// 提示用户输入配置文件路径或使用默认路径
+
+/// The user is prompted to enter the profile path or use the default path
 pub fn prompt_for_config_path_or_default(prompt: &str, default_value: &str) -> Result<String, Box<dyn std::error::Error>> {
     print!("{}", prompt);
     std::io::stdout().flush()?;
@@ -885,8 +757,8 @@ pub fn prompt_for_config_path_or_default(prompt: &str, default_value: &str) -> R
     let trimmed = input.trim();
 
     if trimmed.is_empty() {
-        Ok(default_value.to_string()) // 默认
+        Ok(default_value.to_string()) // default
     } else {
-        Ok(trimmed.to_string()) // 用户输入
+        Ok(trimmed.to_string()) // user input
     }
 }

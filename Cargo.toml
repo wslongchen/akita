@@ -1,6 +1,6 @@
 [package]
 name = "akita"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["mrpan <1049058427@qq.com>"]
 edition = "2021"
 description = "Akita - Mini orm for rust."
@@ -14,8 +14,8 @@ license = "MIT"
 
 [dependencies]
 # Internal dependencies
-akita_derive = { version = "0.6.1", path = "./akita_derive" }
-akita_core = { version = "0.6.1", path = "./akita_core" }
+akita_derive = { version = "0.6.2", path = "./akita_derive" }
+akita_core = { version = "0.6.2", path = "./akita_core" }
 
 # Runtime and tool libraries
 tokio = { version = "1", features = ["net"], optional = true }
@@ -56,7 +56,6 @@ uuid = { version = "1.19", features = ["serde", "v4"] }
 # Optional generic dependencies
 bigdecimal = { version = "0.4", optional = true }
 tracing = { version = "0.1.35" }
-anyhow = "1.0.100"
 
 [dev-dependencies]
 akita_derive = { version = "0.6.0", path = "./akita_derive" }
@@ -177,3 +176,5 @@ postgres-async = ["tokio-postgres", "bigdecimal", "tokio/full", "tokio-util", "f
 oracle-async = ["oracle", "tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
 mssql-async = ["tiberius", "bigdecimal", "tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
 sqlite-async = ["rusqlite", "bigdecimal","tokio/full", "tokio-util", "futures-core", "deadpool", "deadpool-sync", "async-trait"]
+
+auth = []

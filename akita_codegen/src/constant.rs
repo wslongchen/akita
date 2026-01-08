@@ -20,18 +20,12 @@
 
 
 pub const TEMPLATE_DEFAULT: &str = "./templates/**/*";
-pub const TEMPLATE_ENTITY_JAVA: &str= "./templates/entity.java";
-pub const TEMPLATE_ENTITY_KT: &str = "./templates/entity.kt";
-pub const TEMPLATE_ENTITY_RS: &str = "./templates/entity.rs";
-pub const TEMPLATE_MAPPER: &str = "./templates/mapper.java";
-pub const TEMPLATE_MAPPER_RS: &str = "./templates/mapper.rs";
+pub const TEMPLATE_ENTITY: &str = "./templates/entity.rs";
+pub const TEMPLATE_MAPPER: &str = "./templates/mapper.rs";
 pub const TEMPLATE_XML: &str = "./templates/mapper.xml";
-pub const TEMPLATE_SERVICE: &str = "./templates/service.java";
-pub const TEMPLATE_SERVICE_RS: &str = "./templates/service.rs";
-pub const TEMPLATE_SERVICE_IMPL: &str = "./templates/serviceImpl.java";
-pub const TEMPLATE_SERVICE_IMPL_RS: &str = "./templates/serviceImpl.rs";
-pub const TEMPLATE_CONTROLLER: &str = "./templates/controller.java";
-pub const TEMPLATE_CONTROLLER_RS: &str = "./templates/controller.rs";
+pub const TEMPLATE_SERVICE: &str = "./templates/service.rs";
+pub const TEMPLATE_SERVICE_IMPL: &str = "./templates/serviceImpl.rs";
+pub const TEMPLATE_CONTROLLER: &str = "./templates/controller.rs";
 
 
 pub const MODULE_NAME: &str = "ModuleName";

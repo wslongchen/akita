@@ -20,6 +20,7 @@
  */
 use std::str::FromStr;
 use indexmap::IndexMap;
+use serde_json::Value;
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector, SqlSecurityConfig};
 use crate::comm::ExecuteResult;
 use crate::driver::blocking::mssql::MssqlConnection;
@@ -162,6 +163,26 @@ fn convert_akita_value_to_mssql(val: AkitaValue) -> Box<dyn tiberius::ToSql> {
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
         AkitaValue::Json(v) => Box::new(serde_json::to_string(&v).unwrap_or_default()),
+        AkitaValue::Json(j) => {
+            match j {
+                Value::Bool(v) => Box::new(v),
+                Value::Number(v) => {
+                    if let Some(n) = v.as_u64() {
+                        Box::new(n as i64)
+                    } else if let Some(n) = v.as_f64() {
+                        Box::new(n)
+                    } else if let Some(n) =  v.as_i64() {
+                        Box::new(n)
+                    } else {
+                        Box::new(v.to_string())
+                    }
+
+
+                },
+                Value::String(v) => Box::new(v),
+                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+            }
+        },
         AkitaValue::Uuid(v) => Box::new(v),
         AkitaValue::Date(v) => Box::new(v),
         AkitaValue::DateTime(v) => Box::new(v),

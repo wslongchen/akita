@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use snack_micro_framework::akita::NaiveDateTime;
-use snack_micro_framework::SnackRequest;
+use crate::domain::{{ entity }};
 
 ///
 /// {{ table.comment }} 请求
@@ -14,6 +13,10 @@ use snack_micro_framework::SnackRequest;
 pub struct {{ entity }}Request {
 {#- ----------  BEGIN 字段循环遍历  ---------- -#}
 {%- for field in table.fields %}
+    {%- if field.comment != "" %}
+    /// {{ field.comment }}
+    {% else %}
+    {% endif -%}
 	pub {{field.propertyName}}: Option<{{field.columnType}}>,
 {%- endfor %}
 {#- ----------  END 字段循环遍历  ---------- #}
@@ -25,6 +28,15 @@ pub struct {{ entity }}Query {
 
 }
 
-impl SnackRequest for {{ entity }}Query {
-
+impl From<{{ entity }}Request> for {{ entity }} {
+    fn from(v: {{ entity }}Request) -> Self {
+        Self {
+        {#- ----------  BEGIN 字段循环遍历  ---------- -#}
+        {%- for field in table.fields %}
+            {{field.propertyName}}: v.{{field.propertyName}},
+        {%- endfor %}
+        {#- ----------  END 字段循环遍历  ---------- #}
+        }
+    }
 }
+

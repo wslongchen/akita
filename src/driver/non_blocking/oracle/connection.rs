@@ -130,20 +130,8 @@ pub async fn init_oracle_async_pool(config: crate::config::AkitaConfig) -> Resul
 
 
 #[cfg(all(
-    any(
-        feature = "mysql-async",
-        feature = "postgres-async",
-        feature = "sqlite-async",
-        feature = "oracle-async",
-        feature = "mssql-async"
-    ),
-    not(any(
-        feature = "mysql-sync",
-        feature = "postgres-sync",
-        feature = "sqlite-sync",
-        feature = "mssql-sync",
-        feature = "oracle-sync"
-    ))
+    feature = "oracle-async",
+    not(feature = "oracle-sync")
 ))]
 impl TryFrom<AkitaConfig> for Connector {
     type Error = AkitaError;
@@ -152,22 +140,9 @@ impl TryFrom<AkitaConfig> for Connector {
         Connector::try_from(&v)
     }
 }
-
 #[cfg(all(
-    any(
-        feature = "mysql-async",
-        feature = "postgres-async",
-        feature = "sqlite-async",
-        feature = "oracle-async",
-        feature = "mssql-async"
-    ),
-    not(any(
-        feature = "mysql-sync",
-        feature = "postgres-sync",
-        feature = "sqlite-sync",
-        feature = "mssql-sync",
-        feature = "oracle-sync"
-    ))
+    feature = "oracle-async",
+    not(feature = "oracle-sync")
 ))]
 impl TryFrom<&AkitaConfig> for Connector {
     type Error = AkitaError;

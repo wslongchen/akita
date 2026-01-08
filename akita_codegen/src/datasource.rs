@@ -26,41 +26,41 @@ use serde::de::DeserializeOwned;
 use crate::config::{GlobalConfig, NamingStrategy, StrategyConfig};
 use crate::util::{contains_upper_case, remove_is_prefix_if_boolean};
 
-/// 表数据查询接口
+/// Table data query interface
 pub trait IDbQuery : Clone {
-    /// 数据库类型
+    /// Database type
     fn db_type(&self) -> DbType {
         DbType::Mysql
     }
 
-    /// 表信息查询 SQL
+    /// Table information query SQL
     fn tables_sql(&self) -> String;
 
-    /// 表字段信息查询 SQL
+    /// Table field information query SQL
     fn table_fields_sql(&self) -> String;
 
-    /// 表名称
+    /// Table name
     fn table_name(&self) -> String;
 
-    /// 表注释
+    /// Table Notes
     fn table_comment(&self) -> String;
 
-    /// 字段名称
+    /// Field name
     fn field_name(&self) -> String;
 
-    /// 字段类型
+    /// Field Types
     fn field_type(&self) -> String;
 
-    /// 字段注释
+    /// Field comments
     fn field_comment(&self) -> String;
 
-    /// 主键字段
+    /// Primary key fields
     fn field_key(&self) -> String;
 
-    /// 判断主键是否为identity，目前仅对mysql进行检查
-    fn is_key_identity(extra: akita::Value) -> bool;
+    /// IDENTITY IS CURRENTLY ONLY CHECKED BY MYSQL
+    fn is_key_identity(extra: akita::prelude::AkitaValue) -> bool;
 
-    /// 自定义字段名称
+    /// Customize the field name
     fn field_custom(&self) -> Vec<String>;
 }
 
@@ -100,7 +100,7 @@ impl IDbQuery for MySqlQuery {
         "Key".to_string()
     }
 
-    fn is_key_identity(extra: akita::Value) -> bool {
+    fn is_key_identity(extra: akita::prelude::AkitaValue) -> bool {
         let extra = extra.get_obj::<String>("Extra").unwrap_or_default();
         extra.eq("auto_increment")
     }
@@ -206,7 +206,7 @@ pub struct TableInfo {
     entity_path: String,
     fields: Vec<TableField>,
     /**
-     * 公共字段
+     * Public fields
      */
     common_fields: Vec<TableField>,
     field_names: String,
@@ -253,7 +253,7 @@ pub struct TableField {
     convert: bool,
     key_flag: bool,
     /**
-     * 主键是否为自增类型
+     * Whether the primary key is an increment type
      */
     key_identity_flag: bool,
     name: String,
@@ -264,19 +264,15 @@ pub struct TableField {
     comment: String,
     fill: String,
     /**
-     * 是否关键字
-     *
-     * @since 3.3.2
+     * Keyword or not
      */
     key_words: bool,
     /**
-     * 数据库字段（关键字含转义符号）
-     *
-     * @since 3.3.2
+     * Database fields (keywords with escape symbols)
      */
     column_name: String,
     /**
-     * 自定义查询字段列表
+     * Customize the list of query fields
      */
     custom_map: HashMap<String, serde_json::Value>,
 }
@@ -294,9 +290,9 @@ impl TableField {
         if strategy_config.is_capital_mode_naming(&self.name) {
             self.convert = false;
         } else {
-            // 转换字段
+            // Transform fields
             if (NamingStrategy::UnderlineToCamel == strategy_config.get_column_naming_strategy()) {
-                // 包含大写处理
+                // Including uppercase processing
                 if contains_upper_case(&self.name) {
                     self.convert = true;
                 }
@@ -313,12 +309,12 @@ impl TableField {
 
         let mut set_get_name = self.property_name.to_string();
 
-        // 如果列类型是布尔类型，处理去掉 "is" 前缀
+        // If the column type is Boolean, the "is" prefix is removed
         if self.column_type.get_type().eq_ignore_ascii_case("bool") {
             set_get_name = remove_is_prefix_if_boolean(&set_get_name);
         }
 
-        // 处理第一个字母小写，第二个字母大写的情况
+        // Handle the case where the first letter is lowercase and the second letter is uppercase
         let first_char = set_get_name.chars().next().unwrap_or_default();
         if first_char.is_lowercase()
             && set_get_name.chars().nth(1).unwrap_or_default().is_uppercase()
@@ -401,7 +397,7 @@ impl<'de> Deserialize<'de> for DbColumnType {
         if JavaDbColumnType::Unknown != j {
             return Ok(DbColumnType::JavaColumnType(j));
         }
-        // 默认兜底
+        // Default pocket bottom
         Ok(DbColumnType::RustColumnType(RustDbColumnType::String))
     }
 }
@@ -411,7 +407,7 @@ impl<'de> Deserialize<'de> for DbColumnType {
 //
 #[derive(PartialEq, Clone, Debug)]
 pub enum RustDbColumnType {
-    // 基本数值类型
+    // Primitive numeric types
     I8,
     I16,
     I32,
@@ -422,19 +418,19 @@ pub enum RustDbColumnType {
     Char,
     String,
 
-    // 时间与日期
+    // Time and date
     NaiveDate,
     NaiveTime,
     NaiveDateTime,
     DateTimeUtc,
     Instant,
 
-    // 数组 / 二进制
+    // Array/binary
     ByteArray,
     Blob,
     Clob,
 
-    // 其他
+    // OTHERS
     BigInt,
     Decimal,
     Json,
@@ -446,7 +442,7 @@ pub enum RustDbColumnType {
 impl RustDbColumnType {
     pub fn from_str(s: &str) -> Self {
         match s.to_ascii_lowercase().as_str() {
-            // 基本数值
+            // Basic number
             "i8" => Self::I8,
             "i16" => Self::I16,
             "i32" => Self::I32,
@@ -457,19 +453,19 @@ impl RustDbColumnType {
             "char" => Self::Char,
             "string" => Self::String,
 
-            // 时间
+            // TIME
             "naivedate" => Self::NaiveDate,
             "naivetime" => Self::NaiveTime,
             "naivedatetime" => Self::NaiveDateTime,
             "datetimeutc" => Self::DateTimeUtc,
             "instant" => Self::Instant,
 
-            // 二进制
+            // BINARY
             "bytearray" | "vec<u8>" | "bytes" => Self::ByteArray,
             "blob" => Self::Blob,
             "clob" => Self::Clob,
 
-            // 其他
+            // OTHERS
             "bigint" => Self::BigInt,
             "decimal" | "bigdecimal" => Self::Decimal,
             "json" => Self::Json,
@@ -553,7 +549,7 @@ impl ToString for RustDbColumnType {
 //
 #[derive(PartialEq, Clone, Debug)]
 pub enum JavaDbColumnType {
-    // 基本类型
+    // Primitive types
     BaseByte,
     BaseShort,
     BaseChar,
@@ -563,7 +559,7 @@ pub enum JavaDbColumnType {
     BaseDouble,
     BaseBoolean,
 
-    // 包装类型
+    // Type of packaging
     Byte,
     Short,
     Character,
@@ -574,14 +570,14 @@ pub enum JavaDbColumnType {
     Boolean,
     String,
 
-    // sql 包下数据类型
+    // sql Wrap the data type
     DateSql,
     Time,
     Timestamp,
     Blob,
     Clob,
 
-    // java8 新时间类型
+    // java8 New time type
     LocalDate,
     LocalTime,
     Year,
@@ -589,7 +585,7 @@ pub enum JavaDbColumnType {
     LocalDateTime,
     Instant,
 
-    // 其他
+    // OTHERS
     ByteArray,
     Object,
     Date,
@@ -603,7 +599,7 @@ impl JavaDbColumnType {
     pub fn from_str(s: &str) -> Self {
         use JavaDbColumnType::*;
         match s {
-            // 基本类型
+            // Primitive types
             "byte" => BaseByte,
             "short" => BaseShort,
             "char" => BaseChar,
@@ -613,7 +609,7 @@ impl JavaDbColumnType {
             "double" => BaseDouble,
             "boolean" => BaseBoolean,
 
-            // 包装类型
+            // Type of packaging
             "Byte" => Byte,
             "Short" => Short,
             "Character" => Character,
@@ -624,14 +620,14 @@ impl JavaDbColumnType {
             "Boolean" => Boolean,
             "String" => String,
 
-            // SQL 类型
+            // SQL TYPES
             "Date" => DateSql,
             "Time" => Time,
             "Timestamp" => Timestamp,
             "Blob" => Blob,
             "Clob" => Clob,
 
-            // Java8 时间
+            // Java8 time
             "LocalDate" => LocalDate,
             "LocalTime" => LocalTime,
             "Year" => Year,
@@ -639,7 +635,7 @@ impl JavaDbColumnType {
             "LocalDateTime" => LocalDateTime,
             "Instant" => Instant,
 
-            // 其他
+            // OTHERS
             "byte[]" => ByteArray,
             "Object" => Object,
             "java.util.Date" => Date,
@@ -1370,7 +1366,7 @@ impl MySqlKeyWordsHandler {
     }
 }
 
-/// MYSQL 数据库字段类型转换
+/// MYSQL Database field type conversion
 pub struct MySqlTypeConvert;
 
 pub enum TargetLang {
@@ -1388,7 +1384,7 @@ impl MySqlTypeConvert {
     }
 }
 
-/// MYSQL 数据库名称转换
+/// MYSQL Database name conversion
 pub struct MySqlNameConvert;
 
 #[derive(Debug, Clone, serde::Deserialize, Serialize)]
@@ -1401,14 +1397,14 @@ impl INameConvert for NamingConvert {
 }
 
 
-/// 名称转换接口类
+/// Name translation interface class
 pub trait INameConvert {
-    /// 执行实体名称转换
+    /// Perform entity name conversion
     fn entity_name_convert(&self, table_info: &TableInfo) -> String {
-        // 默认实现
+        // Default implementation
         table_info.entity_name.to_string()
     }
-    /// 执行属性名称转换
+    /// Perform property name conversion
     fn property_name_convert(&self, field: &TableField) -> String {
         field.property_name.to_string()
     }

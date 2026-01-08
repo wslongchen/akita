@@ -28,48 +28,6 @@ use crate::{comm::{FieldExtra, FieldInformation, CustomArgument, NUMBER_TYPES, C
 use crate::comm::ALLOW_TABLE_ID_TYPES;
 
 
-/// get the field orignal type
-#[allow(unused)]
-pub fn get_field_type(ty: &syn::Type) -> Option<String> {
-    match ty {
-        Type::Path(r#path) => {
-            let p = &r#path.path.segments[0];
-            if p.ident == "Option" {
-                match &p.arguments {
-                    syn::PathArguments::AngleBracketed(path_arg) => {
-                        let mut fy = String::default();
-                        let _ = path_arg.args.iter().map(|arg| {
-                            match arg {
-                                syn::GenericArgument::Type(arg_type) => {
-                                    match arg_type {
-                                        Type::Path(arg_path) => {
-                                            if let Some(arg_path_res) = arg_path.path.get_ident() {
-                                                fy = arg_path_res.to_string();
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-                                },
-                                _ => {},
-                            }
-                        }).collect::<Vec<_>>();
-                        fy.into()
-                    },
-                    _ => {
-                        None
-                    },
-                }
-            } else {
-                p.ident.to_string().into()
-            }
-        }
-        _ => {
-            None
-        }
-    }
-}
-
-
 #[allow(unused)]
 /// Get the field default value with the FromAkitaValue check
 pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenStream {
@@ -77,13 +35,6 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
 
     // Check if it's <T>an Option
     if is_option_type(ty) {
-        // For Option<T>, check whether T implements FromAkitaValue
-        if let Some(inner_ty) = extract_option_inner_type(ty) {
-            if !is_builtin_type(&inner_ty) && !is_known_type(&inner_ty) {
-                // Generates the FromAkitaValue check
-                return generate_from_value_check(&inner_ty, &ident_name, "Option");
-            }
-        }
         return quote!(None);
     }
 
@@ -98,6 +49,10 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
         "Vec" | "Value" | "JsonValue" | "Uuid" | "BigDecimal" => {
             // These types already have default implementations that use default values
             get_builtin_default_value(ty, &type_name)
+        }
+
+        "Vec<...>" => {
+            get_builtin_default_value(ty, "Vec")
         }
 
         // Reference types
@@ -116,7 +71,6 @@ pub fn get_field_default_value(ty: &Type, ident: &Ident) -> proc_macro2::TokenSt
             if is_builtin_type(ty) || is_known_type(ty) {
                 get_builtin_default_value(ty, &type_name)
             } else {
-                // generate_from_value_check(ty, &ident_name, &type_name)
                 quote!(<#ty as std::default::Default>::default())
             }
         }
@@ -138,6 +92,9 @@ fn is_builtin_type(ty: &Type) -> bool {
 /// Check if it's a known type (FromAkitaValue implemented)
 fn is_known_type(ty: &Type) -> bool {
     let type_name = get_type_name(ty);
+    if type_name.starts_with("Vec<") {
+        return true
+    }
     matches!(
         type_name.as_str(),
         "NaiveDate" | "NaiveDateTime" | "DateTime" |
@@ -176,7 +133,7 @@ fn get_type_name(ty: &Type) -> String {
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
                 let mut type_name = segment.ident.to_string();
-
+                let span = segment.span();
                 // If there are generic arguments, add Angle brackets
                 match &segment.arguments {
                     PathArguments::AngleBracketed(args) => {
@@ -244,29 +201,6 @@ fn get_builtin_default_value(ty: &Type, type_name: &str) -> proc_macro2::TokenSt
     }
 }
 
-/// Generate the FromAkitaValue check code
-fn generate_from_value_check(ty: &Type, field_name: &str, type_name: &str) -> proc_macro2::TokenStream {
-    let error_message = format!(
-        "Type `{}` for field `{}` must implement `FromAkitaValue`.\n\n\
-         To fix this:\n\
-         1. Implement `FromAkitaValue` for `{}`\n\
-         2. Or wrap it in `Option<{}>` if the field can be NULL\n\
-         3. Or use a supported type that already implements `FromAkitaValue`\n\n\
-         Supported types include:\n\
-         - All primitive types (i32, f64, bool, etc.)\n\
-         - String, char\n\
-         - chrono types (NaiveDate, NaiveDateTime, DateTime)\n\
-         - Option<T> (if T implements FromAkitaValue)\n\
-         - Vec<T> (if T implements FromAkitaValue)\n\
-         - serde_json::Value\n\
-         - And any type that implements FromAkitaValue",
-        type_name, field_name, type_name, type_name
-    );
-    quote! {
-        compile_error!(#error_message)
-    }
-}
-
 /// Finds all struct schema annotion
 pub fn find_struct_annotations(struct_attrs: &[syn::Attribute]) -> Vec<FieldExtra> {
     let mut annotations = Vec::new();
@@ -317,7 +251,7 @@ fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<Fi
             }
             _ => Err(syn::Error::new(
                 meta_item.span(),
-                format!("expected `name = \"...\"` or a single identifier")
+                "expected `name = \"...\"` or a single identifier".to_string()
             )),
         }
     };
@@ -328,12 +262,35 @@ fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<Fi
             Ok(vec![create_field_extra(is_schema, &name)])
         }
         syn::Meta::List(list) => {
-            let mut names = Vec::new();
+            let mut extras = Vec::new();
 
             for nested in &list.nested {
                 if let syn::NestedMeta::Meta(meta_item) = nested {
+                    // Checks for the ignore_interceptors property
+                    if let syn::Meta::NameValue(nv) = meta_item {
+                        if nv.path.is_ident("ignore_interceptors") {
+                            if let syn::Lit::Str(s) = &nv.lit {
+                                // Parse a comma-separated list of interceptors
+                                let interceptors: Vec<String> = s.value()
+                                    .split(',')
+                                    .map(|s| s.trim().to_string())
+                                    .filter(|s| !s.is_empty())
+                                    .collect();
+
+                                extras.push(FieldExtra::IgnoreInterceptors(interceptors));
+                                continue;
+                            } else {
+                                return Err(syn::Error::new(
+                                    nv.lit.span(),
+                                    "ignore_interceptors must be a string"
+                                ));
+                            }
+                        }
+                    }
+
+                    // The handling of other properties (name, etc.) remains the same
                     let name = extract_name(meta_item)?;
-                    names.push(create_field_extra(is_schema, &name));
+                    extras.push(create_field_extra(is_schema, &name));
                 } else {
                     return Err(syn::Error::new(
                         nested.span(),
@@ -342,10 +299,10 @@ fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<Fi
                 }
             }
 
-            if names.is_empty() {
-                Err(syn::Error::new(list.span(), "must specify at least one name"))
+            if extras.is_empty() {
+                Err(syn::Error::new(list.span(), "must specify at least one attribute"))
             } else {
-                Ok(names)
+                Ok(extras)
             }
         }
     }
@@ -937,56 +894,6 @@ pub fn lit_to_bool(lit: &syn::Lit) -> Option<bool> {
     }
 }
 
-#[allow(unused)]
-pub fn option_to_tokens<T: quote::ToTokens>(opt: &Option<T>) -> proc_macro2::TokenStream {
-    match opt {
-        Some(ref t) => quote!(::std::option::Option::Some(#t)),
-        None => quote!(::std::option::Option::None),
-    }
-}
-
-//find and check method return type
-pub(crate) fn find_return_type(target_fn: &ItemFn) -> proc_macro2::TokenStream {
-    let mut return_ty = target_fn.sig.output.to_token_stream();
-    match &target_fn.sig.output {
-        ReturnType::Type(_, b) => {
-            return_ty = b.to_token_stream();
-        }
-        _ => {}
-    }
-    let mut s = format!("{}", return_ty);
-
-    if s.trim().is_empty() {
-        return_ty = quote! {
-            ()
-        }
-    }
-
-    if !s.contains("::Result") && !s.starts_with("Result") {
-        return_ty = quote! {
-             Result <#return_ty, akita::AkitaError>
-        };
-    }
-    return_ty
-}
-
-pub(crate) fn is_akita_ref(ty_stream: &str) -> bool {
-    if ty_stream.contains("Akita")
-        || ty_stream.contains("AkitaTransaction") {
-        return true;
-    }
-    false
-}
-
-pub(crate) fn is_fetch(return_source: &str) -> bool {
-    let is_select = !return_source.contains("()");
-    return is_select;
-}
-pub(crate) fn is_fetch_array(return_source: &str) -> bool {
-    let is_array = return_source.contains("Vec");
-    return is_array;
-}
-
 pub fn to_snake_name(name: &String) -> String {
     let chs = name.chars();
     let mut new_name = String::new();
@@ -1004,87 +911,4 @@ pub fn to_snake_name(name: &String) -> String {
         index += 1;
     }
     return new_name;
-}
-
-
-/// find and check method return type
-pub(crate) fn find_fn_body(target_fn: &ItemFn) -> proc_macro2::TokenStream {
-    let mut target_fn = target_fn.clone();
-    let mut new_stmts = vec![];
-    for x in &target_fn.block.stmts {
-        let token = x.to_token_stream().to_string().replace("\n", "").replace(" ", "");
-        if token.eq("todo!()") || token.eq("unimplemented!()") || token.eq("impled!()") {
-            //nothing to do
-        } else {
-            new_stmts.push(x.to_owned());
-        }
-    }
-    target_fn.block.stmts = new_stmts;
-    target_fn.block.to_token_stream()
-}
-
-pub(crate) fn get_fn_args(target_fn: &ItemFn) -> Vec<Box<Pat>> {
-    let mut fn_arg_name_vec = vec![];
-    for arg in &target_fn.sig.inputs {
-        match arg {
-            FnArg::Typed(t) => {
-                fn_arg_name_vec.push(t.pat.clone());
-                //println!("arg_name {}", arg_name);
-            }
-            _ => {}
-        }
-    }
-    fn_arg_name_vec
-}
-
-pub(crate) fn filter_fn_args(
-    target_fn: &ItemFn,
-    arg_name: &str,
-    arg_type: &str,
-) -> std::collections::HashMap<String, String> {
-    let mut map = HashMap::new();
-    for arg in &target_fn.sig.inputs {
-        match arg {
-            FnArg::Typed(t) => {
-                let arg_name_value = format!("{}", t.pat.to_token_stream());
-                if arg_name.eq(&arg_name_value) {
-                    map.insert(arg_name.to_string(), arg_name_value.clone());
-                }
-                let arg_type_name = t.ty.to_token_stream().to_string();
-                if arg_type.eq(&arg_type_name) {
-                    map.insert(arg_type.to_string(), arg_name_value.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-    map
-}
-
-pub(crate) fn get_page_req_ident(target_fn: &ItemFn, func_name: &str) -> Ident {
-    let page_reqs = filter_fn_args(target_fn, "", "&PageRequest");
-    if page_reqs.len() > 1 {
-        panic!(
-            "[Akita] {} only support on arg of '**:&PageRequest'!",
-            func_name
-        );
-    }
-    if page_reqs.len() == 0 {
-        panic!(
-            "[Akita] {} method arg must have arg Type '**:&PageRequest'!",
-            func_name
-        );
-    }
-    let req = page_reqs
-        .get("&PageRequest")
-        .unwrap_or(&String::new())
-        .to_owned();
-    if req.eq("") {
-        panic!(
-            "[Akita] {} method arg must have arg Type '**:&PageRequest'!",
-            func_name
-        );
-    }
-    let req = Ident::new(&req, Span::call_site());
-    req
 }
