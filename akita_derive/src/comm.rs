@@ -144,6 +144,7 @@ pub enum FieldExtra {
     Name(String),
     IdType(String),
     Table(String),
+    IgnoreInterceptors(Vec<String>),
     Schema(String),
     Select(bool),
     Exist(bool),

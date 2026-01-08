@@ -47,6 +47,21 @@ fn parse_table(ast: &syn::DeriveInput, is_async: bool) -> TokenStream {
         FieldExtra::Table(name) => name.clone(),
         _ => String::default()
     }).unwrap_or_default();
+    let ignore_interceptors = structs.iter().find(|st| match st { FieldExtra::IgnoreInterceptors(_) => true, _ => false })
+        .map(|extra| match extra {
+            FieldExtra::IgnoreInterceptors(iter) => iter.clone(),
+            _ => vec![]
+        }).unwrap_or_default();
+    let ignore_interceptors_expr = if ignore_interceptors.is_empty() {
+        quote! { std::collections::HashSet::new() }
+    } else {
+        let interceptor_literals: Vec<&str> =
+            ignore_interceptors.iter().map(|s| s.as_str()).collect();
+
+        quote! {
+        [#(#interceptor_literals),*].into_iter().map(|s| s.to_string()).collect()
+    }
+    };
 
     let schema_expr = if let Some(schema) = structs.iter().find_map(|st| {
         match st {
@@ -203,7 +218,7 @@ fn parse_table(ast: &syn::DeriveInput, is_async: bool) -> TokenStream {
                     name: #table_name.to_string(),
                     schema: #schema_expr,
                     alias: #struct_name.to_lowercase().into(),
-                    ignore_interceptors: std::collections::HashSet::new(),
+                    ignore_interceptors: #ignore_interceptors_expr,
                 }
             }
         }
@@ -214,7 +229,7 @@ fn parse_table(ast: &syn::DeriveInput, is_async: bool) -> TokenStream {
                     name: #table_name.to_string(),
                     schema: #schema_expr,
                     alias: #struct_name.to_lowercase().into(),
-                    ignore_interceptors: std::collections::HashSet::new(),
+                    ignore_interceptors: #ignore_interceptors_expr,
                 }
             }
         }
