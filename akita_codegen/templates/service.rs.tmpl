@@ -1,0 +1,70 @@
+use crate::domain::{ {{ entity }}, {{ entity }}Query, {{ entity }}Request, {{ entity }}Response};
+use crate::mapper::{{ entity }}Mapper;
+use chrono::Local;
+use akita::prelude::{AkitaMapper, Wrapper};
+use snack_oauth::{MicroResult, PageRequest};
+
+///
+/// {{ table.comment }} Service服务
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+pub struct I{{ entity }}Service{
+    mapper: {{ entity }}Mapper
+}
+
+impl IService{{ entity }}, {{ entity }}Response, PageRequest<{{ entity }}Query>, {{ entity }}Mapper> for I{{ entity }}Service {
+    fn get_mapper(&self) -> &{{ entity }}Mapper {
+        &self.mapper
+    }
+}
+
+impl I{{ entity }}Service {
+    pub fn new() -> Self {
+        Self {
+            mapper: {{ entity }}Mapper::new(),
+        }
+    }
+
+
+    /// 保存数据
+    pub fn save(&self, req: &{{ entity }}Request) -> MicroResult<()> {
+        let ak = self.get_akita()?;
+        {#- ----------  BEGIN 字段循环遍历  ---------- -#}
+        {%- for field in table.fields -%}
+        {#- 主键 -#}
+        {%- if field.keyIdentityFlag %}
+         let key_field = "{{field.propertyName}}";
+         let key_value = req.{{field.propertyName}}.as_ref();
+        {%- endif -%}
+        {#- 普通字段 -#}
+
+        {%- endfor %}
+        {#- ----------  END 字段循环遍历  ---------- #}
+
+        if let Some(mut data) = ak.select_one::<{{ entity }}>(Wrapper::new().eq(key_field, &key_value).last("limit 1"))? {
+            {#- ----------  BEGIN 字段循环遍历  ---------- -#}
+            {%- for field in table.fields -%}
+            {% if field.keyFlag -%}
+            {#- 主键 -#}
+            {%- else -%}
+            {#- 普通字段 -#}
+            {%- if field.comment != "" %}
+            // 修改 {{ field.comment }}
+            {%- endif %}
+            data.{{field.propertyName}} = req.{{field.propertyName}}.to_owned();
+            {%- endif %}
+            {%- endfor %}
+            {#- ----------  END 字段循环遍历  ---------- #}
+            let _ = ak.update_by_id(&data)?;
+        } else {
+            let mut data: {{ entity }} = req.to_owned().into();
+            data.updated_at = Local::now().naive_local().into();
+            data.created_at = Local::now().naive_local().into();
+            let _: Option<i64> = ak.save(&data)?;
+        }
+        Ok(())
+    }
+}

@@ -1,6 +1,6 @@
 
 use serde::{Deserialize, Serialize};
-use snack_micro_framework::akita::{self as akita, Entity, NaiveDateTime};
+use akita::prelude::{ Entity, NaiveDateTime};
 
 ///
 /// {{ table.comment }} 服务
@@ -33,12 +33,12 @@ pub struct {{ entity }} {
 {%- elif field.fill -%}
 {# -----   存在字段填充设置   ----- #}
 {%- if field.convert -%}
-	#[field(name = "{{field.name}}", fill = "{field.fill}}")
+	#[field(name = "{{field.name}}", fill = "{field.fill}}")]
 {%- else -%}
-	#[field(fill = "{{field.fill}}")
+	#[field(fill = "{{field.fill}}")]
 {%- endif %}
 {% elif field.columnName != field.propertyName %}
-	#[field(name = "{{field.name}}")
+	#[field(name = "{{field.name}}")]
 {%- endif %}
 	pub {{field.propertyName}}: Option<{{field.columnType}}>,
 {%- endfor %}

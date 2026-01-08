@@ -1,0 +1,93 @@
+use crate::APPLICATION_CONTEXT;
+use snack_oauth::axum::extract::{Path, Query};
+use snack_oauth::axum::routing::{delete, get, post};
+use snack_oauth::axum::{Json, Router};
+use snack_oauth::{Controller, PageRequest, R};
+use snack_oauth::{MicroResult};
+use akita::prelude::IPage;
+use crate::domain::{ {{ entity }}Query, {{ entity }}, {{ entity }}Request, {{ entity }}Response};
+use crate::service::I{{ entity }}Service;
+
+///
+/// {{ table.comment }} Controller服务
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+pub struct {{ entity }}Controller;
+
+impl Controller for {{ entity }}Controller {
+    fn load_routes() -> Router {
+        Router::new()
+            .nest("/{{ table.name }}", Router::new()
+                .route("/details/:id", get(Self::get_by_id))
+                .route("/details", get(Self::get_details))
+                .route("/:id", get(Self::get_by_id))
+                .route("/list", get(Self::list))
+                .route("/page", get(Self::page))
+                .route("/:id", delete(Self::remove_by_id))
+                .route("/", post(Self::save).put(Self::save).delete(Self::remove_by_ids)))
+    }
+}
+
+impl {{ entity }}Controller {
+
+    /// 通过ID查询
+    pub async fn get_by_id(Path(id) : Path<i64>) -> MicroResult<R<{{ entity }}Response>> {
+
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let resp = service.select_by_id(id.to_string())?;
+        Ok(R::from_opt(resp))
+    }
+
+    /// 查询详情
+    pub async fn get_details(Query(req): Query<{{ entity }}Query>) -> MicroResult<R<{{ entity }}Response>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let param = service.select_one(&PageRequest::with_query(req))?;
+        Ok(R::from_opt(param))
+    }
+
+    /// 保存
+    pub async fn save(Json(req): Json<{{ entity }}Request>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        service.save(&req)?;
+        Ok(R::success())
+    }
+
+
+    /// 删除
+    pub async fn remove_by_ids(Json(ids) : Json<Vec<u64>>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let _ = service.remove_batch(ids)?;
+        Ok(R::success())
+    }
+
+    /// 删除
+    pub async fn remove_by_id(Path(id) : Path<i64>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        service.remove_by_id(&id.to_string());
+        Ok(R::success())
+    }
+
+    /// 编辑
+    pub async fn update(Json(req): Json<{{ entity }}>) -> MicroResult<R<()>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let _ = service.update_by_id(&req)?;
+        Ok(R::success())
+    }
+
+    /// 列表信息
+    pub async fn list(Query(req): Query<{{ entity }}Query>) -> MicroResult<R<Vec<{{ entity }}Response>>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        let resp = service.list(&PageRequest::with_query(req))?;
+        Ok(R::from(&resp))
+    }
+
+    /// 分页查询信息
+    pub async fn page(Query(req): Query<{{ entity }}Query>) -> MicroResult<R<IPage<{{ entity }}Response>>> {
+        let service = APPLICATION_CONTEXT.get::<I{{ entity }}Service>();
+        Ok(R::from(&service.page(&PageRequest::with_query(req))?))
+    }
+
+}

@@ -20,7 +20,7 @@
  */
 
 use tera::Context;
-use akita::TableInfo;
+use akita::prelude::TableInfo;
 
 pub trait Plugin: Send + Sync {
     fn process(&self, table: &TableInfo, context: &mut Context);

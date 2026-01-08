@@ -20,7 +20,7 @@
 use regex::Regex;
 use once_cell::unsync::Lazy;
 
-/// 是否为大写命名
+/// Whether the name should be uppercase
 const CAPITAL_MODE: Lazy<Regex> = Lazy::new(|| {
     Regex::new("[~!/@#$%^&*()-_=+\\\\|[{}];:\\'\\\",<.>/?]+").unwrap()
 });
@@ -30,9 +30,9 @@ pub fn is_uppercase_naming(s: &str) -> bool {
 }
 
 /**
- * 是否为大写命名
+ * Whether the name should be uppercase
  *
- * @param word 待判断字符串
+ * @param word String to be evaluated
  * @return ignore
  */
 pub fn is_capital_mode(word: &str) -> bool {
@@ -47,7 +47,7 @@ pub fn remove_is_prefix_if_boolean(name: &str) -> String {
     }).to_string()
 }
 
-/// 包含大写字母
+/// Contains uppercase letters
 pub fn contains_upper_case(word: &str) -> bool {
     for c in word.chars() {
         if c.is_uppercase() {
@@ -58,7 +58,9 @@ pub fn contains_upper_case(word: &str) -> bool {
 }
 
 pub fn is_camel_case_with_underscores(s: &str) -> bool {
-    // 驼峰命名首字母大写，其余部分可能包含大写字母和下划线，但下划线前后必须跟字母或数字
+    // The first letter of a camel case name is capitalized, 
+    // and the rest of the name may contain capital letters and underscores, 
+    // but the underscores must be followed by a letter or number
     if s.is_empty() || !s.chars().next().unwrap().is_uppercase() {
         return false;
     }
@@ -66,19 +68,19 @@ pub fn is_camel_case_with_underscores(s: &str) -> bool {
     let mut prev_was_underscore = false;
     for c in s.chars().skip(1) {
         if c.is_uppercase() {
-            // 大写字母前不能是下划线（除非它是字符串的第一个字符）
+            // Uppercase letters cannot be preceded by an underscore (unless it is the first character in the string)
             if prev_was_underscore {
                 return false;
             }
         } else if c == '_' {
-            // 下划线前后必须跟字母或数字
+            // The underscore must be followed by a letter or number
             if prev_was_underscore || !s.chars().nth(s.chars().position(|x| x == c).unwrap() - 1).unwrap().is_alphanumeric()
                 || !s.chars().nth(s.chars().position(|x| x == c).unwrap() + 1).unwrap().is_alphanumeric() {
                 return false;
             }
             prev_was_underscore = true;
         } else if !c.is_alphanumeric() {
-            // 非大写字母和非下划线字符不被允许
+            // Non-capital letters and non-underscore characters are not allowed
             return false;
         } else {
             prev_was_underscore = false;

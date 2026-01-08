@@ -25,50 +25,48 @@ use std::time::Duration;
 use getset::{Getters, Setters};
 use crate::datasource::{INameConvert, TargetLang};
 use regex::Regex;
-use akita::{AkitaConfig, Pool};
-use akita::comm::DOT;
-use crate::config::{DataSourceConfig, GlobalConfig, Language, NamingStrategy, PackageConfig, StrategyConfig, TemplateConfig};
+use akita::prelude::{AkitaConfig, AkitaMapper, DBPool, DBPoolWrapper, SyncPool};
+use akita::prelude::comm::DOT;
+use crate::config::{DataSourceConfig, GlobalConfig, NamingStrategy, PackageConfig, StrategyConfig, TemplateConfig};
 use crate::constant::{CONTROLLER, CONTROLLER_PATH, ENTITY, ENTITY_PATH, MAPPER, MAPPER_PATH, MODULE_NAME, PLACE_HOLDER, REQUEST, REQUEST_PATH, RESPONSE, RESPONSE_PATH, SEPARATOR, SERVICE, SERVICE_IMPL, SERVICE_IMPL_PATH, SERVICE_PATH, SUPER_MAPPER_CLASS, SUPER_SERVICE_CLASS, SUPER_SERVICE_IMPL_CLASS, TMPDIR};
 use crate::datasource::{IDbQuery, MySqlKeyWordsHandler, MySqlQuery, MySqlTypeConvert, TableField, TableInfo};
 
 #[derive(Clone, Getters, Setters)]
 #[getset(get_mut = "pub", get = "pub", set = "pub")]
 pub struct ConfigBuilder {
-    lang: Language,
-    /// 数据源配置
-    datasource: Pool,
+    /// Data source configuration
+    datasource: DBPool,
     data_source_config: DataSourceConfig,
     package_config: PackageConfig,
-    /// 数据库表配置
+    /// Database Table Configuration
     strategy_config: StrategyConfig,
     template_config: TemplateConfig,
-    /// 全局 相关配置
+    /// Globally correlated configuration
     global_config: GlobalConfig,
-    /// 数据库表信息
+    /// Database table information
     table_info_list: Vec<TableInfo>,
-    /// 路径配置信息
+    /// Path configuration information
     path_info: HashMap<String, String>,
-    /// 包配置详情
+    /// Package configuration details
     package_info: HashMap<String, String>,
     super_entity_class: String,
     super_mapper_class: String,
-    /// service超类定义
+    /// SERVICE SUPERCLASS DEFINITION
     super_service_class: String,
     super_service_impl_class: String,
     super_controller_class: String,
-    /// 数据库查询
+    /// Database queries
     db_query: MySqlQuery,
 }
 
 
 impl ConfigBuilder {
 
-    pub fn new(lang: Language, package_config: PackageConfig, data_source_config: DataSourceConfig, strategy_config: StrategyConfig,
+    pub fn new(package_config: PackageConfig, data_source_config: DataSourceConfig, strategy_config: StrategyConfig,
                template_config: TemplateConfig, global_config: GlobalConfig) -> Self {
         let mut pool = Self::handler_data_source(&data_source_config);
         let db_query = data_source_config.get_db_query();
         let mut cb = Self {
-            lang,
             datasource: pool,
             data_source_config,
             strategy_config,
@@ -87,16 +85,16 @@ impl ConfigBuilder {
         };
 
         cb.handler_strategy();
-        // 包配置
+        // Package configuration
         cb.handler_package();
         cb
     }
 
-    pub fn handler_data_source(datasource: &DataSourceConfig) -> Pool {
-        let mut cfg = AkitaConfig::new(datasource.url()).set_min_idle(1.into()).set_connection_timeout(Duration::from_secs(6)).set_max_size(10);
-        cfg = cfg.set_username(datasource.username().to_string()).set_password(datasource.password().to_string());
-        let pool = Pool::new(cfg).expect("数据源初始化异常");
-        pool
+    pub fn handler_data_source(datasource: &DataSourceConfig) -> DBPool {
+        let mut cfg = AkitaConfig::new().url(datasource.url()).min_idle(1).connection_timeout(Duration::from_secs(6)).max_size(10);
+        cfg = cfg.username(datasource.username().to_string()).password(datasource.password().to_string());
+        let pool = DBPoolWrapper::new(cfg).expect("Data source initialization error");
+        pool.pool()
     }
 
     pub fn handler_strategy(&mut self) {
@@ -105,23 +103,23 @@ impl ConfigBuilder {
     }
 
     pub fn process_types(&mut self) {
-        // 处理 superServiceClass
+        // Processing superServiceClass
         self.super_service_class = self.strategy_config.super_service_class().clone().unwrap_or_else(|| SUPER_SERVICE_CLASS.to_string());
 
-        // 处理 superServiceImplClass
+        // Processing superServiceImplClass
         self.super_service_impl_class = self.strategy_config.super_service_impl_class().clone().unwrap_or_else(|| SUPER_SERVICE_IMPL_CLASS.to_string());
 
-        // 处理 superMapperClass
+        // Processing superMapperClass
         self.super_mapper_class = self.strategy_config.super_mapper_class().clone().unwrap_or_else(|| SUPER_MAPPER_CLASS.to_string());
 
-        // 直接赋值，如果没有则为 None
+        // Assigned directly, or None if not present
         self.super_entity_class = self.strategy_config.super_entity_class().clone().unwrap_or_default();
         self.super_controller_class = self.strategy_config.super_controller_class().clone().unwrap_or_default();
     }
 
     pub fn handler_package(&mut self) {
         let output_dir = self.global_config.output_dir();
-        // 包信息
+        // Packet information
         // let mut package_info: HashMap<String, String> = HashMap::new();
         self.package_info.insert(MODULE_NAME.to_string(), self.package_config.get_module_name());
 
@@ -134,10 +132,10 @@ impl ConfigBuilder {
         self.package_info.insert(SERVICE_IMPL.to_string(), Self::join_package(self.package_config.get_parent(), self.package_config.get_service_impl()));
         self.package_info.insert(CONTROLLER.to_string(), Self::join_package(self.package_config.get_parent(), self.package_config.get_controller()));
 
-        // 自定义路径
+        // Custom paths
         self.path_info = self.package_config.get_path_info().clone();
         if self.path_info.is_empty() {
-            // 生成路径信息
+            // Generating path information
             self.set_path(self.template_config.clone().get_entity(), ENTITY_PATH.to_string(), ENTITY);
             self.set_path(&self.template_config.clone().get_response().map(Clone::clone).unwrap_or_default(), RESPONSE_PATH.to_string(), RESPONSE);
             self.set_path(&self.template_config.clone().get_request().map(Clone::clone).unwrap_or_default(), REQUEST_PATH.to_string(), REQUEST);
@@ -153,7 +151,7 @@ impl ConfigBuilder {
         if parent.is_empty() {
             return sub_package;
         }
-        return format!("{}{}{}", parent ,DOT, sub_package);
+        format!("{}{}{}", parent ,DOT, sub_package)
     }
 
     fn join_path(mut parent_dir: String, mut package_name: String) -> String {
@@ -176,7 +174,7 @@ impl ConfigBuilder {
         }
     }
 
-    /// 处理表/字段名称
+    /// Handle table/field names
     fn process_name(name: &str, strategy: NamingStrategy, prefix: &[&str]) -> String {
 
         let mut remove_prefix = false;
@@ -186,28 +184,28 @@ impl ConfigBuilder {
         let property_name;
         if remove_prefix {
             if strategy == NamingStrategy::UnderlineToCamel {
-                // 删除前缀、下划线转驼峰
+                // Remove prefix, underscore to camel case
                 property_name = NamingStrategy::remove_prefix_and_camel(name, prefix);
             } else {
-                // 删除前缀
+                // Remove prefixes
                 property_name = NamingStrategy::remove_prefix(name, prefix);
             }
         } else if strategy == NamingStrategy::UnderlineToCamel {
-            // 下划线转驼峰
+            // The underscore turns the hump
             property_name = NamingStrategy::underline_to_camel(name);
         } else {
-            // 不处理
+            // Leave out
             property_name = name.to_string();
         }
         property_name
     }
 
-    /// 处理字段名称
+    /// Working with field names
     fn process_name_with_naming(&self, name: &str) -> String {
         Self::process_name(name, self.strategy_config.get_column_naming_strategy().clone(), &self.strategy_config.field_prefix().iter().map(|s| s.as_str()).collect::<Vec<&str>>()[..])
     }
 
-    /// 表名匹配
+    /// Table name matching
     fn table_name_matches(set_table_name: &str, db_table_name: &str) -> bool {
         set_table_name.eq_ignore_ascii_case(db_table_name)
             // || set_table_name.matches(db_table_name).count() > 0
@@ -219,36 +217,36 @@ impl ConfigBuilder {
         let is_include = !self.strategy_config.include().is_empty() && self.strategy_config.include().len() > 0;
         let is_exclude = !self.strategy_config.exclude().is_empty() && self.strategy_config.exclude().len() > 0;
         let mut table_list = Vec::new();
-        // 需要反向生成或排除的表信息
+        // Table information that needs to be generated or excluded in reverse
         let mut include_table_list = Vec::new();
         let mut exclude_table_list = Vec::new();
-        //不存在的表名
+        // Nonexistent table name
         let mut not_exist_tables = HashSet::new();
-        let db = &mut self.datasource.database().expect("数据库初始化异常");
+        let db = &mut self.datasource.database().expect("Database initialization error");
 
         let mut table_info;
 
         let tables_sql = self.db_query.tables_sql();
         let mut results = db.exec_iter(tables_sql, ()).unwrap_or_default();
         for row in results.iter() {
-            let table_name = row.get_obj::<String>(&self.db_query.table_name()).unwrap();
+            let table_name = row.get_by_column::<String>(&self.db_query.table_name()).unwrap();
             if !table_name.is_empty() {
                 table_info = TableInfo::default();
                 table_info.set_name(table_name.to_string());
 
-                let table_comment = row.get_obj::<String>(&self.db_query.table_comment()).unwrap();
+                let table_comment = row.get_by_column::<String>(&self.db_query.table_comment()).unwrap();
                 if *self.strategy_config.skip_view() && table_comment.eq("View") {
-                    // 跳过视图
+                    // Skip view
                     continue;
                 }
                 table_info.set_comment(table_comment);
                 if (is_include) {
                     for include_table in self.strategy_config.include() {
-                        // 忽略大小写等于 或 正则 true
+                        // Ignore case equal to or regular true
                         if Self::table_name_matches(include_table, &table_name) {
                             include_table_list.push(table_info.clone());
                         } else {
-                            //过滤正则表名
+                            //Filter regular table names
 
                             if !regex.is_match(include_table) {
                                 not_exist_tables.insert(include_table);
@@ -257,11 +255,11 @@ impl ConfigBuilder {
                     }
                 } else if is_exclude {
                     for exclude_table in self.strategy_config.exclude() {
-                        // 忽略大小写等于 或 正则 true
+                        // Ignore case equal to or regular true
                         if Self::table_name_matches(exclude_table, &table_name) {
                             exclude_table_list.push(table_info.clone());
                         } else {
-                            //过滤正则表名
+                            //Filter regular table names
                             if !regex.is_match(exclude_table) {
                                 not_exist_tables.insert(exclude_table);
                             }
@@ -270,19 +268,19 @@ impl ConfigBuilder {
                 }
                 table_list.push(table_info.clone());
             } else {
-                eprintln!("当前数据库为空！！！");
+                eprintln!("The current database is empty！！！");
             }
         }
 
-        // 将已经存在的表移除，获取配置中数据库不存在的表
+        // Remove the existing table and retrieve the table that does not exist in the configured database
         for table_info in table_list.iter() {
             not_exist_tables.remove(table_info.name());
         }
         if not_exist_tables.len() > 0 {
-            eprintln!("表 {:?} 在数据库中不存在！！！", not_exist_tables);
+            eprintln!("Table {:? } does not exist in the database！！！", not_exist_tables);
         }
 
-        // 需要反向生成的表信息
+        // Reverse generated table information is required
         if is_exclude {
             table_list.retain(|item| !exclude_table_list.contains(item));
             include_table_list = table_list.clone();
@@ -290,7 +288,7 @@ impl ConfigBuilder {
         if !is_include && !is_exclude {
             include_table_list = table_list.clone();
         }
-        // 性能优化，只处理需执行表字段
+        // Performance optimization, processing only required table fields
         include_table_list = include_table_list.iter().map(|ti| self.convert_table_fields(ti.clone())).collect();
 
         /*for table in strategy_config.include.iter() {
@@ -307,7 +305,7 @@ impl ConfigBuilder {
         self.table_info_list = self.process_table(include_table_list);
     }
 
-    /// 将字段信息与表信息关联
+    /// Associate field information with table information
     pub fn convert_table_fields(&self, mut table_info: TableInfo) -> TableInfo {
         let mut have_id = false;
         let mut field_list: Vec<TableField> = Vec::new();
@@ -315,16 +313,16 @@ impl ConfigBuilder {
         let table_name = table_info.name();
         let table_fields_sql = self.db_query.table_fields_sql();
         let table_fields_sql = table_fields_sql.replace(PLACE_HOLDER, table_name);
-        let db = &mut self.datasource.database().expect("数据库初始化异常");
+        let db = &mut self.datasource.database().expect("Database initialization error");
         let results = db.exec_iter(table_fields_sql, ()).unwrap_or_default();
         for row in results.iter() {
             let mut field = TableField::default();
-            let column_name = row.get_obj::<String>(&self.db_query.field_name()).unwrap();
-            // 避免多重主键设置，目前只取第一个找到ID，并放到list中的索引为0的位置
-            let key = row.get_obj::<String>(&self.db_query.field_key()).unwrap();
-            let key_identity_flag = MySqlQuery::is_key_identity(row.clone());
+            let column_name = row.get_by_column::<String>(&self.db_query.field_name()).unwrap();
+            // Avoid multiple primary keys; for now, just take the first one where the ID is found and placed at index 0 in the list
+            let key = row.get_by_column::<String>(&self.db_query.field_key()).unwrap();
+            let key_identity_flag = MySqlQuery::is_key_identity(row.as_object());
             let is_id = !key.is_empty() && key.to_uppercase().eq("PRI");
-            // 处理ID
+            // Handling ids
             if is_id && !have_id {
                 field.set_key_flag(true);
                 field.set_key_identity_flag(key_identity_flag);
@@ -332,27 +330,27 @@ impl ConfigBuilder {
             } else {
                 field.set_key_flag(false);
             }
-            // 自定义字段查询
+            // Custom field queries
             let fcs = self.db_query.field_custom();
             if !fcs.is_empty() {
                 let mut custom_map = HashMap::new();
                 for fc in fcs.iter() {
-                    custom_map.insert(fc.to_string(), row.get_obj::<serde_json::Value>(fc).unwrap_or_default());
+                    custom_map.insert(fc.to_string(), row.get_by_column::<serde_json::Value>(fc).unwrap_or_default());
                 }
                 field.set_custom_map(custom_map);
             }
 
-            // 处理其它信息
+            // Processing other information
             field.set_name(column_name.to_string());
             let mut new_column_name = column_name.to_string();
             if MySqlKeyWordsHandler::is_key_words(&column_name) {
-                eprintln!("当前表[{}]存在字段[{}]为数据库关键字或保留字!", &table_name, &column_name);
+                eprintln!("The current table [{}] existence field [{}] is a database keyword or reserved word!", &table_name, &column_name);
                 field.set_key_words(true);
                 new_column_name = MySqlKeyWordsHandler::format_column(&column_name);
             }
 
             field.set_column_name(new_column_name);
-            field.set_type(row.get_obj::<String>(&self.db_query.field_type()).unwrap());
+            field.set_type(row.get_by_column::<String>(&self.db_query.field_type()).unwrap());
 
             if let Some(name_convert) = self.strategy_config.name_convert() {
                 field.set_property_name(name_convert.property_name_convert(&field));
@@ -362,13 +360,13 @@ impl ConfigBuilder {
             // let property_name = Self::process_name_with_naming(field.name(), self.strategy_config.get_column_naming_strategy().clone(), config.clone());
             // field.set_property_name(property_name.to_string());
             field.set_column_type(MySqlTypeConvert::process_type_convert(field.r#type().to_string(), TargetLang::Rust));
-            field.set_comment(row.get_obj::<String>(&self.db_query.field_comment()).unwrap());
-            // 设置首字母大写名称
+            field.set_comment(row.get_by_column::<String>(&self.db_query.field_comment()).unwrap());
+            // Sets the name to be capitalized
             field.set_capital_name(field.get_inner_capital_name());
-            // 填充逻辑判断
+            // Filling logic judgment
             let table_fill_list = self.strategy_config.table_fill_list().clone();
             if !table_fill_list.is_empty() {
-                // 忽略大写字段问题
+                // Ignore the uppercase field problem
                 table_fill_list.iter().find(|tf| tf.field_name().eq_ignore_ascii_case(&field.name()))
                     .map(|tf| tf.field_fill().name()) // 获取匹配的FieldFill的name
                     .map(|fill_name| field.set_fill(fill_name));
@@ -380,11 +378,11 @@ impl ConfigBuilder {
         table_info
     }
 
-    /// 处理表对应的类名称
+    /// The class name corresponding to the processing table
     fn process_table(&self, mut table_list: Vec<TableInfo>) -> Vec<TableInfo> {
         let table_prefix = self.strategy_config.table_prefix();
         for table_info in table_list.iter_mut() {
-            let entity_name = self.lang._capital_first(&Self::process_name(table_info.name(), self.strategy_config.naming().clone(), &table_prefix.iter().map(|s| s.as_str()).collect::<Vec<&str>>()[..]));
+            let entity_name = self._capital_first(&Self::process_name(table_info.name(), self.strategy_config.naming().clone(), &table_prefix.iter().map(|s| s.as_str()).collect::<Vec<&str>>()[..]));
             
             if !self.global_config.entity_name().is_empty() {
                 table_info.set_convert(true);
@@ -414,7 +412,7 @@ impl ConfigBuilder {
             if !self.global_config.service_name().is_empty() {
                 table_info.set_service_name(self.global_config.service_name().replace(PLACE_HOLDER, &entity_name));
             } else {
-                table_info.set_service_name(format!("{}{}{}", self.lang._service_prefix(), entity_name, SERVICE));
+                table_info.set_service_name(format!("{}{}{}", self._service_prefix(), entity_name, SERVICE));
             }
 
             if !self.global_config.service_impl_name().is_empty() {
@@ -432,6 +430,22 @@ impl ConfigBuilder {
             table_info.set_entity_path_info();
         }
         table_list
+    }
+
+    pub fn _suffix(&self) -> &'static str {
+        ".rs"
+    }
+
+    pub fn _capital_first(&self, name: &str) -> String {
+        match self {
+            _ => NamingStrategy::capital_first(name),
+        }
+    }
+    pub fn _name(&self, name: &str) -> String {
+        NamingStrategy::camel_to_underline(name)
+    }
+    pub fn _service_prefix(&self) -> &'static str {
+        ""
     }
 }
 

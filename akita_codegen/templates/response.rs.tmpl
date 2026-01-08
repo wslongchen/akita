@@ -1,6 +1,7 @@
 
 use serde::{Deserialize, Serialize};
-use snack_micro_framework::akita::{self as akita, Entity, NaiveDateTime};
+use akita::prelude::{ Entity, NaiveDateTime};
+use crate::domain::{{ entity }};
 
 ///
 /// {{ table.comment }} 响应
@@ -14,6 +15,10 @@ use snack_micro_framework::akita::{self as akita, Entity, NaiveDateTime};
 pub struct {{ entity }}Response {
 {#- ----------  BEGIN 字段循环遍历  ---------- -#}
 {%- for field in table.fields %}
+    {%- if field.comment != "" %}
+    /// {{ field.comment }}
+    {% else %}
+    {% endif -%}
 	pub {{field.propertyName}}: Option<{{field.columnType}}>,
 {%- endfor %}
 {#- ----------  END 字段循环遍历  ---------- #}

@@ -53,7 +53,7 @@ cfg_if! {if #[cfg(all(
     pub use crate::interceptor::blocking::{InterceptorChain, InterceptorBuilder, AkitaInterceptor};
     pub use crate::driver::blocking::DbDriver;
     pub use crate::repository::EntityRepository;
-    pub use crate::pool::blocking::{DBPool, DBPoolWrapper};
+    pub use crate::pool::blocking::{DBPool, DBPoolWrapper, SyncPool};
     pub use crate::core::blocking::{Akita as AkitaSync, UpdateBuilder, QueryBuilder};
     pub use crate::mapper::blocking::AkitaMapper;
     pub use crate::ext::blocking::{IService, Mapper};
@@ -83,7 +83,7 @@ cfg_if! {if #[cfg(any(
     pub use crate::transaction::non_blocking::AsyncAkitaTransaction;
     pub use crate::interceptor::non_blocking::{AsyncInterceptorChain, AsyncInterceptorBuilder, AsyncAkitaInterceptor};
     pub use crate::driver::non_blocking::{AsyncDbDriver};
-    pub use crate::pool::non_blocking::{AsyncDBPool, AsyncDBPoolWrapper};
+    pub use crate::pool::non_blocking::{AsyncDBPool, AsyncDBPoolWrapper, AsyncPool};
     pub use crate::core::non_blocking::{AkitaAsync, AsyncUpdateBuilder, AsyncQueryBuilder};
     pub use crate::mapper::non_blocking::AsyncAkitaMapper;
     pub use crate::ext::non_blocking::{AsyncService, AsyncMapper};
