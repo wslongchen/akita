@@ -154,7 +154,7 @@ pub trait AkitaMapper {
             T: FromAkitaValue,
             F: FnMut(U, T) -> U,
     {
-        self.exec_iter::<_, _>(query, ()).map(|r| r.object_iter().map(|data| from_akita_value(&data))
+        self.exec_iter::<_, _>(query, ()).map(|r| r.object_iter().map(|data| from_akita_value(data))
             .fold(init, |acc, row| f(acc, row)))
     }
 

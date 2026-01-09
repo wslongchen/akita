@@ -964,12 +964,12 @@ impl fmt::Display for AkitaValue {
 }
 
 #[inline]
-pub fn from_akita_value<T: FromAkitaValue>(v: &AkitaValue) -> T {
-    FromAkitaValue::from_value(v)
+pub fn from_akita_value<T: FromAkitaValue>(v: AkitaValue) -> T {
+    FromAkitaValue::from_value(&v)
 }
 
 
 #[inline]
-pub fn from_akita_value_opt<T: FromAkitaValue>(v: &AkitaValue) -> Result<T, AkitaDataError> {
-    FromAkitaValue::from_value_opt(v)
+pub fn from_akita_value_opt<T: FromAkitaValue>(v: AkitaValue) -> Result<T, AkitaDataError> {
+    FromAkitaValue::from_value_opt(&v)
 }
