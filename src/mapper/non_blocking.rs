@@ -156,7 +156,7 @@ pub trait AsyncAkitaMapper {
         U: Send + Sync, 
         F: FnMut(U, T) -> U + Send + Sync,
     {
-        self.exec_iter::<_, _>(query, ()).await.map(|r| r.object_iter().map(|data| T::from_value(&data))
+        self.exec_iter::<_, _>(query, ()).await.map(|r| r.object_iter().map(|data| from_akita_value(&data))
             .fold(init, |acc, row| f(acc, row)))
     }
 
