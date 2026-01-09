@@ -14,7 +14,7 @@ license = "MIT"
 
 [dependencies]
 # Internal dependencies
-akita_derive = { version = "0.6.2", path = "./akita_derive" }
+akita_derive = { version = "0.6.3", path = "./akita_derive" }
 akita_core = { version = "0.6.2", path = "./akita_core" }
 
 # Runtime and tool libraries
