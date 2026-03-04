@@ -190,7 +190,7 @@ fn main() -> std::result::Result<(), AkitaError> {
         println!("   Simulating business error...");
 
         // This will cause the transaction to rollback
-        Err(AkitaError::DataError("Business validation failed".to_string()))?;
+        Err(data_err!("Business validation failed".to_string()))?;
 
         // This line won't be reached
         tx.commit()

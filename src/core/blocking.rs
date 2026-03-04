@@ -33,6 +33,7 @@ use akita_core::{cfg_if, AkitaValue, AndOr, Condition, FromAkitaValue, GetFields
 use crate::config::XmlSqlLoaderConfig;
 use crate::driver::blocking::DbDriver;
 use crate::interceptor::blocking::{InterceptorBuilder, InterceptorChain};
+use crate::{database_err, interceptor_err};
 use crate::prelude::{AkitaError};
 use crate::prelude::{AkitaConfig, IdentifierGenerator, Wrapper};
 use crate::key::SnowflakeGenerator;
@@ -120,7 +121,7 @@ impl Akita {
 
     pub fn with_interceptor_builder(mut self, builder: InterceptorBuilder) -> Result<Self, AkitaError> {
         let chain = builder.build()
-            .map_err(|e| AkitaError::InterceptorError(e.to_string()))?;
+            .map_err(|e| interceptor_err!(&e.to_string()))?;
         self.interceptor_chain = Some(Arc::new(chain));
         Ok(self)
     }
@@ -204,7 +205,7 @@ impl Akita {
                 }
                 DbDriver::MssqlDriver(Box::new(db))
             },
-            _ => return Err(AkitaError::DatabaseError("database must be init.".to_string()))
+            _ => return Err(database_err!("database must be init."))
         };
 
         Ok(platform)

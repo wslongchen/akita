@@ -32,6 +32,7 @@ use crate::prelude::{AkitaError};
 use crate::xml::XmlSqlLoader;
 use akita_core::{cfg_if, AkitaValue, FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, SqlOperator, SqlSecurityConfig};
 use crate::interceptor::non_blocking::{AsyncInterceptorBuilder, AsyncInterceptorChain};
+use crate::{database_err, interceptor_err};
 use crate::mapper::IPage;
 use crate::mapper::non_blocking::AsyncAkitaMapper;
 use crate::pool::non_blocking::{AsyncDBPoolWrapper, AsyncPooledConnection};
@@ -109,7 +110,7 @@ impl AkitaAsync {
 
     pub fn with_interceptor_builder(mut self, builder: AsyncInterceptorBuilder) -> Result<Self> {
         let chain = builder.build()
-            .map_err(|e| AkitaError::InterceptorError(e.to_string()))?;
+            .map_err(|e| interceptor_err!(&e.to_string()))?;
         self.interceptor_chain = Some(Arc::new(chain));
         Ok(self)
     }
@@ -168,7 +169,7 @@ impl AkitaAsync {
                 }
                 AsyncDbDriver::MssqlAsyncDriver(Box::new(db))
             },
-            _ => return Err(AkitaError::DatabaseError("database must be init.".to_string()))
+            _ => return Err(database_err!("database must be init."))
         };
         Ok(platform)
     }

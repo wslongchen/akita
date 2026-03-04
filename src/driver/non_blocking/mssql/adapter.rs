@@ -21,11 +21,12 @@
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use crate::comm::ExecuteResult;
-use crate::errors::AkitaError;
+use crate::errors::{AkitaError, SmartBacktrace};
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use std::sync::Arc;
 use serde_json::Value;
 use tokio::sync::Mutex;
+use crate::database_err;
 use crate::driver::non_blocking::mssql::MssqlAsyncConnection;
 
 /// SQL Server Asynchronous adapter
@@ -46,7 +47,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("BEGIN TRANSACTION")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
         Ok(())
     }
 
@@ -55,7 +56,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("COMMIT")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
         Ok(())
     }
 
@@ -64,7 +65,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("ROLLBACK")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
         Ok(())
     }
     
@@ -83,9 +84,9 @@ impl MssqlAsyncAdapter {
         let stream = client
             .query(sql,&param_refs)
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
         let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to get result: {}", e))
+            database_err!(format!("Failed to get result: {}", e))
         })?;
         if rows.is_empty() {
             return Ok(Rows::new())
@@ -132,7 +133,7 @@ impl MssqlAsyncAdapter {
                 let result = client
                     .execute(sql, &param_refs)
                     .await
-                    .map_err(|e| AkitaError::MssqlError(e))?;
+                    .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
 
                 Ok(ExecuteResult::AffectedRows(result.total() as u64))
             }

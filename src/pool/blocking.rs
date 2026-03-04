@@ -20,10 +20,10 @@
  */
 
 use crate::config::AkitaConfig;
-use crate::driver;
+use crate::{connection_valid_err, database_err, driver};
 use crate::driver::blocking::{DbDriver};
 use crate::driver::DriverType;
-use crate::errors::{AkitaError, Result};
+use crate::errors::{AkitaError, Result, SmartBacktrace};
 use crate::pool::{PoolStatus};
 use akita_core::cfg_if;
 
@@ -111,35 +111,35 @@ impl SyncPool for DBPool {
         match self {
             #[cfg(feature = "mysql-sync")]
             DBPool::MysqlPool(ref pool_mysql) => {
-                let mut pooled_conn = pool_mysql.get().map_err(|e| AkitaError::R2D2Error(e))?;
+                let mut pooled_conn = pool_mysql.get().map_err(|e| AkitaError::R2D2Error(e, SmartBacktrace::capture()))?;
                 // Verify that the connection is still valid
                 if !pooled_conn.ping().is_ok() {
-                    return Err(AkitaError::ConnectionValidError);
+                    return Err(connection_valid_err!());
                 }
                 Ok(PooledConnection::PooledMysql(pooled_conn))
             }
             #[cfg(feature = "sqlite-sync")]
             DBPool::SqlitePool(ref pool_sqlite) => {
                 let pooled_conn = pool_sqlite.get()
-                    .map_err(|e| AkitaError::R2D2Error(e))?;
+                    .map_err(|e| AkitaError::R2D2Error(e,SmartBacktrace::capture()))?;
                 Ok(PooledConnection::PooledSqlite(pooled_conn))
             }
             #[cfg(feature = "postgres-sync")]
             DBPool::PostgresPool(ref pool_postgres) => {
                 let pooled_conn = pool_postgres.get()
-                    .map_err(|e| AkitaError::R2D2Error(e))?;
+                    .map_err(|e| AkitaError::R2D2Error(e,SmartBacktrace::capture()))?;
                 Ok(PooledConnection::PooledPostgres(pooled_conn))
             }
             #[cfg(feature = "oracle-sync")]
             DBPool::OraclePool(ref pool_oracle) => {
                 let pooled_conn = pool_oracle.get()
-                    .map_err(|e| AkitaError::R2D2Error(e))?;
+                    .map_err(|e| AkitaError::R2D2Error(e,SmartBacktrace::capture()))?;
                 Ok(PooledConnection::PooledOracle(pooled_conn))
             }
             #[cfg(feature = "mssql-sync")]
             DBPool::MssqlPool(ref pool_mssql) => {
                 let pooled_conn = pool_mssql.get()
-                    .map_err(|e| AkitaError::R2D2Error(e))?;
+                    .map_err(|e| AkitaError::R2D2Error(e,SmartBacktrace::capture()))?;
                 Ok(PooledConnection::PooledMssql(pooled_conn))
             }
         }
@@ -237,7 +237,7 @@ impl DBPoolWrapper {
                 Ok(DBPoolWrapper { _inner: DBPool::MssqlPool(pool_mssql), _cfg: cfg })
             }
             _ => {
-                Err(AkitaError::DatabaseError("Unknown".to_string()))
+                Err(database_err!("Unknown".to_string()))
             }
         }
     }
@@ -267,7 +267,7 @@ impl DBPoolWrapper {
                 let pooled_conn = pool_mysql.get();
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(PooledConnection::PooledMysql(pooled_conn)),
-                    Err(e) => Err(AkitaError::R2D2Error(e)),
+                    Err(e) => Err(AkitaError::R2D2Error(e,SmartBacktrace::capture())),
                 }
             }
             #[cfg(feature = "sqlite-sync")]
@@ -275,7 +275,7 @@ impl DBPoolWrapper {
                 let pooled_conn = pool_sqlite.get();
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(PooledConnection::PooledSqlite(pooled_conn)),
-                    Err(e) => Err(AkitaError::R2D2Error(e)),
+                    Err(e) => Err(AkitaError::R2D2Error(e,SmartBacktrace::capture())),
                 }
             }
             #[cfg(feature = "oracle-sync")]
@@ -283,7 +283,7 @@ impl DBPoolWrapper {
                 let pooled_conn = pool_oracle.get();
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(PooledConnection::PooledOracle(pooled_conn)),
-                    Err(e) => Err(AkitaError::R2D2Error(e)),
+                    Err(e) => Err(AkitaError::R2D2Error(e,SmartBacktrace::capture())),
                 }
             }
             #[cfg(feature = "mssql-sync")]
@@ -291,7 +291,7 @@ impl DBPoolWrapper {
                 let pooled_conn = pool_mssql.get();
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(PooledConnection::PooledMssql(pooled_conn)),
-                    Err(e) => Err(AkitaError::R2D2Error(e)),
+                    Err(e) => Err(AkitaError::R2D2Error(e,SmartBacktrace::capture())),
                 }
             }
             #[cfg(feature = "postgres-sync")]
@@ -299,7 +299,7 @@ impl DBPoolWrapper {
                 let pooled_conn = pool_postgres.get();
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(PooledConnection::PooledPostgres(pooled_conn)),
-                    Err(e) => Err(AkitaError::R2D2Error(e)),
+                    Err(e) => Err(AkitaError::R2D2Error(e,SmartBacktrace::capture())),
                 }
             }
             

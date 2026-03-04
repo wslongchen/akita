@@ -19,6 +19,7 @@
  *  
  */
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::blocking::mssql::SyncMssqlClient;
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
@@ -36,7 +37,7 @@ pub struct MssqlConnectionManager {
 impl MssqlConnectionManager {
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         if cfg.get_platform()? != DriverType::Mssql {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "Database type mismatch: expected SQL Server".to_string()
             ));
         }
@@ -44,7 +45,7 @@ impl MssqlConnectionManager {
         let connection_string = cfg.get_connection_string()?;
 
         let config = tiberius::Config::from_ado_string(&connection_string)
-            .map_err(|e| AkitaError::DatabaseError(format!("Invalid SQL Server connection string: {}", e)))?;
+            .map_err(|e| database_err!(format!("Invalid SQL Server connection string: {}", e)))?;
 
         Ok(Self { config })
     }
@@ -84,15 +85,15 @@ pub fn init_mssql_pool(cfg: AkitaConfig) -> Result<MssqlPool, AkitaError> {
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to create SQL Server connection pool: {}", e))
+            database_err!(format!("Failed to create SQL Server connection pool: {}", e))
         })?;
 
     let conn = pool.get().map_err(|e| {
-        AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e))
+        database_err!(format!("Failed to get connection from pool: {}", e))
     })?;
 
     conn.query("SELECT 1", &[]).map_err(|e| {
-        AkitaError::DatabaseError(format!("SQL Server connection test failed: {}", e))
+        database_err!(format!("SQL Server connection test failed: {}", e))
     })?;
 
     Ok(pool)

@@ -26,6 +26,7 @@ use serde_json::{Map, Value};
 use std::convert::{TryFrom, TryInto};
 use std::sync::RwLock;
 use crate::driver::blocking::mysql::MysqlConnection;
+use crate::{data_err, database_err, mysql_err};
 
 pub struct MysqlAdapter {
     conn: RwLock<MysqlConnection>,
@@ -44,10 +45,10 @@ impl MysqlAdapter {
             Ok(mut conn) => {
                 conn
                     .query_drop("START TRANSACTION")
-                    .map_err(AkitaError::MySQLError)
+                    .map_err(|err| mysql_err!(err))
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("Can't get the connection.".to_string()))
+                Err(database_err!("Can't get the connection.".to_string()))
             }
         }
     }
@@ -58,10 +59,10 @@ impl MysqlAdapter {
             Ok(mut conn) => {
                 conn
                     .query_drop("COMMIT")
-                    .map_err(AkitaError::MySQLError)
+                    .map_err(|err| mysql_err!(err))
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("Can't get the connection.".to_string()))
+                Err(database_err!("Can't get the connection.".to_string()))
             }
         }
     }
@@ -72,10 +73,10 @@ impl MysqlAdapter {
             Ok(mut conn) => {
                 conn
                     .query_drop("ROLLBACK")
-                    .map_err(AkitaError::MySQLError)
+                    .map_err(|err| mysql_err!(err))
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("Can't get the connection.".to_string()))
+                Err(database_err!("Can't get the connection.".to_string()))
             }
         }
     }
@@ -92,7 +93,7 @@ impl MysqlAdapter {
                 // Prepare and execute queries
                 let stmt = conn
                     .prep(&sql)
-                    .map_err(AkitaError::MySQLError)?;
+                    .map_err(|err| mysql_err!(err))?;
 
                 let result = conn
                     .exec_map(
@@ -100,7 +101,7 @@ impl MysqlAdapter {
                         mysql_params,
                         |mysql_row| convert_mysql_row(mysql_row),
                     )
-                    .map_err(AkitaError::MySQLError)?;
+                    .map_err(|err| mysql_err!(err))?;
 
                 let rows: Vec<Row> = result
                     .into_iter()
@@ -112,7 +113,7 @@ impl MysqlAdapter {
 
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("Can't get the connection.".to_string()))
+                Err(database_err!("Can't get the connection."))
             }
         }
         
@@ -126,7 +127,7 @@ impl MysqlAdapter {
                 // Prepare and execute queries
                 let stmt = conn
                     .prep(sql)
-                    .map_err(AkitaError::MySQLError)?;
+                    .map_err(|err| mysql_err!(err))?;
                 let stmt_type = OperationType::detect_operation_type(&sql);
                 match stmt_type {
                     OperationType::Select => {
@@ -134,13 +135,13 @@ impl MysqlAdapter {
                         Ok(ExecuteResult::Rows(rows))
                     }
                     _ => {
-                        conn.exec_drop(&stmt, mysql_params).map_err(AkitaError::MySQLError)?;
+                        conn.exec_drop(&stmt, mysql_params).map_err(|err| mysql_err!(err))?;
                         Ok(ExecuteResult::AffectedRows(conn.affected_rows()))
                     }
                 }
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("Can't get the connection.".to_string()))
+                Err(database_err!("Can't get the connection."))
             }
         }
         
@@ -306,7 +307,7 @@ fn convert_mysql_value(mysql_value: MysqlValue, column_type: mysql::consts::Colu
         ColumnType::MYSQL_TYPE_JSON => {
             let val: String = try_convert(mysql_value)?;
             let json_val = serde_json::from_str(&val)
-                .map_err(|e| AkitaError::DataError(e.to_string()))?;
+                .map_err(|e| data_err!(&e.to_string()))?;
             Ok(AkitaValue::Json(json_val))
         }
         ColumnType::MYSQL_TYPE_TINY_BLOB | ColumnType::MYSQL_TYPE_MEDIUM_BLOB |
@@ -359,20 +360,20 @@ fn convert_mysql_row(mysql_row: MysqlRow) -> crate::prelude::Result<Row> {
 /// Converted decimal
 fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
     let bytes: Vec<u8> = mysql_value.try_into()
-        .map_err(|_e| AkitaError::DataError("convert decimal error...".to_string()))?;
+        .map_err(|_e| data_err!("convert decimal error...".to_string()))?;
 
     let decimal_str = String::from_utf8(bytes)
-        .map_err(|e| AkitaError::DataError(e.to_string()))?;
+        .map_err(|e| data_err!(e.to_string()))?;
 
     let big_decimal = bigdecimal::BigDecimal::parse_bytes(decimal_str.as_bytes(), 10)
-        .ok_or_else(|| AkitaError::DataError("Invalid decimal format".to_string()))?;
+        .ok_or_else(|| data_err!("Invalid decimal format".to_string()))?;
 
     Ok(AkitaValue::BigDecimal(big_decimal))
 }
 
 /// Converted bit
 fn convert_bit_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql::from_value_opt(mysql_value).map_err(|e| AkitaError::DataError(e.to_string()))?;
+    let bytes: Vec<u8> = mysql::from_value_opt(mysql_value).map_err(|e| data_err!(e.to_string()))?;
     if bytes.len() == 1 {
         Ok(AkitaValue::Bool(bytes[0] != 0))
     } else {
@@ -398,7 +399,7 @@ fn try_generic_conversion(mysql_value: MysqlValue) -> crate::prelude::Result<Aki
         return Ok(AkitaValue::Blob(bytes));
     }
 
-    Err(AkitaError::DataError("Unsupported MySQL value type".to_string()))
+    Err(data_err!("Unsupported MySQL value type".to_string()))
 }
 
 /// Type-safe conversion
@@ -407,5 +408,5 @@ where
     T: mysql::prelude::FromValue,
 {
 
-    mysql::from_value_opt::<T>(value).map_err(|e| AkitaError::DataError(e.to_string()))
+    mysql::from_value_opt::<T>(value).map_err(|e| data_err!(e.to_string()))
 }

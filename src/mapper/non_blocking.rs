@@ -22,6 +22,7 @@
 use async_trait::async_trait;
 use crate::prelude::*;
 use std::marker::Sync;
+use crate::data_err;
 use crate::mapper::IPage;
 
 
@@ -213,9 +214,9 @@ pub trait AsyncAkitaMapper {
         let result: crate::errors::Result<Vec<R>> = self.exec_raw(&sql, params).await;
         match result {
             Ok(mut result) => match result.len() {
-                0 => Err(AkitaError::DataError("Empty record returned".to_string())),
+                0 => Err(data_err!("Empty record returned")),
                 1 => Ok(result.remove(0)),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned")),
             },
             Err(e) => Err(e),
         }
@@ -246,7 +247,7 @@ pub trait AsyncAkitaMapper {
             Ok(mut result) => match result.len() {
                 0 => Ok(None),
                 1 => Ok(Some(result.remove(0))),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned")),
             },
             Err(e) => Err(e),
         }

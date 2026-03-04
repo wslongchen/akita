@@ -27,6 +27,7 @@ use std::time::UNIX_EPOCH;
 use dashmap::DashMap;
 use crate::config::XmlSqlLoaderConfig;
 use crate::errors::{AkitaError, SqlLoaderError};
+use crate::sql_loader_err;
 
 // SQL Statements are supported with parameters
 #[derive(Debug, Clone)]
@@ -102,7 +103,7 @@ impl XmlSqlLoader {
         cache.sql_map.get(sql_id)
             .cloned()
             .map(|sql| self.format_sql(&sql))
-            .ok_or_else(|| AkitaError::SqlLoaderError(SqlLoaderError::SqlNotFound(sql_id.to_string())))
+            .ok_or_else(|| sql_loader_err!(SqlLoaderError::SqlNotFound(sql_id.to_string())))
     }
 
     /// Loading SQL statement structs (containing parameter information)
@@ -122,7 +123,7 @@ impl XmlSqlLoader {
         let cache = self.load_and_cache(&path)?;
         cache.statements.get(sql_id)
             .cloned()
-            .ok_or_else(|| AkitaError::SqlLoaderError(SqlLoaderError::SqlNotFound(sql_id.to_string())))
+            .ok_or_else(|| sql_loader_err!(SqlLoaderError::SqlNotFound(sql_id.to_string())))
     }
 
     /// Load namespace SQL
@@ -170,7 +171,7 @@ impl XmlSqlLoader {
                 .collect();
 
             if !remaining_params.is_empty() {
-                return Err(AkitaError::SqlLoaderError(SqlLoaderError::ParameterError(
+                return Err(sql_loader_err!(SqlLoaderError::ParameterError(
                     format!("Parameters not provided: {:?}", remaining_params)
                 )));
             }
@@ -211,7 +212,7 @@ impl XmlSqlLoader {
 
         // Basic XML structure validation
         if !content.contains("<sqls>") && !content.contains("<sql ") {
-            return Err(AkitaError::SqlLoaderError(SqlLoaderError::XmlParseError("缺少根元素或 SQL 元素".to_string())));
+            return Err(sql_loader_err!(SqlLoaderError::XmlParseError("缺少根元素或 SQL 元素".to_string())));
         }
 
         // Use quick-xml validation
@@ -227,14 +228,14 @@ impl XmlSqlLoader {
                     }
                 }
                 Ok(Event::Eof) => break,
-                Err(e) => return Err(AkitaError::SqlLoaderError(SqlLoaderError::XmlParseError(e.to_string()))),
+                Err(e) => return Err(sql_loader_err!(SqlLoaderError::XmlParseError(e.to_string()))),
                 _ => {}
             }
             buf.clear();
         }
 
         if sql_count == 0 {
-            return Err(AkitaError::SqlLoaderError(SqlLoaderError::XmlParseError("未找到 SQL 语句".to_string())));
+            return Err(sql_loader_err!(SqlLoaderError::XmlParseError("未找到 SQL 语句".to_string())));
         }
 
         Ok(())
@@ -260,7 +261,7 @@ impl XmlSqlLoader {
         }
 
         fs::write(output_file, output)
-            .map_err(|e| AkitaError::SqlLoaderError(SqlLoaderError::FileReadError(e.to_string())))
+            .map_err(|e| sql_loader_err!(SqlLoaderError::FileReadError(e.to_string())))
     }
 
     // --- Private methods ---
@@ -311,7 +312,7 @@ impl XmlSqlLoader {
             let cache = v.value();
             Ok(cache.clone())
         } else {
-            Err(AkitaError::SqlLoaderError(SqlLoaderError::FileReadError("load cache error".to_string())))
+            Err(sql_loader_err!(SqlLoaderError::FileReadError("load cache error".to_string())))
         }
         
     }

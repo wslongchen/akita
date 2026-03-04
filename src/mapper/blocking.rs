@@ -22,6 +22,7 @@ use crate::mapper::IPage;
 use crate::prelude::{AkitaError, GetFields, GetTableName, Params};
 use crate::errors::Result;
 use akita_core::{from_akita_value, from_akita_value_opt, AkitaValue, FromAkitaValue, IntoAkitaValue, Rows, Wrapper};
+use crate::data_err;
 
 pub trait AkitaMapper {
     /// Get all the table of records
@@ -217,9 +218,9 @@ pub trait AkitaMapper {
         let result: Result<Vec<R>> = self.exec_raw(&sql, params);
         match result {
             Ok(mut result) => match result.len() {
-                0 => Err(AkitaError::DataError("Empty record returned".to_string())),
+                0 => Err(data_err!("Empty record returned".to_string())),
                 1 => Ok(result.remove(0)),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned".to_string())),
             },
             Err(e) => Err(e),
         }
@@ -250,7 +251,7 @@ pub trait AkitaMapper {
             Ok(mut result) => match result.len() {
                 0 => Ok(None),
                 1 => Ok(Some(result.remove(0))),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned".to_string())),
             },
             Err(e) => Err(e),
         }

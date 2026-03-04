@@ -36,6 +36,7 @@ use std::sync::Arc;
 use akita_core::comm::extract_datatype_with_capacity;
 use akita_derive::FromValue;
 use crate::comm::{ExecuteContext, ExecuteResult};
+use crate::{data_err, unsupported_err};
 use crate::driver::blocking::{DbExecutor};
 use crate::errors::AkitaError;
 use crate::interceptor::blocking::InterceptorChain;
@@ -271,7 +272,7 @@ impl DbManager for MySQL {
             .map(|data| FromAkitaValue::from_value(&data.as_object()))
             .collect();
         let table_spec = match tables.len() {
-            0 => return Err(AkitaError::DataError("Unknown table found.".to_string())),
+            0 => return Err(data_err!("Unknown table found.")),
             _ => tables.remove(0),
         };
 
@@ -514,8 +515,8 @@ impl DbManager for MySQL {
 
     fn drop_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let sql = format!("drop user '{}'@'{}';", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
@@ -524,8 +525,8 @@ impl DbManager for MySQL {
 
     fn update_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let sql = format!("alter user '{}'@'{}' identified by '{}'", user.username, user.host.to_owned().unwrap_or("localhost".to_string()), user.password.to_owned().unwrap_or_default());
@@ -534,8 +535,8 @@ impl DbManager for MySQL {
 
     fn lock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let sql = format!("alter user '{}'@'{}' account lock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
@@ -544,8 +545,8 @@ impl DbManager for MySQL {
 
     fn unlock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let sql = format!("alter user '{}'@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
@@ -554,8 +555,8 @@ impl DbManager for MySQL {
 
     fn expire_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let sql = format!("alter user '{}'@'{}' password expire;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
@@ -565,8 +566,8 @@ impl DbManager for MySQL {
     fn grant_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         // Assigning permissions
         if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let privileges = if user.privileges.len() > 0 {
@@ -575,8 +576,8 @@ impl DbManager for MySQL {
             "all".to_string()
         };
         if user.schema.eq("*") {
-            return Err(AkitaError::UnsupportedOperation(
-                "You are not allow this operation to use schema with *".to_string(),
+            return Err(unsupported_err!(
+                "You are not allow this operation to use schema with *",
             ))
         }
         let sql = format!("grant {} on {}.{} to '{}'@'{}';", privileges, user.schema, user.table, user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
@@ -586,8 +587,8 @@ impl DbManager for MySQL {
     fn revoke_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         // Reclaim permissions
         if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
-            return Err(AkitaError::UnsupportedOperation(
-                "Some param is empty.".to_string(),
+            return Err(unsupported_err!(
+                "Some param is empty.",
             ))
         }
         let privileges = if user.privileges.len() > 0 {
@@ -596,8 +597,8 @@ impl DbManager for MySQL {
             "all".to_string()
         };
         if user.schema.eq("*") {
-            return Err(AkitaError::UnsupportedOperation(
-                "You are not allow this operation to use schema with *".to_string(),
+            return Err(unsupported_err!(
+                "You are not allow this operation to use schema with *",
             ))
         }
         let sql = format!("revoke {} on {}.{} from '{}'@'{}';", privileges, user.schema, user.table, user.username, user.host.to_owned().unwrap_or("localhost".to_string()));

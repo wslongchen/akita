@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use r2d2::{Pool};
 use rusqlite::{Connection, Error, OpenFlags};
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
 
@@ -58,7 +59,7 @@ impl SqliteConnectionManager {
     
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         if cfg.get_platform()? != DriverType::Sqlite {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "Database type mismatch: expected SQLite".to_string()
             ));
         }
@@ -162,16 +163,16 @@ pub fn init_sqlite_pool(cfg: AkitaConfig) -> Result<SqlitePool, AkitaError> {
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to create SQLite connection pool: {}", e))
+            database_err!(format!("Failed to create SQLite connection pool: {}", e))
         })?;
 
     // Testing connections
     let conn = pool.get().map_err(|e| {
-        AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e))
+        database_err!(format!("Failed to get connection from pool: {}", e))
     })?;
 
     conn.execute_batch("SELECT 1").map_err(|e| {
-        AkitaError::DatabaseError(format!("SQLite connection test failed: {}", e))
+        database_err!(format!("SQLite connection test failed: {}", e))
     })?;
 
     Ok(pool)

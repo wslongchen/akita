@@ -30,6 +30,7 @@ use crate::key::IdentifierGenerator;
 use crate::mapper::{IPage};
 use crate::mapper::non_blocking::AsyncAkitaMapper;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder, SqlBuilderFactory};
+use crate::{database_err, empty_data_err, invalid_sql_err, missing_ident_err, missing_table_err, unknown_err};
 
 cfg_if! {
     if #[cfg(feature = "mysql-async")] {
@@ -151,7 +152,7 @@ impl AsyncDbExecutor for AsyncDbDriver {
             AsyncDbDriver::SqliteAsyncDriver(driver) => driver.query(sql, params).await,
             #[cfg(feature = "mssql-async")]
             AsyncDbDriver::MssqlAsyncDriver(driver) => driver.query(sql, params).await,
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -167,7 +168,7 @@ impl AsyncDbExecutor for AsyncDbDriver {
             AsyncDbDriver::SqliteAsyncDriver(driver) => driver.execute(sql, params).await,
             #[cfg(feature = "mssql-async")]
             AsyncDbDriver::MssqlAsyncDriver(driver) => driver.execute(sql, params).await,
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -183,7 +184,7 @@ impl AsyncDbExecutor for AsyncDbDriver {
             AsyncDbDriver::SqliteAsyncDriver(driver) => driver.start().await,
             #[cfg(feature = "mssql-async")]
             AsyncDbDriver::MssqlAsyncDriver(driver) => driver.start().await,
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -199,7 +200,7 @@ impl AsyncDbExecutor for AsyncDbDriver {
             AsyncDbDriver::SqliteAsyncDriver(driver) => driver.commit().await,
             #[cfg(feature = "mssql-async")]
             AsyncDbDriver::MssqlAsyncDriver(driver) => driver.commit().await,
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -264,7 +265,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let wrapper = wrapper.table(table.complete_name());
@@ -297,7 +298,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let wrapper = Wrapper::new()
             .table(T::table_name().complete_name())
@@ -314,7 +315,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let wrapper = wrapper.table(table.complete_name());
@@ -350,7 +351,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let wrapper = wrapper.table(table.complete_name());
@@ -370,7 +371,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let wrapper = wrapper.table(table.complete_name());
@@ -391,7 +392,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let wrapper = Wrapper::new()
             .table(T::table_name().complete_name())
@@ -412,7 +413,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
 
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let id_values: Vec<AkitaValue> = ids.into_iter().map(|id| id.into()).collect();
         let wrapper = Wrapper::new()
@@ -432,7 +433,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let data = entity.into_value();
@@ -452,7 +453,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
         let sql_builder = self.sql_builder();
         final_wrapper.where_conditions(wrapper.get_where_conditions().clone());
         let sql = sql_builder.build_update_sql(&table, &final_wrapper)
-            .ok_or_else(|| AkitaError::InvalidSQL("Invalid Update SQL.".to_string()))?;
+            .ok_or_else(|| invalid_sql_err!("Invalid Update SQL.".to_string()))?;
 
         let params = final_wrapper.get_parameters();
         let result = self.execute(&sql, params.into()).await?;
@@ -467,11 +468,11 @@ impl AsyncAkitaMapper for AsyncDbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let data = entity.into_value();
         let id_value = data.get_obj_value(&id_field.name)
-            .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
         let wrapper = Wrapper::new().eq(id_field.name, id_value.clone());
         self.update(entity, wrapper).await
@@ -488,12 +489,12 @@ impl AsyncAkitaMapper for AsyncDbDriver {
 
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let columns = T::fields();
         let update_fields: Vec<&FieldName> = columns.iter()
@@ -509,7 +510,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
             for entity in entities {
                 let data = entity.into_value();
                 let id_value = data.get_obj_value(&id_field.name)
-                    .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+                    .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
                 let field_value = data.get_obj_value(col_name).unwrap_or(&AkitaValue::Null);
 
@@ -727,7 +728,7 @@ impl AsyncDbDriver {
             .filter(|c| c.exist && !c.is_auto_increment())
             .count();
         if column_count == 0 {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         let total_params = column_count * data.rows.len();
@@ -761,14 +762,14 @@ impl AsyncDbDriver {
             .count();
 
         if column_count == 0 {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         const MAX_PARAMS: usize = 2100;
         let max_rows_per_batch = MAX_PARAMS / column_count;
 
         if max_rows_per_batch == 0 {
-            return Err(AkitaError::DatabaseError(format!(
+            return Err(database_err!(format!(
                 "Too many columns ({}) for SQL Server batch insert",
                 column_count
             )));
@@ -802,7 +803,7 @@ pub(crate) fn get_tokio_context() -> crate::errors::Result<Handle> {
             h
         }
         Err(_) => {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "The connection pool must be created in the Tokio asynchronous context. Make sure：\n\
                  1. Called from the #[tokio::main] or #[tokio::test] function\n\
                  Called in the Tokio runtime environment".to_string()

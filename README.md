@@ -24,6 +24,9 @@
   <a href="https://github.com/wslongchen/akita/blob/master/LICENSE-MIT">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License MIT">
   </a>
+    <a href="https://github.com/wslongchen/akita/stargazers">
+    <img src="https://img.shields.io/github/stars/wslongchen/akita" alt="GitHub stars">
+  </a>
 </p>
 
 ## 🎯 Features

@@ -24,6 +24,7 @@ use deadpool::Runtime;
 use tokio::runtime::Handle;
 use tokio_postgres::{Client, Config, NoTls};
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::non_blocking::get_tokio_context;
 use crate::errors::AkitaError;
 
@@ -92,9 +93,9 @@ pub async fn init_postgres_async_pool(config: AkitaConfig) -> Result<PostgresAsy
 
     // Testing connections
     let conn: PostgresAsyncConnection = pool.get().await
-        .map_err(|e| AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e)))?;
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
     conn.simple_query("SELECT 1").await
-        .map_err(|e| AkitaError::DatabaseError(format!("PostgreSQL async connection test failed: {}", e)))?;
+        .map_err(|e| database_err!(format!("PostgreSQL async connection test failed: {}", e)))?;
 
     tracing::info!("PostgreSQL async connection pool initialized successfully");
 

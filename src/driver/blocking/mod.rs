@@ -28,6 +28,7 @@ use crate::errors::AkitaError;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder, SqlBuilderFactory};
+use crate::{database_err, empty_data_err, invalid_sql_err, missing_ident_err, missing_table_err, unknown_err, unsupported_err};
 
 cfg_if! {if #[cfg(feature = "auth")]  {
     mod auth;
@@ -152,7 +153,7 @@ impl DbExecutor for DbDriver {
             DbDriver::SqliteDriver(driver) => driver.query(sql, params),
             #[cfg(feature = "mssql-sync")]
             DbDriver::MssqlDriver(driver) => driver.query(sql, params),
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -168,7 +169,7 @@ impl DbExecutor for DbDriver {
             DbDriver::SqliteDriver(driver) => driver.execute(sql, params),
             #[cfg(feature = "mssql-sync")]
             DbDriver::MssqlDriver(driver) => driver.execute(sql, params),
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -184,7 +185,7 @@ impl DbExecutor for DbDriver {
             DbDriver::SqliteDriver(driver) => driver.start(),
             #[cfg(feature = "mssql-sync")]
             DbDriver::MssqlDriver(driver) => driver.start(),
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -200,7 +201,7 @@ impl DbExecutor for DbDriver {
             DbDriver::SqliteDriver(driver) => driver.commit(),
             #[cfg(feature = "mssql-sync")]
             DbDriver::MssqlDriver(driver) => driver.commit(),
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -216,7 +217,7 @@ impl DbExecutor for DbDriver {
             DbDriver::SqliteDriver(driver) => driver.rollback(),
             #[cfg(feature = "mssql-sync")]
             DbDriver::MssqlDriver(driver) => driver.rollback(),
-            _ => Err(AkitaError::Unknown),
+            _ => Err(unknown_err!()),
         }
     }
 
@@ -266,7 +267,7 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let sql_builder = self.sql_builder();
@@ -299,7 +300,7 @@ impl AkitaMapper for DbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
         let wrapper = Wrapper::new()
             .table(&T::table_name().complete_name())
             .eq(id_field.name, id.into())
@@ -315,7 +316,7 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let sql_builder = self.sql_builder();
@@ -352,7 +353,7 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let sql_builder = self.sql_builder();
@@ -372,7 +373,7 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let sql_builder = self.sql_builder();
@@ -393,7 +394,7 @@ impl AkitaMapper for DbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
         let wrapper = Wrapper::new()
             .table(&T::table_name().complete_name())
             .eq(id_field.name, id.into());
@@ -412,7 +413,7 @@ impl AkitaMapper for DbDriver {
         }
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let id_values: Vec<AkitaValue> = ids.into_iter().map(|id| id.into()).collect();
         let wrapper = Wrapper::new()
@@ -432,7 +433,7 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
 
         let data = entity.into_value();
@@ -454,7 +455,7 @@ impl AkitaMapper for DbDriver {
         let mut final_wrapper = set_wrapper;
         final_wrapper.where_conditions(wrapper.get_where_conditions().clone());
         let sql = sql_builder.build_update_sql(&table, &final_wrapper)
-            .ok_or_else(|| AkitaError::InvalidSQL("Invalid Update SQL.".to_string()))?;
+            .ok_or_else(|| invalid_sql_err!("Invalid Update SQL.".to_string()))?;
 
         let params = final_wrapper.get_parameters();
         let result = self.execute(&sql, params.into())?;
@@ -469,11 +470,11 @@ impl AkitaMapper for DbDriver {
     {
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let data = entity.into_value();
         let id_value = data.get_obj_value(&id_field.name)
-            .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
         let wrapper = Wrapper::new().eq(id_field.name, id_value.clone());
         self.update(entity, wrapper)
@@ -490,11 +491,11 @@ impl AkitaMapper for DbDriver {
 
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(AkitaError::MissingTable("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
         }
         let sql_builder = self.sql_builder();
         let id_field = sql_builder.find_id_field(T::fields())
-            .ok_or_else(|| AkitaError::MissingIdent("Missing primary key field".to_string()))?;
+            .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let columns = T::fields();
         let update_fields: Vec<&FieldName> = columns.iter()
@@ -510,7 +511,7 @@ impl AkitaMapper for DbDriver {
             for entity in entities {
                 let data = entity.into_value();
                 let id_value = data.get_obj_value(&id_field.name)
-                    .ok_or_else(|| AkitaError::MissingIdent("Missing id value".to_string()))?;
+                    .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
                 let field_value = data.get_obj_value(col_name).unwrap_or(&AkitaValue::Null);
 
@@ -739,7 +740,7 @@ impl DbDriver {
             .count();
 
         if column_count == 0 {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         let total_params = column_count * data.rows.len();
@@ -784,14 +785,14 @@ impl DbDriver {
             .count();
 
         if column_count == 0 {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         const MAX_PARAMS: usize = 2100;
         let max_rows_per_batch = MAX_PARAMS / column_count;
 
         if max_rows_per_batch == 0 {
-            return Err(AkitaError::DatabaseError(format!(
+            return Err(database_err!(format!(
                 "Too many columns ({}) for SQL Server batch insert",
                 column_count
             )));
@@ -825,7 +826,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_table(table_name)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
 
@@ -835,7 +836,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.exist_table(table_name)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
 
@@ -845,7 +846,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_grouped_tables()
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
 
@@ -855,7 +856,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_all_tables(schema)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
 
@@ -865,7 +866,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_table_names(schema)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
 
@@ -875,7 +876,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_users()
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -885,7 +886,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.exist_user(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -895,7 +896,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_user_detail(username)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -905,7 +906,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.get_roles(username)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -915,7 +916,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.create_user(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -925,7 +926,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.drop_user(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -935,7 +936,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.update_user_password(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -945,7 +946,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.lock_user(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -955,7 +956,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.unlock_user(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -965,7 +966,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.expire_user_password(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -975,7 +976,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.grant_privileges(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -985,7 +986,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.revoke_privileges(user)
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 
@@ -995,7 +996,7 @@ impl DbManager for DbDriver {
             DbDriver::MysqlDriver(mysql) =>  {
                 mysql.flush_privileges()
             },
-            _ => Err(AkitaError::UnsupportedOperation("The current operation is not supported".to_string())),
+            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
         }
     }
 }

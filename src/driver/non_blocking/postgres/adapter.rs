@@ -30,6 +30,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use tokio_postgres::types::{ToSql, Type};
 use uuid::Uuid;
+use crate::{database_err, invalid_sql_err};
 
 /// PostgreSQL Asynchronous adapter
 pub struct PostgresAsyncAdapter {
@@ -47,7 +48,7 @@ impl PostgresAsyncAdapter {
         self.conn
             .simple_query("START TRANSACTION")
             .await
-            .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+            .map_err(|e| invalid_sql_err!(e.to_string()))?;
         Ok(())
     }
 
@@ -55,7 +56,7 @@ impl PostgresAsyncAdapter {
         self.conn
             .simple_query("COMMIT")
             .await
-            .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+            .map_err(|e| invalid_sql_err!(e.to_string()))?;
         Ok(())
     }
 
@@ -63,14 +64,14 @@ impl PostgresAsyncAdapter {
         self.conn
             .simple_query("ROLLBACK")
             .await
-            .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+            .map_err(|e| invalid_sql_err!(e.to_string()))?;
         Ok(())
     }
 
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Prepare the statement
         let statement = self.conn.prepare(sql).await.map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
+            database_err!(format!("Failed to prepare statement: {}", e))
         })?;
         let param_types = statement.params();
         // Getting column names
@@ -89,7 +90,7 @@ impl PostgresAsyncAdapter {
         let rows = self.conn
             .query(&statement, &pg_params_ref)
             .await
-            .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+            .map_err(|e| invalid_sql_err!(e.to_string()))?;
 
         let mut records = Rows::new();
         for row in rows {
@@ -111,7 +112,7 @@ impl PostgresAsyncAdapter {
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         // Prepare the statement
         let statement = self.conn.prepare(sql).await.map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
+            database_err!(format!("Failed to prepare statement: {}", e))
         })?;
         
         // Get the statement type (query, update, etc.)
@@ -136,7 +137,7 @@ impl PostgresAsyncAdapter {
                 let rows = self.conn
                     .query(&statement, &pg_params_ref)
                     .await
-                    .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+                    .map_err(|e| invalid_sql_err!(e.to_string()))?;
 
                 let mut records = Rows::new();
                 for row in rows {
@@ -158,7 +159,7 @@ impl PostgresAsyncAdapter {
                 let result = self.conn
                     .execute(&statement, &pg_params_ref)
                     .await
-                    .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+                    .map_err(|e| invalid_sql_err!(e.to_string()))?;
 
                 Ok(ExecuteResult::AffectedRows(result as u64))
             }
@@ -189,7 +190,7 @@ impl PostgresAsyncAdapter {
         self.conn
             .simple_query("SELECT 1")
             .await
-            .map_err(|e| AkitaError::InvalidSQL(e.to_string()))?;
+            .map_err(|e| invalid_sql_err!(e.to_string()))?;
         Ok(())
     }
 

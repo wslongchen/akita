@@ -22,6 +22,7 @@
 use crate::driver::non_blocking::AsyncDbDriver;
 use crate::prelude::*;
 use async_trait::async_trait;
+use crate::{database_err, deadpool_err};
 use crate::driver::DriverType;
 use crate::pool::{PoolStatus};
 
@@ -115,31 +116,31 @@ impl AsyncPool for AsyncDBPool {
             #[cfg(feature = "mysql-async")]
             AsyncDBPool::MysqlAsyncPool(ref pool) => {
                 let conn = pool.get().await
-                    .map_err(|e| AkitaError::DatabaseError(format!("Failed to get async MySQL connection: {}", e)))?;
+                    .map_err(|e| database_err!(format!("Failed to get async MySQL connection: {}", e)))?;
                 Ok(AsyncPooledConnection::PooledMysqlAsync(conn))
             }
             #[cfg(feature = "postgres-async")]
             AsyncDBPool::PostgresAsyncPool(ref pool) => {
                 let conn = pool.get().await
-                    .map_err(|e| AkitaError::DatabaseError(format!("Failed to get async PostgreSQL connection: {}", e)))?;
+                    .map_err(|e| database_err!(format!("Failed to get async PostgreSQL connection: {}", e)))?;
                 Ok(AsyncPooledConnection::PooledPostgresAsync(conn))
             }
             #[cfg(feature = "oracle-async")]
             AsyncDBPool::OracleAsyncPool(ref pool) => {
                 let conn = pool.get().await
-                    .map_err(|e| AkitaError::DatabaseError(format!("Failed to get async Oracle connection: {}", e)))?;
+                    .map_err(|e| database_err!(format!("Failed to get async Oracle connection: {}", e)))?;
                 Ok(AsyncPooledConnection::PooledOracleAsync(conn))
             }
             #[cfg(feature = "sqlite-async")]
             AsyncDBPool::SqliteAsyncPool(ref pool) => {
                 let conn = pool.get().await
-                    .map_err(|e| AkitaError::DatabaseError(format!("Failed to get async SQLite connection: {}", e)))?;
+                    .map_err(|e| database_err!(format!("Failed to get async SQLite connection: {}", e)))?;
                 Ok(AsyncPooledConnection::PooledSqliteAsync(conn))
             }
             #[cfg(feature = "mssql-async")]
             AsyncDBPool::MssqlAsyncPool(ref pool) => {
                 let conn = pool.get().await
-                    .map_err(|e| AkitaError::DatabaseError(format!("Failed to get async SQL Server connection: {}", e)))?;
+                    .map_err(|e| database_err!(format!("Failed to get async SQL Server connection: {}", e)))?;
                 Ok(AsyncPooledConnection::PooledMssqlAsync(conn))
             }
         }
@@ -265,7 +266,7 @@ impl AsyncDBPoolWrapper {
                 Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::MssqlAsyncPool(pool_mssql) })
             }
             _ => {
-                Err(AkitaError::DatabaseError("Unknown".to_string()))
+                Err(database_err!("Unknown".to_string()))
             }
 
         }
@@ -292,7 +293,7 @@ impl AsyncDBPoolWrapper {
                 let pooled_conn = pool_mysql.get().await;
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(AsyncPooledConnection::PooledMysqlAsync(pooled_conn)),
-                    Err(e) => Err(AkitaError::DeadPoolError(e.to_string())),
+                    Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
             #[cfg(feature = "sqlite-async")]
@@ -300,7 +301,7 @@ impl AsyncDBPoolWrapper {
                 let pooled_conn = pool_sqlite.get().await;
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(AsyncPooledConnection::PooledSqliteAsync(pooled_conn)),
-                    Err(e) => Err(AkitaError::DeadPoolError(e.to_string())),
+                    Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
             #[cfg(feature = "oracle-async")]
@@ -308,7 +309,7 @@ impl AsyncDBPoolWrapper {
                 let pooled_conn = pool_oracle.get().await;
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(AsyncPooledConnection::PooledOracleAsync(pooled_conn)),
-                    Err(e) => Err(AkitaError::DeadPoolError(e.to_string())),
+                    Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
             #[cfg(feature = "mssql-async")]
@@ -316,7 +317,7 @@ impl AsyncDBPoolWrapper {
                 let pooled_conn = pool_mssql.get().await;
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(AsyncPooledConnection::PooledMssqlAsync(pooled_conn)),
-                    Err(e) => Err(AkitaError::DeadPoolError(e.to_string())),
+                    Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
             #[cfg(feature = "postgres-async")]
@@ -324,7 +325,7 @@ impl AsyncDBPoolWrapper {
                 let pooled_conn = pool_postgres.get().await;
                 match pooled_conn {
                     Ok(pooled_conn) => Ok(AsyncPooledConnection::PooledPostgresAsync(pooled_conn)),
-                    Err(e) => Err(AkitaError::DeadPoolError(e.to_string())),
+                    Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
 

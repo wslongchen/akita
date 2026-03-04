@@ -25,7 +25,7 @@ use crate::errors::{AkitaError, Result};
 use crate::key::IdentifierGenerator;
 use crate::mapper::PaginationOptions;
 use std::fmt;
-
+use crate::{empty_data_err, invalid_sql_err};
 
 cfg_if! {
     if #[cfg(any(feature = "mysql-async", feature = "mysql-sync"))] {
@@ -156,12 +156,12 @@ pub trait SqlBuilder: Send + Sync {
     /// Building INSERT SQL
     fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if datas.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // Filter the fields to be inserted
         if columns.is_empty() {
-            return Err(AkitaError::InvalidSQL("No columns to insert".to_string()));
+            return Err(invalid_sql_err!("No columns to insert".to_string()));
         }
 
         // Building column names
@@ -488,7 +488,7 @@ pub trait SqlBuilder: Send + Sync {
         data: &BatchInsertData
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         let column_names: Vec<String> = data.columns.iter()

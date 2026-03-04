@@ -19,6 +19,7 @@
  *  
  */
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::prelude::AkitaError;
 
 pub type PostgresPool = r2d2::Pool<PostgresConnectionManager>;
@@ -160,15 +161,15 @@ pub fn init_postgres_pool(cfg: AkitaConfig) -> Result<PostgresPool, AkitaError> 
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to create PostgreSQL connection pool: {}", e))
+            database_err!(format!("Failed to create PostgreSQL connection pool: {}", e))
         })?;
 
     let mut conn = pool.get().map_err(|e| {
-        AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e))
+        database_err!(format!("Failed to get connection from pool: {}", e))
     })?;
 
     conn.simple_query("SELECT 1").map_err(|e| {
-        AkitaError::DatabaseError(format!("PostgreSQL connection test failed: {}", e))
+        database_err!(format!("PostgreSQL connection test failed: {}", e))
     })?;
 
     Ok(pool)

@@ -20,6 +20,7 @@
  */
 use std::collections::HashSet;
 use akita_core::{AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, QueryData, TableName, Wrapper};
+use crate::{database_err, empty_data_err};
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
 use crate::mapper::PaginationOptions;
@@ -101,7 +102,7 @@ impl SqlBuilder for SqlServerBuilder {
     /// SQL Server specific INSERT SQL build - using column names as parameter names
     fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if datas.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // Filter out autoincrement fields
@@ -115,7 +116,7 @@ impl SqlBuilder for SqlServerBuilder {
             .collect();
 
         if column_names.is_empty() {
-            return Err(AkitaError::DatabaseError("No columns to insert after filtering auto-increment fields".into()));
+            return Err(database_err!("No columns to insert after filtering auto-increment fields"));
         }
 
         // Use Tiberius-style parameter names: @p1, @p2, @p3...
@@ -172,7 +173,7 @@ impl SqlBuilder for SqlServerBuilder {
         data: &BatchInsertData
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // 1. 预计算：哪些列需要插入
@@ -188,7 +189,7 @@ impl SqlBuilder for SqlServerBuilder {
         }
 
         if valid_column_indices.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // 2. 为每一行构建数据和占位符

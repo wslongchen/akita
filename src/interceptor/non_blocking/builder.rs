@@ -24,6 +24,7 @@ use akita_core::OperationType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use crate::interceptor::non_blocking::{AsyncAkitaInterceptor, AsyncInterceptorChain};
+use crate::interceptor_err;
 
 /// Interceptor builder
 pub struct AsyncInterceptorBuilder {
@@ -80,7 +81,7 @@ impl AsyncInterceptorBuilder {
             config.enabled = true;
             Ok(self)
         } else {
-            Err(AkitaError::InterceptorError(format!(
+            Err(interceptor_err!(format!(
                 "Interceptor '{}' not found", name
             )))
         }
@@ -92,7 +93,7 @@ impl AsyncInterceptorBuilder {
             config.enabled = false;
             Ok(self)
         } else {
-            Err(AkitaError::InterceptorError(format!(
+            Err(interceptor_err!(format!(
                 "Interceptor '{}' not found", name
             )))
         }
@@ -104,7 +105,7 @@ impl AsyncInterceptorBuilder {
             config.order = order;
             Ok(self)
         } else {
-            Err(AkitaError::InterceptorError(format!(
+            Err(interceptor_err!(format!(
                 "Interceptor '{}' not found", name
             )))
         }
@@ -116,7 +117,7 @@ impl AsyncInterceptorBuilder {
             config.ignored_tables.insert(table.to_string());
             Ok(self)
         } else {
-            Err(AkitaError::InterceptorError(format!(
+            Err(interceptor_err!(format!(
                 "Interceptor '{}' not found", name
             )))
         }
@@ -128,7 +129,7 @@ impl AsyncInterceptorBuilder {
             config.supported_operations = operations.iter().cloned().collect();
             Ok(self)
         } else {
-            Err(AkitaError::InterceptorError(format!(
+            Err(interceptor_err!(format!(
                 "Interceptor '{}' not found", name
             )))
         }

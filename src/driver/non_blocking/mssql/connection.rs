@@ -25,6 +25,7 @@ use tiberius::error::Error;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 use tracing::log::trace;
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::DriverType;
 use crate::driver::non_blocking::{get_tokio_context};
 use crate::errors::AkitaError;
@@ -43,7 +44,7 @@ pub struct MssqlAsyncConnectionManager {
 impl MssqlAsyncConnectionManager {
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         if cfg.get_platform()? != DriverType::Mssql {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "Database type mismatch: expected SQL Server".to_string()
             ));
         }
@@ -51,7 +52,7 @@ impl MssqlAsyncConnectionManager {
         let connection_string = cfg.get_connection_string()?;
 
         let config = tiberius::Config::from_ado_string(&connection_string)
-            .map_err(|e| AkitaError::DatabaseError(format!("Invalid SQL Server connection string: {}", e)))?;
+            .map_err(|e| database_err!(format!("Invalid SQL Server connection string: {}", e)))?;
 
         Ok(Self { config })
     }
@@ -105,10 +106,10 @@ pub async fn init_mssql_async_pool(config: crate::config::AkitaConfig) -> Result
 
     // Testing connections
     let mut client: MssqlAsyncConnection = pool.get().await
-        .map_err(|e| AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e)))?;
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
 
     client.simple_query("SELECT 1").await
-        .map_err(|e| AkitaError::DatabaseError(format!("SQL Server async connection test failed: {}", e)))?;
+        .map_err(|e| database_err!(format!("SQL Server async connection test failed: {}", e)))?;
 
     tracing::info!("SQL Server async connection pool initialized successfully");
 

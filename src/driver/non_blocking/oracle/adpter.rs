@@ -20,7 +20,7 @@
  */
 use crate::comm::ExecuteResult;
 use crate::driver::non_blocking::oracle::OracleAsyncConnection;
-use crate::errors::AkitaError;
+use crate::errors::{AkitaError, SmartBacktrace};
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use std::sync::{Arc};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
@@ -28,6 +28,8 @@ use oracle::sql_type::{OracleType, Timestamp};
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
+use crate::database_err;
+
 /// Oracle Asynchronous adapters (wrapper synchronous connections)
 pub struct OracleAsyncAdapter {
     conn: OracleAsyncConnection,
@@ -87,7 +89,7 @@ impl OracleAsyncAdapter {
         self.conn.interact( move |conn| {
             // Prepare the statement
             let mut stmt = conn.statement(&sql).build().map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
+                database_err!(format!("Failed to prepare statement: {}", e))
             })?;
             // Getting column information
             let column_count = stmt.bind_names().len();
@@ -99,14 +101,14 @@ impl OracleAsyncAdapter {
             bind_oracle_params(&mut stmt, &params)?;
             // Executing queries
             let rows = stmt.query(&[]).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to execute query: {}", e))
+                database_err!(format!("Failed to execute query: {}", e))
             })?;
 
             // Conversion result
             let mut records = Rows::new();
             for row_result in rows {
                 let row = row_result.map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to fetch row: {}", e))
+                    database_err!(format!("Failed to fetch row: {}", e))
                 })?;
                 let mut record = Vec::new();
                 for i in 0..column_count {
@@ -130,7 +132,7 @@ impl OracleAsyncAdapter {
                 self.conn.interact(move |conn| {
                     // Prepare the statement
                     let mut stmt = conn.statement(&sql).build().map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
+                        database_err!(format!("Failed to prepare statement: {}", e))
                     })?;
                     // Getting column information
                     let column_count = stmt.bind_names().len();
@@ -142,14 +144,14 @@ impl OracleAsyncAdapter {
                     bind_oracle_params(&mut stmt, &params)?;
                     // Executing queries
                     let rows = stmt.query(&[]).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to execute query: {}", e))
+                        database_err!(format!("Failed to execute query: {}", e))
                     })?;
 
                     // Conversion result
                     let mut records = Rows::new();
                     for row_result in rows {
                         let row = row_result.map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to fetch row: {}", e))
+                            database_err!(format!("Failed to fetch row: {}", e))
                         })?;
                         let mut record = Vec::new();
                         for i in 0..column_count {
@@ -169,18 +171,18 @@ impl OracleAsyncAdapter {
                 self.conn.interact(move |conn| {
                     // Prepare the statement
                     let mut stmt = conn.statement(&sql).build().map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
+                        database_err!(format!("Failed to prepare statement: {}", e))
                     })?;
                     // Binding parameters
                     bind_oracle_params(&mut stmt, &params)?;
                     let _rows = stmt.execute(&[]).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to execute query: {}", e))
+                        database_err!(format!("Failed to execute query: {}", e))
                     })?;
                     // If not in the transaction, commit automatically
                     
                     if !in_transaction {
                         conn.commit()
-                            .map_err(AkitaError::OracleError)?;
+                            .map_err(|err| AkitaError::OracleError(err, SmartBacktrace::capture()))?;
                     }
                     let rows_affected = stmt.row_count()?;
                     Ok(ExecuteResult::AffectedRows(rows_affected))
@@ -327,64 +329,64 @@ fn bind_oracle_value(stmt: &mut oracle::Statement, index: usize, value: &AkitaVa
     let pos = index + 1; // Oracle parameters start at 1
     match value {
         AkitaValue::Text(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind text parameter: {}", e))
+            database_err!(format!("Failed to bind text parameter: {}", e))
         }),
         AkitaValue::Bool(v) => {
             let int_val = if *v { 1 } else { 0 };
             stmt.bind(pos, &int_val).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind bool parameter: {}", e))
+                database_err!(format!("Failed to bind bool parameter: {}", e))
             })
         }
         AkitaValue::Int(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind int parameter: {}", e))
+            database_err!(format!("Failed to bind int parameter: {}", e))
         }),
         AkitaValue::Bigint(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind bigint parameter: {}", e))
+            database_err!(format!("Failed to bind bigint parameter: {}", e))
         }),
         AkitaValue::Float(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind float parameter: {}", e))
+            database_err!(format!("Failed to bind float parameter: {}", e))
         }),
         AkitaValue::Double(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind double parameter: {}", e))
+            database_err!(format!("Failed to bind double parameter: {}", e))
         }),
         AkitaValue::Blob(v) => stmt.bind(pos, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind blob parameter: {}", e))
+            database_err!(format!("Failed to bind blob parameter: {}", e))
         }),
         AkitaValue::Date(v) => {
             // Convert the date string to oracle::Timestamp
             stmt.bind(pos, v).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind date parameter: {}", e))
+                database_err!(format!("Failed to bind date parameter: {}", e))
             })
         }
         AkitaValue::DateTime(v) => {
             // Convert the datetime string to oracle::Timestamp
             stmt.bind(pos, v).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                database_err!(format!("Failed to bind datetime parameter: {}", e))
             })
         }
         AkitaValue::Json(j) => {
             match j {
                 Value::Bool(v) => {
                     stmt.bind(pos, v).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        database_err!(format!("Failed to bind datetime parameter: {}", e))
                     })
                 },
                 Value::Number(v) => {
                     if let Some(n) = v.as_u64() {
                         stmt.bind(pos, &n).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                            database_err!(format!("Failed to bind datetime parameter: {}", e))
                         })
                     } else if let Some(n) = v.as_f64() {
                         stmt.bind(pos, &n).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                            database_err!(format!("Failed to bind datetime parameter: {}", e))
                         })
                     } else if let Some(n) =  v.as_i64() {
                         stmt.bind(pos, &n).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                            database_err!(format!("Failed to bind datetime parameter: {}", e))
                         })
                     } else {
                         stmt.bind(pos, &v.to_string()).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                            database_err!(format!("Failed to bind datetime parameter: {}", e))
                         })
                     }
 
@@ -392,23 +394,23 @@ fn bind_oracle_value(stmt: &mut oracle::Statement, index: usize, value: &AkitaVa
                 },
                 Value::String(v) => {
                     stmt.bind(pos, v).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        database_err!(format!("Failed to bind datetime parameter: {}", e))
                     })
                 },
                 _ => {
                     stmt.bind(pos, &serde_json::to_string(&j).unwrap_or_default()).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to bind datetime parameter: {}", e))
+                        database_err!(format!("Failed to bind datetime parameter: {}", e))
                     })
                 }
             }
         },
         AkitaValue::Null => stmt.bind(pos, &"null").map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind null parameter: {}", e))
+            database_err!(format!("Failed to bind null parameter: {}", e))
         }),
         _ => {
             // For unsupported types, convert to text
             stmt.bind(pos, &value.to_string()).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind parameter as text: {}", e))
+                database_err!(format!("Failed to bind parameter as text: {}", e))
             })
         }
     }
@@ -433,25 +435,25 @@ fn get_value_from_oracle_row(row: &oracle::Row, index: usize) -> Result<AkitaVal
                 return Ok(AkitaValue::Double(val));
             }
             let val: String = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get number value: {}", e))
+                database_err!(format!("Failed to get number value: {}", e))
             })?;
             Ok(AkitaValue::Text(val))
         }
         OracleType::Varchar2(_) | OracleType::Char(_) | OracleType::NChar(_) | OracleType::NVarchar2(_) => {
             let val: String = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get string value: {}", e))
+                database_err!(format!("Failed to get string value: {}", e))
             })?;
             Ok(AkitaValue::Text(val))
         }
         OracleType::Date => {
             let val: NaiveDateTime = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get Date value: {}", e))
+                database_err!(format!("Failed to get Date value: {}", e))
             })?;
             Ok(AkitaValue::DateTime(val))
         }
         OracleType::Timestamp(_v) => {
             let val = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get Date value: {}", e))
+                database_err!(format!("Failed to get Date value: {}", e))
             })?;
             Ok(AkitaValue::Timestamp(val))
         }
@@ -468,20 +470,20 @@ fn get_value_from_oracle_row(row: &oracle::Row, index: usize) -> Result<AkitaVal
         }
         OracleType::BLOB | OracleType::Raw(_) => {
             let val: Vec<u8> = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get blob value: {}", e))
+                database_err!(format!("Failed to get blob value: {}", e))
             })?;
             Ok(AkitaValue::Blob(val))
         }
         OracleType::NCLOB | OracleType::CLOB => {
             let val: String = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get clob value: {}", e))
+                database_err!(format!("Failed to get clob value: {}", e))
             })?;
             Ok(AkitaValue::Text(val))
         }
         _ => {
             // For an unknown type, try to get a string
             let val: String = row.get(index).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get value: {}", e))
+                database_err!(format!("Failed to get value: {}", e))
             })?;
             Ok(AkitaValue::Text(val))
         }
@@ -515,36 +517,36 @@ fn parse_timestamptz_str(s: &str) -> DateTime<Utc> {
 fn bind_oracle_value_by_name(stmt: &mut oracle::Statement, name: &str, value: &AkitaValue) -> Result<(), AkitaError> {
     match value {
         AkitaValue::Text(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind text parameter: {}", e))
+            database_err!(format!("Failed to bind text parameter: {}", e))
         }),
         AkitaValue::Bool(v) => {
             let int_val = if *v { 1 } else { 0 };
             stmt.bind(name, &int_val).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind bool parameter: {}", e))
+                database_err!(format!("Failed to bind bool parameter: {}", e))
             })
         }
         AkitaValue::Int(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind int parameter: {}", e))
+            database_err!(format!("Failed to bind int parameter: {}", e))
         }),
         AkitaValue::Bigint(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind bigint parameter: {}", e))
+            database_err!(format!("Failed to bind bigint parameter: {}", e))
         }),
         AkitaValue::Float(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind float parameter: {}", e))
+            database_err!(format!("Failed to bind float parameter: {}", e))
         }),
         AkitaValue::Double(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind double parameter: {}", e))
+            database_err!(format!("Failed to bind double parameter: {}", e))
         }),
         AkitaValue::Blob(v) => stmt.bind(name, v).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind blob parameter: {}", e))
+            database_err!(format!("Failed to bind blob parameter: {}", e))
         }),
         AkitaValue::Null => stmt.bind(name, &value.to_string()).map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to bind null parameter: {}", e))
+            database_err!(format!("Failed to bind null parameter: {}", e))
         }),
         _ => {
             // For unsupported types, convert to text
             stmt.bind(name, &value.to_string()).map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to bind parameter as text: {}", e))
+                database_err!(format!("Failed to bind parameter as text: {}", e))
             })
         }
     }
