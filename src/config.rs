@@ -7,7 +7,7 @@ use url::Url;
 use akita_core::SqlSecurityConfig;
 use crate::database_err;
 use crate::driver::DriverType;
-use crate::errors::{set_error_level, AkitaError, ErrorLevel};
+use crate::errors::AkitaError;
 
 #[derive(Debug, Clone)]
 pub struct XmlSqlLoaderConfig {
@@ -111,11 +111,6 @@ impl AkitaConfig {
 
     pub fn max_size(mut self, max_size: u32) -> Self {
         self.max_size = max_size;
-        self
-    }
-    
-    pub fn error_level(self, level: ErrorLevel) -> Self {
-        set_error_level(level);
         self
     }
 

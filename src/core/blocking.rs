@@ -34,6 +34,7 @@ use crate::config::XmlSqlLoaderConfig;
 use crate::driver::blocking::DbDriver;
 use crate::interceptor::blocking::{InterceptorBuilder, InterceptorChain};
 use crate::{database_err, interceptor_err};
+use crate::errors::{set_error_level, ErrorLevel};
 use crate::prelude::{AkitaError};
 use crate::prelude::{AkitaConfig, IdentifierGenerator, Wrapper};
 use crate::key::SnowflakeGenerator;
@@ -128,6 +129,10 @@ impl Akita {
     
     pub fn interceptor_chain(&self) -> Option<&Arc<InterceptorChain>> {
         self.interceptor_chain.as_ref()
+    }
+    
+    pub fn error_level(&self, error_level: ErrorLevel) {
+        set_error_level(error_level);
     }
 
     #[cfg(all(
