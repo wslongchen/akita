@@ -28,7 +28,7 @@ use oracle::sql_type::{OracleType, Timestamp};
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
-use crate::database_err;
+use crate::{database_err, oracle_err};
 
 /// Oracle Asynchronous adapters (wrapper synchronous connections)
 pub struct OracleAsyncAdapter {
@@ -182,7 +182,7 @@ impl OracleAsyncAdapter {
                     
                     if !in_transaction {
                         conn.commit()
-                            .map_err(|err| AkitaError::OracleError(err, SmartBacktrace::capture()))?;
+                            .map_err(|err| oracle_err!(err))?;
                     }
                     let rows_affected = stmt.row_count()?;
                     Ok(ExecuteResult::AffectedRows(rows_affected))

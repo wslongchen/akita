@@ -24,7 +24,7 @@ use std::fmt;
 use tracing::level_filters::LevelFilter;
 
 #[inline]
-fn current_backtrace_mode() -> BacktraceMode {
+pub fn current_backtrace_mode() -> BacktraceMode {
     match LevelFilter::current() {
         LevelFilter::TRACE | LevelFilter::DEBUG => BacktraceMode::Full,
         LevelFilter::INFO => BacktraceMode::Light,
@@ -89,25 +89,20 @@ pub enum SmartBacktrace {
 }
 
 impl SmartBacktrace {
-    /// Capture the backtracking according to the current level
-    #[inline]
-    pub fn capture() -> Self {
+    pub fn none() -> Self {
+        SmartBacktrace::None
+    }
 
-        match current_backtrace_mode() {
-            BacktraceMode::None => SmartBacktrace::None,
-            BacktraceMode::Light => SmartBacktrace::Location(Location::new(
-                file!(),
-                line!(),
-                column!(),
-            )),
-            BacktraceMode::Full => {
-                #[cfg(feature = "backtrace-symbols")]
-                let bt = std::backtrace::Backtrace::force_capture();
-                #[cfg(not(feature = "backtrace-symbols"))]
-                let bt = std::backtrace::Backtrace::capture();
-                SmartBacktrace::Full(bt)
-            }
-        }
+    pub fn light(file: &'static str, line: u32, column: u32) -> Self {
+        SmartBacktrace::Location(Location::new(file, line, column))
+    }
+
+    pub fn full() -> Self {
+        #[cfg(feature = "backtrace-symbols")]
+        let bt = std::backtrace::Backtrace::force_capture();
+        #[cfg(not(feature = "backtrace-symbols"))]
+        let bt = std::backtrace::Backtrace::capture();
+        SmartBacktrace::Full(bt)
     }
 
     /// Get a string representation of the traceback information (for Display).
@@ -116,6 +111,13 @@ impl SmartBacktrace {
             SmartBacktrace::None => None,
             SmartBacktrace::Location(loc) => Some(format!(" at {}", loc)),
             SmartBacktrace::Full(bt) => Some(format!("\nBacktrace:\n{}", bt)),
+        }
+    }
+
+    pub fn from_current_level() -> Self {
+        match current_backtrace_mode() {
+            BacktraceMode::Full => Self::full(),
+            _ => Self::none(),
         }
     }
 }

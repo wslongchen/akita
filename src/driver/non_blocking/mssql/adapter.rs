@@ -26,7 +26,7 @@ use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetec
 use std::sync::Arc;
 use serde_json::Value;
 use tokio::sync::Mutex;
-use crate::database_err;
+use crate::{database_err, mssql_err};
 use crate::driver::non_blocking::mssql::MssqlAsyncConnection;
 
 /// SQL Server Asynchronous adapter
@@ -47,7 +47,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("BEGIN TRANSACTION")
             .await
-            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
 
@@ -56,7 +56,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("COMMIT")
             .await
-            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
 
@@ -65,7 +65,7 @@ impl MssqlAsyncAdapter {
         client
             .simple_query("ROLLBACK")
             .await
-            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
     
@@ -84,7 +84,7 @@ impl MssqlAsyncAdapter {
         let stream = client
             .query(sql,&param_refs)
             .await
-            .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
+            .map_err(|e| mssql_err!(e))?;
         let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
             database_err!(format!("Failed to get result: {}", e))
         })?;
@@ -133,7 +133,7 @@ impl MssqlAsyncAdapter {
                 let result = client
                     .execute(sql, &param_refs)
                     .await
-                    .map_err(|e| AkitaError::MssqlError(e, SmartBacktrace::capture()))?;
+                    .map_err(|e| mssql_err!(e))?;
 
                 Ok(ExecuteResult::AffectedRows(result.total() as u64))
             }

@@ -28,7 +28,7 @@ use oracle::sql_type::{OracleType, Timestamp};
 use serde_json::Value;
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use crate::comm::ExecuteResult;
-use crate::database_err;
+use crate::{database_err, oracle_err};
 use crate::driver::blocking::oracle::OracleConnection;
 use crate::errors::{AkitaError, SmartBacktrace};
 
@@ -68,7 +68,7 @@ impl OracleAdapter {
                 if *in_transaction {
                     self.conn
                         .execute("COMMIT", &[])
-                        .map_err(|err| AkitaError::OracleError(err, SmartBacktrace::capture()))?;
+                        .map_err(|err| oracle_err!(err))?;
                     *in_transaction = false;
                 }
             }
@@ -85,7 +85,7 @@ impl OracleAdapter {
                 if *in_transaction {
                     self.conn
                         .execute("ROLLBACK", &[])
-                        .map_err(|err| AkitaError::OracleError(err, SmartBacktrace::capture()))?;
+                        .map_err(|err| oracle_err!(err))?;
                     *in_transaction = false;
                 }
             }
@@ -166,7 +166,7 @@ impl OracleAdapter {
                 let in_transaction = self.in_transaction.read().map_or(false, |lock| *lock);
                 if !in_transaction {
                     self.conn.commit()
-                        .map_err(|err| AkitaError::OracleError(err, SmartBacktrace::capture()))?;
+                        .map_err(|err| oracle_err!(err))?;
                 }
                 Ok(ExecuteResult::None)
             }
