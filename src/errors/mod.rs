@@ -32,7 +32,7 @@ pub use macros::*;
 use akita_core::{AkitaDataError, ConversionError, SqlInjectionError};
 use std::error::Error;
 use std::{fmt, str::Utf8Error};
-use std::ops::Deref;
+use std::panic::Location;
 
 pub(crate) type Result<T> = std::result::Result<T, AkitaError>;
 
@@ -113,7 +113,7 @@ pub enum AkitaError {
     Unknown(SmartBacktrace),
 }
 
-// SqlLoaderError 保持不变
+// SqlLoaderError definition (unchanged)
 #[derive(Debug)]
 pub enum SqlLoaderError {
     FileReadError(String),
@@ -143,7 +143,7 @@ impl Error for SqlLoaderError {
     }
 }
 
-
+// ===== Display implementation for AkitaError =====
 impl fmt::Display for AkitaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Basic error messages
@@ -212,7 +212,7 @@ impl fmt::Display for AkitaError {
             AkitaError::MssqlError(e, _) => format!("MssqlError Error: {e}"),
         };
 
-        // 获取回溯信息
+        // Get backtrace string
         let backtrace_str = match self {
             AkitaError::InvalidSQL(_, bt)
             | AkitaError::InterceptorError(_, bt)
@@ -284,8 +284,7 @@ impl fmt::Display for AkitaError {
     }
 }
 
-
-
+// ===== Error trait implementation =====
 impl Error for AkitaError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -321,7 +320,6 @@ impl Error for AkitaError {
 
             AkitaError::UrlParseError(err, _) => Some(err),
 
-            // SqlLoaderError 实现了 Error，所以也可以返回
             AkitaError::SqlLoaderError(err, _) => Some(err),
 
             _ => None,
@@ -329,8 +327,7 @@ impl Error for AkitaError {
     }
 }
 
-// 为每个 From 实现添加回溯捕获
-
+// ===== From implementations (using from_current_level) =====
 impl From<Utf8Error> for AkitaError {
     fn from(err: Utf8Error) -> Self {
         AkitaError::DataError(err.to_string(), SmartBacktrace::from_current_level())
@@ -422,7 +419,7 @@ impl From<postgres::error::Error> for AkitaError {
         AkitaError::PostgresError(err, SmartBacktrace::from_current_level())
     }
 }
-// 
+
 // #[cfg(feature = "postgres-async")]
 // impl From<tokio_postgres::error::Error> for AkitaError {
 //     fn from(err: tokio_postgres::error::Error) -> Self {
@@ -473,5 +470,349 @@ impl From<SqlLoaderError> for AkitaError {
 impl From<SqlInjectionError> for AkitaError {
     fn from(err: SqlInjectionError) -> Self {
         AkitaError::AkitaDataError(AkitaDataError::SqlInjectionError(err), SmartBacktrace::from_current_level())
+    }
+}
+
+// ===== #[track_caller] constructors for AkitaError =====
+impl AkitaError {
+    #[track_caller]
+    pub fn invalid_sql(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::InvalidSQL(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn interceptor_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::InterceptorError(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn security_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::SecurityError(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn invalid_field(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::InvalidField(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn missing_ident(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MissingIdent(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn missing_table(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MissingTable(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn missing_field(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MissingField(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn tokio_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::TokioError(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn data_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::DataError(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn database_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::DatabaseError(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn redundant_field(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::RedundantField(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn unsupported_operation(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::UnsupportedOperation(msg.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn connection_valid_error() -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::ConnectionValidError(bt)
+    }
+
+    #[track_caller]
+    pub fn empty_data_error() -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::EmptyData(bt)
+    }
+
+    #[track_caller]
+    pub fn unknown_error() -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::Unknown(bt)
+    }
+
+    #[track_caller]
+    pub fn execute_sql_error(sql: impl Into<String>, msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::ExecuteSqlError {
+            message: msg.into(),
+            sql: sql.into(),
+            backtrace: bt,
+        }
+    }
+
+    #[track_caller]
+    pub fn akita_data_error<E: Into<AkitaDataError>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::AkitaDataError(err.into(), bt)
+    }
+
+    #[track_caller]
+    pub fn sql_loader_error(err: SqlLoaderError) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::SqlLoaderError(err, bt)
+    }
+}
+
+// Feature-gated constructors for database errors
+#[cfg(feature = "mysql-sync")]
+impl AkitaError {
+    #[track_caller]
+    pub fn mysql_error<E: Into<mysql::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MySQLError(err.into(), bt)
+    }
+}
+
+#[cfg(feature = "mysql-async")]
+impl AkitaError {
+    #[track_caller]
+    pub fn mysql_async_error<E: Into<mysql_async::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MySQLAsyncError(err.into(), bt)
+    }
+}
+
+#[cfg(any(feature = "oracle-async", feature = "oracle-sync"))]
+impl AkitaError {
+    #[track_caller]
+    pub fn oracle_error<E: Into<oracle::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::OracleError(err.into(), bt)
+    }
+}
+
+#[cfg(any(feature = "mssql-async", feature = "mssql-sync"))]
+impl AkitaError {
+    #[track_caller]
+    pub fn mssql_error<E: Into<tiberius::error::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::MssqlError(err.into(), bt)
+    }
+}
+
+#[cfg(feature = "postgres-sync")]
+impl AkitaError {
+    #[track_caller]
+    pub fn postgres_error<E: Into<postgres::error::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::PostgresError(err.into(), bt)
+    }
+}
+
+#[cfg(feature = "postgres-async")]
+impl AkitaError {
+    #[track_caller]
+    pub fn tokio_postgres_error<E: Into<tokio_postgres::error::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::TokioPostgresError(err.into(), bt)
+    }
+}
+
+#[cfg(any(feature = "sqlite-async", feature = "sqlite-sync"))]
+impl AkitaError {
+    #[track_caller]
+    pub fn sqlite_error<E: Into<rusqlite::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::SQLiteError(err.into(), bt)
+    }
+}
+
+#[cfg(any(
+    feature = "mysql-sync",
+    feature = "postgres-sync",
+    feature = "sqlite-sync",
+    feature = "oracle-sync",
+    feature = "mssql-sync"
+))]
+impl AkitaError {
+    #[track_caller]
+    pub fn r2d2_error<E: Into<r2d2::Error>>(err: E) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::R2D2Error(err.into(), bt)
+    }
+}
+
+#[cfg(any(
+    feature = "mysql-async",
+    feature = "postgres-async",
+    feature = "sqlite-async",
+    feature = "oracle-async",
+    feature = "mssql-async"
+))]
+impl AkitaError {
+    #[track_caller]
+    pub fn deadpool_error(msg: impl Into<String>) -> Self {
+        let loc = Location::caller();
+        let bt = match current_backtrace_mode() {
+            BacktraceMode::Full => SmartBacktrace::full(),
+            BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
+            BacktraceMode::None => SmartBacktrace::none(),
+        };
+        AkitaError::DeadPoolError(msg.into(), bt)
     }
 }
