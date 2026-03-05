@@ -20,7 +20,7 @@
  */
 
 use crate::config::AkitaConfig;
-use crate::{connection_valid_err, database_err, deadpool_err, driver, r2d2_err};
+use crate::{connection_valid_err, database_err, driver, r2d2_err};
 use crate::driver::blocking::{DbDriver};
 use crate::driver::DriverType;
 use crate::errors::{AkitaError, Result, SmartBacktrace};
