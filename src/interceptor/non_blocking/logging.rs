@@ -19,7 +19,7 @@
  *  
  */
 use async_trait::async_trait;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, enabled, error, info, trace, warn, Level};
 use akita_core::{InterceptorType, OperationType};
 use crate::comm::ExecuteContext;
 use crate::prelude::{AsyncAkitaInterceptor, ExecuteResult};
@@ -55,78 +55,89 @@ impl AsyncAkitaInterceptor for LoggingInterceptor {
     }
 
     async fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<()> {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        if self.log_level.should_log(LogLevel::Debug) {
-            debug!("{} ==> [Akita]  Preparing: {}", timestamp, ctx.final_sql());
-            println!("{} ==> [Akita]  Preparing: {}", timestamp, ctx.final_sql());
+        // Preparation logs are only recorded at DEBUG level and above
+        if enabled!(target: "akita::sql", Level::DEBUG) {
+            debug!(
+                target: "akita::sql",
+                sql = %ctx.final_sql(),
+                params = ?ctx.final_params(),
+                "Preparing SQL"
+            );
+        }
 
-            let params_str = if !ctx.final_params().is_empty() {
-                format!("{} {}", timestamp, ctx.final_params())
-            } else {
-                format!("{} ==> [Akita] Parameters: None", timestamp)
-            };
-
-            debug!("{}", params_str);
-            println!("{}", params_str);
-
-            // 如果是TRACE级别，记录更多信息
-            if self.log_level.should_log(LogLevel::Trace) {
-                println!("{} ==> [TRACE] Start execution at: {:?}", timestamp, ctx.start_time());
-                trace!("{} ==> [Akita] Start execution at: {:?}", timestamp, ctx.start_time());
-
-                println!("{} ==> [TRACE] Connection ID: {}", timestamp, ctx.connection_id().map(|v| v.to_string()).unwrap_or("N/A".to_string()));
-                trace!("{} ==> [Akita] Connection ID: {}", timestamp, ctx.connection_id().map(|v| v.to_string()).unwrap_or("N/A".to_string()));
-            }
+        // More context is recorded at the TRACE level
+        if enabled!(target: "akita::sql", Level::TRACE) {
+            trace!(
+                target: "akita::sql",
+                connection_id = ?ctx.connection_id(),
+                "Start execution"
+            );
         }
         Ok(())
     }
 
     async fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult>) -> Result<()> {
         let duration_ms = ctx.start_time().elapsed().as_millis();
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
 
-        if let Err(err) = result {
-            // 错误日志
-            if self.log_level.should_log(LogLevel::Error) {
-                println!("{} <== [Akita]    ERROR: {}", timestamp, err);
-                error!("{} <== [Akita]    ERROR: {}", timestamp, err);
-                println!("{} <== [Akita]    Failed SQL: {}", timestamp, ctx.final_sql());
-                error!("{} <== [Akita]    Failed SQL: {}", timestamp, ctx.final_sql());
-
-                if self.log_level.should_log(LogLevel::Debug) && !ctx.final_params().is_empty() {
-                    println!("{} <== [Akita]    Failed with params: {:?}", timestamp, ctx.final_params());
-                    debug!("{} <== [Akita]    Failed with params: {:?}", timestamp, ctx.final_params());
+        match result {
+            Err(err) => {
+                if enabled!(target: "akita::sql", Level::ERROR) {
+                    error!(
+                        target: "akita::sql",
+                        error = %err,
+                        sql = %ctx.final_sql(),
+                        params = ?ctx.final_params(),
+                        cost_ms = duration_ms as u64,
+                        "SQL execution failed"
+                    );
                 }
+                Ok(())
             }
-            return Ok(());
-        }
+            Ok(exec_result) => {
+                let rows = if *ctx.operation_type() == OperationType::Select {
+                    exec_result.len()
+                } else {
+                    ctx.metrics().rows_affected
+                };
 
-        // 成功执行的日志
-        let rows = if *ctx.operation_type() == OperationType::Select {
-            result.as_ref().map(|row| row.len()).unwrap_or_default()
-        } else {
-            ctx.metrics().rows_affected
-        };
-        if duration_ms > self.slow_query_threshold_ms as u128 {
-            // 慢查询警告
-            if self.log_level.should_log(LogLevel::Warn) {
-                println!("{} <== [Akita] Slow Query! Cost: {} ms, Rows: {}", timestamp, duration_ms, rows);
-                warn!("{} <== [Akita] Slow Query! Cost: {} ms, Rows: {}", timestamp, duration_ms, rows);
+                // Slow Query Warnings
+                if duration_ms > self.slow_query_threshold_ms as u128
+                    && enabled!(target: "akita::sql", Level::WARN)
+                {
+                    warn!(
+                        target: "akita::sql",
+                        cost_ms = duration_ms as u64,
+                        rows = rows,
+                        sql = %ctx.final_sql(),
+                        "Slow query detected"
+                    );
+                }
+
+                // Regular success log
+                if enabled!(target: "akita::sql", Level::INFO) {
+                    info!(
+                        target: "akita::sql",
+                        cost_ms = duration_ms as u64,
+                        rows = rows,
+                        operation = ?ctx.operation_type(),
+                        "SQL executed"
+                    );
+                }
+
+                // Detailed tracking
+                if enabled!(target: "akita::sql", Level::TRACE) {
+                    trace!(
+                        target: "akita::sql",
+                        cost_ms = duration_ms as u64,
+                        rows = rows,
+                        sql = %ctx.final_sql(),
+                        params = ?ctx.final_params(),
+                        "Execution finished"
+                    );
+                }
+
+                Ok(())
             }
         }
-
-        // 常规执行结果
-        if self.log_level.should_log(LogLevel::Info) {
-            println!("{} <== [Akita]      Total: {}, Cost: {} ms", timestamp, rows, duration_ms);
-            info!("{} <==  [Akita]     Total: {}, Cost: {} ms", timestamp, rows, duration_ms);
-        }
-
-        // TRACE级别的详细信息
-        if self.log_level.should_log(LogLevel::Trace) {
-            println!("{} <== [Akita] End execution at: {:?}, Total duration: {} ms", timestamp, ctx.start_time().elapsed(), duration_ms);
-            trace!("{} <== [Akita] End execution at: {:?}, Total duration: {} ms", timestamp, ctx.start_time().elapsed(), duration_ms);
-        }
-
-        Ok(())
     }
 }

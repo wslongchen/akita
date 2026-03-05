@@ -25,21 +25,14 @@ use crate::interceptor::{InterceptorType, LogLevel, OperationType};
 
 /// Simplified log blocker - Focus on SQL execution logs
 pub struct LoggingInterceptor {
-    pub log_level: LogLevel,
     pub slow_query_threshold_ms: u64,
 }
 
 impl LoggingInterceptor {
     pub fn new() -> Self {
         Self {
-            log_level: LogLevel::Debug,
             slow_query_threshold_ms: 1000,
         }
-    }
-
-    pub fn with_log_level(mut self, level: LogLevel) -> Self {
-        self.log_level = level;
-        self
     }
 
     pub fn with_slow_query_threshold(mut self, threshold_ms: u64) -> Self {

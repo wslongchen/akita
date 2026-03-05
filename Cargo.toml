@@ -176,4 +176,4 @@ sqlite-async = ["rusqlite", "bigdecimal","tokio/full", "tokio-util", "futures-co
 
 auth = []
 
-backtrace = []
+backtrace-symbols = []

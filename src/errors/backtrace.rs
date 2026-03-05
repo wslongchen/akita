@@ -21,11 +21,21 @@
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::fmt;
+use tracing::level_filters::LevelFilter;
+
+#[inline]
+fn current_backtrace_mode() -> BacktraceMode {
+    match LevelFilter::current() {
+        LevelFilter::TRACE | LevelFilter::DEBUG => BacktraceMode::Full,
+        LevelFilter::INFO => BacktraceMode::Light,
+        LevelFilter::WARN | LevelFilter::ERROR | LevelFilter::OFF => BacktraceMode::None,
+    }
+}
 
 /// Error traceback level
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorLevel {
+pub enum BacktraceMode {
     /// No backtracking (production environment, extreme performance)
     None = 0,
     /// Lightweight traceback (file only: line number, development environment)
@@ -34,29 +44,14 @@ pub enum ErrorLevel {
     Full = 2,
 }
 
-impl From<u8> for ErrorLevel {
+impl From<u8> for BacktraceMode {
     fn from(level: u8) -> Self {
         match level {
-            0 => ErrorLevel::None,
-            1 => ErrorLevel::Light,
-            _ => ErrorLevel::Full,
+            0 => BacktraceMode::None,
+            1 => BacktraceMode::Light,
+            _ => BacktraceMode::Full,
         }
     }
-}
-
-/// Global error level controller
-pub(crate) static ERROR_LEVEL: AtomicU8 = AtomicU8::new(0);
-
-/// Sets the error traceback level
-#[inline]
-pub(crate) fn set_error_level(level: ErrorLevel) {
-    ERROR_LEVEL.store(level as u8, Ordering::Relaxed);
-}
-
-/// Gets the current error traceback level
-#[inline]
-pub(crate) fn error_level() -> ErrorLevel {
-    ERROR_LEVEL.load(Ordering::Relaxed).into()
 }
 
 /// Lightweight location information (stack allocation, zero heap overhead)
@@ -97,21 +92,19 @@ impl SmartBacktrace {
     /// Capture the backtracking according to the current level
     #[inline]
     pub fn capture() -> Self {
-        
-        match error_level() {
-            ErrorLevel::None => SmartBacktrace::None,
-            ErrorLevel::Light => SmartBacktrace::Location(Location::new(
+
+        match current_backtrace_mode() {
+            BacktraceMode::None => SmartBacktrace::None,
+            BacktraceMode::Light => SmartBacktrace::Location(Location::new(
                 file!(),
                 line!(),
                 column!(),
             )),
-            ErrorLevel::Full => {
-                #[cfg(feature = "backtrace")]
+            BacktraceMode::Full => {
+                #[cfg(feature = "backtrace-symbols")]
                 let bt = std::backtrace::Backtrace::force_capture();
-
-                #[cfg(not(feature = "backtrace"))]
+                #[cfg(not(feature = "backtrace-symbols"))]
                 let bt = std::backtrace::Backtrace::capture();
-
                 SmartBacktrace::Full(bt)
             }
         }
