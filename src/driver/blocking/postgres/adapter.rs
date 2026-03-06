@@ -46,23 +46,27 @@ impl PostgresAdapter {
     }
 
     /// Start the transaction
+    #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("START TRANSACTION", Params::None)?;
         Ok(())
     }
 
     /// Submit transactions
+    #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("COMMIT", Params::None)?;
         Ok(())
     }
 
     /// Roll back transactions
+    #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("ROLLBACK", Params::None)?;
         Ok(())
     }
 
+    #[track_caller]
     pub fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -123,7 +127,8 @@ impl PostgresAdapter {
         }
     }
 
-    
+
+    #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -174,6 +179,7 @@ impl PostgresAdapter {
     }
 
     /// Specific to PostgreSQL: Perform bulk inserts
+    #[track_caller]
     pub fn execute_batch(&self, sql: &str, params_list: Vec<Params>) -> Result<Vec<ExecuteResult>, AkitaError> {
         if params_list.is_empty() {
             return Ok(vec![]);
@@ -187,7 +193,8 @@ impl PostgresAdapter {
 
         Ok(results)
     }
-    
+
+    #[track_caller]
     pub fn batch_execute(&mut self, sql: &str) -> Result<(), AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -201,6 +208,7 @@ impl PostgresAdapter {
     }
 
     /// Postgresql-specific: COPY (high-performance bulk import)
+    #[track_caller]
     pub fn copy_in(&mut self, table: &str, columns: &[&str], data: &[Vec<AkitaValue>]) -> Result<u64, AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {

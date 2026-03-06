@@ -70,14 +70,19 @@ cfg_if! {
 
 #[async_trait::async_trait]
 pub trait AsyncDbExecutor: Send + Sync {
+    #[track_caller]
     async fn start(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     async fn commit(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     async fn rollback(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     async fn query(&self, sql: &str, param: Params) -> crate::errors::Result<Rows>;
 
+    #[track_caller]
     async fn execute(&self, sql: &str, param: Params) -> crate::errors::Result<ExecuteResult>;
 
     async fn affected_rows(&self) -> u64 { 0 }

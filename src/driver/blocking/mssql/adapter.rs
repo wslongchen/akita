@@ -39,6 +39,7 @@ impl MssqlAdapter {
     }
 
     /// Start the transaction
+    #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("BEGIN TRANSACTION;")?;
@@ -47,6 +48,7 @@ impl MssqlAdapter {
     }
 
     /// Submit transactions
+    #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("COMMIT TRANSACTION;")?;
@@ -54,12 +56,14 @@ impl MssqlAdapter {
     }
 
     /// Roll back transactions
+    #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("ROLLBACK TRANSACTION;")?;
         Ok(())
     }
 
+    #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> Result<Rows, AkitaError> {
         // Convert parameters
         let mssql_params = convert_to_mssql_params(params);
@@ -69,7 +73,8 @@ impl MssqlAdapter {
             .collect();
         self.inner_query(sql, &param_refs)
     }
-    
+
+    #[track_caller]
     fn inner_query(&self, sql: &str, param_refs: &[&dyn tiberius::ToSql]) -> Result<Rows, AkitaError> {
         let rows = self.conn.query(sql, &param_refs)?;
         if rows.is_empty() {
@@ -97,6 +102,7 @@ impl MssqlAdapter {
         Ok(records)
     }
 
+    #[track_caller]
     pub fn execute(&self, sql: &str, params: Params) -> Result<ExecuteResult, AkitaError> {
         // Get statement types (query, update, etc.)
         let stmt_type = OperationType::detect_operation_type(sql);

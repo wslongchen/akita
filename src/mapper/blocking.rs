@@ -26,43 +26,51 @@ use crate::data_err;
 
 pub trait AkitaMapper {
     /// Get all the table of records
+    #[track_caller]
     fn list<T>(&self, wrapper: Wrapper) -> Result<Vec<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue;
 
     /// Get one the table of records
+    #[track_caller]
     fn select_one<T>(&self, wrapper: Wrapper) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue;
 
     /// Get one the table of records by id
+    #[track_caller]
     fn select_by_id<T, I>(&self, id: I) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
         I: IntoAkitaValue;
 
     /// Get table of records with page
+    #[track_caller]
     fn page<T>(&self, page: u64, size: u64, wrapper: Wrapper) -> Result<IPage<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue;
 
     /// Get the total count of records
+    #[track_caller]
     fn count<T>(&self, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields;
 
     /// Remove the records by wrapper.
+    #[track_caller]
     fn remove<T>(&self, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields;
 
     /// Remove the records by wrapper.
+    #[track_caller]
     fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64>
         where
             I: IntoAkitaValue,
             T: GetTableName + GetFields;
 
     /// Remove the records by id.
+    #[track_caller]
     fn remove_by_id<T, I>(&self, id: I) -> Result<u64>
     where
         I: IntoAkitaValue + Into<AkitaValue>,
@@ -70,38 +78,45 @@ pub trait AkitaMapper {
     
 
     /// Update the records by wrapper.
+    #[track_caller]
     fn update<T>(&self, entity: &T, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue;
 
     /// Update the records by id.
+    #[track_caller]
     fn update_by_id<T>(&self, entity: &T) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue;
 
     #[allow(unused_variables)]
+    #[track_caller]
     fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue;
 
     #[allow(unused_variables)]
+    #[track_caller]
     fn save_batch<T, E>(&self, entities: E) -> Result<()>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
         E: IntoIterator<Item = T>;
 
     /// called multiple times when using database platform that doesn;t support multiple value
+    #[track_caller]
     fn save<T, I>(&self, entity: &T) -> Result<Option<I>>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
         I: FromAkitaValue;
 
     /// save or update
+    #[track_caller]
     fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>>
         where
             T: GetTableName + GetFields + IntoAkitaValue,
             I: FromAkitaValue;
 
+    #[track_caller]
     fn simple_query<T, Q>(&self, query: Q) -> Result<Vec<T>>
         where
             Q: Into<String>,
@@ -110,6 +125,7 @@ pub trait AkitaMapper {
         self.query_map(query, from_akita_value)
     }
 
+    #[track_caller]
     fn query_opt<T, Q>(&self, query: Q) -> Result<Vec<Result<T>>>
         where
             Q: Into<String>,
@@ -118,6 +134,7 @@ pub trait AkitaMapper {
         self.query_map(query, from_akita_value_opt).map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
+    #[track_caller]
     fn query_first<S: Into<String>, R>(
         &self, sql: S
     ) -> Result<R>
@@ -127,6 +144,7 @@ pub trait AkitaMapper {
         self.exec_first(sql, ())
     }
 
+    #[track_caller]
     fn query_first_opt<R, S: Into<String>>(
         &self, sql: S,
     ) -> Result<Option<R>>
@@ -137,6 +155,7 @@ pub trait AkitaMapper {
     }
 
 
+    #[track_caller]
     fn query_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>>
         where
             Q: Into<String>,
@@ -149,6 +168,7 @@ pub trait AkitaMapper {
         })
     }
 
+    #[track_caller]
     fn query_fold<T, F, Q, U>(&self, query: Q, init: U, mut f: F) -> Result<U>
         where
             Q: Into<String>,
@@ -160,6 +180,7 @@ pub trait AkitaMapper {
     }
 
 
+    #[track_caller]
     fn query_drop<Q>(&self, query: Q) -> Result<()>
         where
             Q: Into<String>,
@@ -167,6 +188,7 @@ pub trait AkitaMapper {
         self.query_iter(query).map(drop)
     }
 
+    #[track_caller]
     fn exec_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>>
         where
             Q: Into<String>,
@@ -179,6 +201,7 @@ pub trait AkitaMapper {
         })
     }
 
+    #[track_caller]
     fn query_iter<S: Into<String>>(
         &self,
         sql: S,
@@ -187,6 +210,7 @@ pub trait AkitaMapper {
         self.exec_iter(sql, ())
     }
 
+    #[track_caller]
     fn exec_iter<S: Into<String>, P: Into<Params>>(
         &self,
         sql: S,
@@ -194,6 +218,7 @@ pub trait AkitaMapper {
     ) -> Result<Rows>;
 
     #[allow(clippy::redundant_closure)]
+    #[track_caller]
     fn exec_raw<R, S: Into<String>, P: Into<Params>>(
         &self,
         sql: S,
@@ -206,6 +231,7 @@ pub trait AkitaMapper {
         Ok(rows.object_iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
     }
 
+    #[track_caller]
     fn exec_first<R, S: Into<String>, P: Into<Params>>(
         &self,
         sql: S,
@@ -226,6 +252,7 @@ pub trait AkitaMapper {
         }
     }
 
+    #[track_caller]
     fn exec_drop<S: Into<String>, P: Into<Params>>(
         &self,
         sql: S,
@@ -237,6 +264,7 @@ pub trait AkitaMapper {
         Ok(())
     }
 
+    #[track_caller]
     fn exec_first_opt<R, S: Into<String>, P: Into<Params>>(
         &self,
         sql: S,

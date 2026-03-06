@@ -46,6 +46,7 @@ impl OracleAdapter {
     }
 
     /// Start the transaction
+    #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         match self.in_transaction.write() {
             Ok(mut in_transaction) => {
@@ -62,6 +63,7 @@ impl OracleAdapter {
     }
 
     /// Submit transactions
+    #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         match self.in_transaction.write() {
             Ok(mut in_transaction) => {
@@ -79,6 +81,7 @@ impl OracleAdapter {
     }
 
     /// Roll back transactions
+    #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         match self.in_transaction.write() {
             Ok(mut in_transaction) => {
@@ -96,6 +99,7 @@ impl OracleAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Prepare the statement
         let mut stmt = self.conn.statement(sql).build().map_err(|e| {
@@ -135,6 +139,7 @@ impl OracleAdapter {
     }
 
     #[allow(suspicious_double_ref_op)]
+    #[track_caller]
     pub fn execute(&self, sql: &str, params: Params) -> Result<ExecuteResult, AkitaError> {
         let opt_type = OperationType::detect_operation_type(sql);
         // Prepare the statement
@@ -174,6 +179,7 @@ impl OracleAdapter {
     }
     
     /// Oracle-specific: Get the next value in the sequence
+    #[track_caller]
     pub fn next_sequence_value(&mut self, sequence_name: &str) -> Result<u64, AkitaError> {
         let sql = format!("SELECT {}.NEXTVAL FROM DUAL", sequence_name);
         let rows = self.execute(&sql, Params::None)?.rows();
@@ -188,6 +194,7 @@ impl OracleAdapter {
     }
 
     /// Oracle-specific: Get the current sequence value
+    #[track_caller]
     pub fn current_sequence_value(&mut self, sequence_name: &str) -> Result<u64, AkitaError> {
         let sql = format!("SELECT {}.CURRVAL FROM DUAL", sequence_name);
         let rows = self.execute(&sql, Params::None)?.rows();
@@ -200,6 +207,7 @@ impl OracleAdapter {
         Err(database_err!("Failed to get current sequence value".to_string()))
     }
 
+    #[track_caller]
     pub fn convert_rows(&self, column_count: usize, column_names: Vec<String>,rows: ResultSet<oracle::Row>) -> Result<ExecuteResult, AkitaError> {
         let mut records = Rows::new();
         for row_result in rows {

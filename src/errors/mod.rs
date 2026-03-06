@@ -32,7 +32,6 @@ pub use macros::*;
 use akita_core::{AkitaDataError, ConversionError, SqlInjectionError};
 use std::error::Error;
 use std::{fmt, str::Utf8Error};
-use std::panic::Location;
 
 pub(crate) type Result<T> = std::result::Result<T, AkitaError>;
 
@@ -477,7 +476,7 @@ impl From<SqlInjectionError> for AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn invalid_sql(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -488,7 +487,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn interceptor_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -499,7 +498,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn security_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -510,7 +509,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn invalid_field(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -521,7 +520,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn missing_ident(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -532,7 +531,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn missing_table(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -543,7 +542,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn missing_field(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -554,7 +553,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn tokio_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -565,7 +564,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn data_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -576,7 +575,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn database_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -587,7 +586,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn redundant_field(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -598,7 +597,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn unsupported_operation(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -609,7 +608,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn connection_valid_error() -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -620,7 +619,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn empty_data_error() -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -631,7 +630,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn unknown_error() -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -642,7 +641,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn execute_sql_error(sql: impl Into<String>, msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -657,7 +656,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn akita_data_error<E: Into<AkitaDataError>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -668,7 +667,7 @@ impl AkitaError {
 
     #[track_caller]
     pub fn sql_loader_error(err: SqlLoaderError) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -683,7 +682,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn mysql_error<E: Into<mysql::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -697,7 +696,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn mysql_async_error<E: Into<mysql_async::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -711,7 +710,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn oracle_error<E: Into<oracle::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -725,7 +724,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn mssql_error<E: Into<tiberius::error::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -739,7 +738,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn postgres_error<E: Into<postgres::error::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -753,7 +752,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn tokio_postgres_error<E: Into<tokio_postgres::error::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -767,7 +766,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn sqlite_error<E: Into<rusqlite::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -787,7 +786,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn r2d2_error<E: Into<r2d2::Error>>(err: E) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),
@@ -807,7 +806,7 @@ impl AkitaError {
 impl AkitaError {
     #[track_caller]
     pub fn deadpool_error(msg: impl Into<String>) -> Self {
-        let loc = Location::caller();
+        let loc = std::panic::Location::caller();
         let bt = match current_backtrace_mode() {
             BacktraceMode::Full => SmartBacktrace::full(),
             BacktraceMode::Light => SmartBacktrace::light(loc.file(), loc.line(), loc.column()),

@@ -42,21 +42,24 @@ impl MysqlAsyncAdapter {
             conn: Arc::new(RwLock::new(conn)),
         }
     }
-    
+
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
         conn.query_drop("START TRANSACTION")
             .await
             .map_err(|e| mysql_async_err!(e))
     }
-    
+
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
         conn.query_drop("COMMIT")
             .await
             .map_err(|e| mysql_async_err!(e))
     }
-    
+
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
         conn.query_drop("ROLLBACK")
@@ -64,12 +67,14 @@ impl MysqlAsyncAdapter {
             .map_err(|e| mysql_async_err!(e))
     }
 
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Conversion parameters
         let mysql_params = convert_to_mysql_params(params)?;
         self.inner_query(sql, mysql_params).await
     }
-    
+
+    #[track_caller]
     async fn inner_query(&self, sql:  &str, params: mysql_async::Params) -> crate::prelude::Result<Rows> {
         let mut conn = self.conn.write().await;
         // Executing queries
@@ -90,7 +95,8 @@ impl MysqlAsyncAdapter {
             count: None,
         })
     }
-    
+
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let mut conn = self.conn.write().await;
         // Conversion parameters
@@ -133,12 +139,14 @@ impl MysqlAsyncAdapter {
     }
 
     /// Ping Checking connections
+    #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
         conn.ping().await.map_err(|e| mysql_async_err!(e))
     }
 
     /// Check that the connection is valid
+    #[track_caller]
     pub async fn is_valid(&self) -> crate::prelude::Result<bool> {
         match self.ping().await {
             Ok(_) => Ok(true),

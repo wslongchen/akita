@@ -44,6 +44,7 @@ impl OracleAsyncAdapter {
         }
     }
 
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         // Oracle defaults to auto-commit, which needs to be set to manual commit
         let mut in_transaction = self.in_transaction.write().await;
@@ -58,6 +59,7 @@ impl OracleAsyncAdapter {
         
     }
 
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut in_transaction = self.in_transaction.write().await;
         if *in_transaction {
@@ -70,6 +72,7 @@ impl OracleAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut in_transaction = self.in_transaction.write().await;
         if *in_transaction {
@@ -83,6 +86,7 @@ impl OracleAsyncAdapter {
        
     }
 
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         let sql = sql.to_string();
         
@@ -124,6 +128,7 @@ impl OracleAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let sql = sql.to_string();
         let stmt_type = OperationType::detect_operation_type(&sql);
@@ -209,6 +214,7 @@ impl OracleAsyncAdapter {
         0
     }
 
+    #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
         self.conn.interact(|conn| {
             conn.ping()?;
@@ -216,6 +222,7 @@ impl OracleAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn is_valid(&self) -> crate::prelude::Result<bool> {
         match self.ping().await {
             Ok(_) => Ok(true),

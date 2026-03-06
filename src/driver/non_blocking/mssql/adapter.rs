@@ -42,6 +42,7 @@ impl MssqlAsyncAdapter {
         }
     }
 
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
@@ -51,6 +52,7 @@ impl MssqlAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
@@ -60,6 +62,7 @@ impl MssqlAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
@@ -68,7 +71,8 @@ impl MssqlAsyncAdapter {
             .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
-    
+
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         let mssql_params = convert_to_mssql_params(params);
         let param_refs: Vec<&dyn tiberius::ToSql> = mssql_params
@@ -78,7 +82,8 @@ impl MssqlAsyncAdapter {
 
         self.inner_query(sql, &param_refs).await
     }
-    
+
+    #[track_caller]
     async fn inner_query(&self, sql: &str, param_refs: &[& dyn tiberius::ToSql]) -> Result<Rows, AkitaError> {
         let mut client = self.client.lock().await;
         let stream = client
@@ -113,6 +118,7 @@ impl MssqlAsyncAdapter {
         Ok(records)
     }
 
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let mut client = self.client.lock().await;
 

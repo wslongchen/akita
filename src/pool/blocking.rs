@@ -55,9 +55,11 @@ cfg_if! {if #[cfg(feature = "mssql-sync")]{
 
 pub trait SyncPool {
     /// Get connections from the connection pool
+    #[track_caller]
     fn acquire(&self) -> crate::errors::Result<PooledConnection>;
 
     /// Get the database driver
+    #[track_caller]
     fn database(&self) -> crate::errors::Result<DbDriver>;
 
     /// Get the connection pool status
@@ -208,6 +210,7 @@ impl SyncPool for DBPool {
 
 #[allow(unused)]
 impl DBPoolWrapper {
+    #[track_caller]
     pub fn new(mut cfg: AkitaConfig) -> Result<Self>  {
         let driver_type = cfg.get_platform()?;
         match driver_type {
@@ -243,10 +246,12 @@ impl DBPoolWrapper {
     }
 
     /// get a usable database connection from
+    #[track_caller]
     pub fn acquire(&self) -> Result<PooledConnection> {
         self._inner.acquire()
     }
 
+    #[track_caller]
     pub fn database(&self) -> Result<DbDriver> {
         self._inner.database()
     }
@@ -260,6 +265,7 @@ impl DBPoolWrapper {
     }
 
     /// get a usable database connection from
+    #[track_caller]
     pub fn connect(&self) -> Result<PooledConnection> {
         match self._inner {
             #[cfg(feature = "mysql-sync")]

@@ -16,7 +16,7 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 //! Error construction macros (all call #[track_caller] constructors)
 
@@ -270,62 +270,5 @@ macro_rules! akita_data_err {
 macro_rules! sql_loader_err {
     ($err:expr) => {
         $crate::errors::AkitaError::sql_loader_error($err)
-    };
-}
-
-// Quick return macros (unchanged)
-#[macro_export]
-macro_rules! bail {
-    ($err:expr) => {
-        return Err($err.into())
-    };
-    
-    (data: $msg:expr) => {
-        return Err($crate::data_err!($msg).into())
-    };
-    (data: $fmt:expr, $($arg:tt)*) => {
-        return Err($crate::data_err!($fmt, $($arg)*).into())
-    };
-    
-    (db: $msg:expr) => {
-        return Err($crate::database_err!($msg).into())
-    };
-    (db: $fmt:expr, $($arg:tt)*) => {
-        return Err($crate::database_err!($fmt, $($arg)*).into())
-    };
-    
-    (sql: $msg:expr) => {
-        return Err($crate::invalid_sql_err!($msg).into())
-    };
-    (sql: $fmt:expr, $($arg:tt)*) => {
-        return Err($crate::invalid_sql_err!($fmt, $($arg)*).into())
-    };
-    
-    ($fmt:expr, $($arg:tt)*) => {
-        return Err($crate::invalid_sql_err!($fmt, $($arg)*).into())
-    };
-}
-
-#[macro_export]
-macro_rules! ensure {
-    ($cond:expr, $err:expr) => {
-        if !$cond {
-            return Err($err.into());
-        }
-    };
-    ($cond:expr, data: $msg:expr) => {
-        if !$cond {
-            return Err($crate::data_err!($msg).into());
-        }
-    };
-    ($cond:expr, db: $msg:expr) => {
-        if !$cond {
-            return Err($crate::database_err!($msg).into());
-        }
-    };
-    ($cond:expr, sql: $msg:expr) => {
-        if !$cond {
-            return Err($crate::invalid_sql_err!($msg).into());
-        }
     };
 }

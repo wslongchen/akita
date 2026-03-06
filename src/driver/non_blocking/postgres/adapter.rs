@@ -44,6 +44,7 @@ impl PostgresAsyncAdapter {
         }
     }
 
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("START TRANSACTION")
@@ -52,6 +53,7 @@ impl PostgresAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("COMMIT")
@@ -60,6 +62,7 @@ impl PostgresAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("ROLLBACK")
@@ -68,6 +71,7 @@ impl PostgresAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Prepare the statement
         let statement = self.conn.prepare(sql).await.map_err(|e| {
@@ -109,6 +113,7 @@ impl PostgresAsyncAdapter {
         Ok(records)
     }
 
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         // Prepare the statement
         let statement = self.conn.prepare(sql).await.map_err(|e| {
@@ -186,6 +191,7 @@ impl PostgresAsyncAdapter {
         }
     }
 
+    #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("SELECT 1")
@@ -194,6 +200,7 @@ impl PostgresAsyncAdapter {
         Ok(())
     }
 
+    #[track_caller]
     pub async fn is_valid(&self) -> crate::prelude::Result<bool> {
         match self.ping().await {
             Ok(_) => Ok(true),

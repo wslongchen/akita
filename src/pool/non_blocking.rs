@@ -59,9 +59,11 @@ cfg_if! {
 #[async_trait]
 pub trait AsyncPool {
     /// Get connections from the connection pool
+    #[track_caller]
     async fn acquire(&self) -> crate::errors::Result<AsyncPooledConnection>;
 
     /// Get the database driver
+    #[track_caller]
     async fn database(&self) -> crate::errors::Result<AsyncDbDriver>;
 
     /// Get the connection pool status
@@ -237,6 +239,7 @@ impl AsyncPool for AsyncDBPool {
 
 #[allow(unused)]
 impl AsyncDBPoolWrapper {
+    #[track_caller]
     pub async fn new(mut cfg: AkitaConfig) -> Result<Self>  {
         let driver_type = cfg.get_platform()?;
         match driver_type {
@@ -273,10 +276,12 @@ impl AsyncDBPoolWrapper {
     }
 
     /// get a usable database connection from
+    #[track_caller]
     pub async fn acquire(&self) -> Result<AsyncPooledConnection> {
         self._inner.acquire().await
     }
 
+    #[track_caller]
     pub async fn database(&self) -> Result<AsyncDbDriver> {
         self._inner.database().await
     }
@@ -286,6 +291,7 @@ impl AsyncDBPoolWrapper {
     }
 
     /// get a usable database connection from
+    #[track_caller]
     pub async fn connect(&self) -> Result<AsyncPooledConnection> {
         match self._inner {
             #[cfg(feature = "mysql-async")]

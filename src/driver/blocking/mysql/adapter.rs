@@ -40,6 +40,7 @@ impl MysqlAdapter {
     }
 
     /// Start the transaction
+    #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -54,6 +55,7 @@ impl MysqlAdapter {
     }
 
     /// Submit transactions
+    #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -68,6 +70,7 @@ impl MysqlAdapter {
     }
 
     /// Roll back transactions
+    #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -81,12 +84,14 @@ impl MysqlAdapter {
         }
     }
 
+    #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Convert parameters
         let mysql_params = convert_to_mysql_params(params)?;
         self.inner_query(sql, mysql_params)
     }
-    
+
+    #[track_caller]
     fn inner_query(&self, sql: &str, mysql_params: mysql::Params) -> crate::prelude::Result<Rows> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -119,6 +124,7 @@ impl MysqlAdapter {
         
     }
 
+    #[track_caller]
     pub fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         match self.conn.write() {
             Ok(mut conn) => {

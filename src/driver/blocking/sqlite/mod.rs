@@ -85,6 +85,7 @@ impl Sqlite {
 
 
     /// Execute queries with interceptors
+    #[track_caller]
     fn _execute(
         &self,
         sql: &str,
@@ -138,6 +139,7 @@ impl Sqlite {
     }
 
 
+    #[track_caller]
     fn _query(
         &self,
         sql: &str,
@@ -189,7 +191,8 @@ impl Sqlite {
 
         result.map(|v|v.rows())
     }
-    
+
+    #[track_caller]
     pub fn inner_execute(&self, sql: &str, params: Params) -> Result<ExecuteResult> {
         let stmt_type = OperationType::detect_operation_type(&sql);
 
@@ -212,7 +215,8 @@ impl Sqlite {
         }
 
     }
-    
+
+    #[track_caller]
     fn inner_query(&self, sql: &str, params: Params) -> Result<Rows> {
         let stmt = self.conn.prepare(&sql);
         let column_names = if let Ok(ref stmt) = stmt {

@@ -154,6 +154,7 @@ pub trait SqlBuilder: Send + Sync {
     }
 
     /// Building INSERT SQL
+    #[track_caller]
     fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if datas.is_empty() {
             return Err(empty_data_err!());
