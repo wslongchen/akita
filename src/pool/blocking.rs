@@ -113,7 +113,7 @@ impl SyncPool for DBPool {
         match self {
             #[cfg(feature = "mysql-sync")]
             DBPool::MysqlPool(ref pool_mysql) => {
-                let mut pooled_conn = pool_mysql.get().map_err(|e| r2d2_err!(e))?;
+                let mut pooled_conn = pool_mysql.get()?;
                 // Verify that the connection is still valid
                 if !pooled_conn.ping().is_ok() {
                     return Err(connection_valid_err!());
@@ -122,26 +122,22 @@ impl SyncPool for DBPool {
             }
             #[cfg(feature = "sqlite-sync")]
             DBPool::SqlitePool(ref pool_sqlite) => {
-                let pooled_conn = pool_sqlite.get()
-                    .map_err(|e| r2d2_err!(e))?;
+                let pooled_conn = pool_sqlite.get()?;
                 Ok(PooledConnection::PooledSqlite(pooled_conn))
             }
             #[cfg(feature = "postgres-sync")]
             DBPool::PostgresPool(ref pool_postgres) => {
-                let pooled_conn = pool_postgres.get()
-                    .map_err(|e| r2d2_err!(e))?;
+                let pooled_conn = pool_postgres.get()?;
                 Ok(PooledConnection::PooledPostgres(pooled_conn))
             }
             #[cfg(feature = "oracle-sync")]
             DBPool::OraclePool(ref pool_oracle) => {
-                let pooled_conn = pool_oracle.get()
-                    .map_err(|e| r2d2_err!(e))?;
+                let pooled_conn = pool_oracle.get()?;
                 Ok(PooledConnection::PooledOracle(pooled_conn))
             }
             #[cfg(feature = "mssql-sync")]
             DBPool::MssqlPool(ref pool_mssql) => {
-                let pooled_conn = pool_mssql.get()
-                    .map_err(|e| r2d2_err!(e))?;
+                let pooled_conn = pool_mssql.get()?;
                 Ok(PooledConnection::PooledMssql(pooled_conn))
             }
         }

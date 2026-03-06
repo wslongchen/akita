@@ -94,13 +94,9 @@ pub fn init_mysql_pool(cfg: AkitaConfig) -> Result<MysqlPool, AkitaError> {
         })?;
 
     // Testing connections
-    let mut conn = pool.get().map_err(|e| {
-        database_err!(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let mut conn = pool.get()?;
 
-    conn.query_drop("SELECT 1").map_err(|e| {
-        database_err!(format!("MySQL connection test failed: {}", e))
-    })?;
+    conn.query_drop("SELECT 1")?;
 
     Ok(pool)
 }

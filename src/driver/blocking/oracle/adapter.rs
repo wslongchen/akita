@@ -69,8 +69,7 @@ impl OracleAdapter {
             Ok(mut in_transaction) => {
                 if *in_transaction {
                     self.conn
-                        .execute("COMMIT", &[])
-                        .map_err(|err| oracle_err!(err))?;
+                        .execute("COMMIT", &[])?;
                     *in_transaction = false;
                 }
             }
@@ -87,8 +86,7 @@ impl OracleAdapter {
             Ok(mut in_transaction) => {
                 if *in_transaction {
                     self.conn
-                        .execute("ROLLBACK", &[])
-                        .map_err(|err| oracle_err!(err))?;
+                        .execute("ROLLBACK", &[])?;
                     *in_transaction = false;
                 }
             }
@@ -102,9 +100,7 @@ impl OracleAdapter {
     #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Prepare the statement
-        let mut stmt = self.conn.statement(sql).build().map_err(|e| {
-            database_err!(format!("Failed to prepare statement: {}", e))
-        })?;
+        let mut stmt = self.conn.statement(sql).build()?;
         // Getting column information
         let column_count = stmt.bind_names().len();
         let column_names: Vec<String> = stmt.bind_names()
@@ -115,16 +111,12 @@ impl OracleAdapter {
         bind_oracle_params(&mut stmt, &params)?;
 
         // Executing queries
-        let rows = stmt.query(&[]).map_err(|e| {
-            database_err!(format!("Failed to execute query: {}", e))
-        })?;
+        let rows = stmt.query(&[])?;
 
         // Conversion result
         let mut records = Rows::new();
         for row_result in rows {
-            let row = row_result.map_err(|e| {
-                database_err!(format!("Failed to fetch row: {}", e))
-            })?;
+            let row = row_result?;
             let mut record = Vec::new();
             for i in 0..column_count {
                 let value = get_value_from_oracle_row(&row, i)?;
@@ -143,9 +135,7 @@ impl OracleAdapter {
     pub fn execute(&self, sql: &str, params: Params) -> Result<ExecuteResult, AkitaError> {
         let opt_type = OperationType::detect_operation_type(sql);
         // Prepare the statement
-        let mut stmt = self.conn.statement(sql).build().map_err(|e| {
-            database_err!(format!("Failed to prepare statement: {}", e))
-        })?;
+        let mut stmt = self.conn.statement(sql).build()?;
         // Getting column information
         let column_count = stmt.bind_names().len();
         let column_names: Vec<String> = stmt.bind_names()
@@ -158,20 +148,15 @@ impl OracleAdapter {
         
         match opt_type {
             OperationType::Select => {
-                let rows = stmt.query(&[]).map_err(|e| {
-                    database_err!(format!("Failed to execute query: {}", e))
-                })?;
+                let rows = stmt.query(&[])?;
                 self.convert_rows(column_count, column_names, rows)
             }
             _ => {
-                let _rows = stmt.execute(&[]).map_err(|e| {
-                    database_err!(format!("Failed to execute query: {}", e))
-                })?;
+                let _rows = stmt.execute(&[])?;
                 // If not in the transaction, commit automatically
                 let in_transaction = self.in_transaction.read().map_or(false, |lock| *lock);
                 if !in_transaction {
-                    self.conn.commit()
-                        .map_err(|err| oracle_err!(err))?;
+                    self.conn.commit()?;
                 }
                 Ok(ExecuteResult::None)
             }
@@ -211,9 +196,7 @@ impl OracleAdapter {
     pub fn convert_rows(&self, column_count: usize, column_names: Vec<String>,rows: ResultSet<oracle::Row>) -> Result<ExecuteResult, AkitaError> {
         let mut records = Rows::new();
         for row_result in rows {
-            let row = row_result.map_err(|e| {
-                database_err!(format!("Failed to fetch row: {}", e))
-            })?;
+            let row = row_result?;
 
             let mut record = Vec::new();
 

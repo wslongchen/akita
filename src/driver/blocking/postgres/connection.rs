@@ -164,13 +164,9 @@ pub fn init_postgres_pool(cfg: AkitaConfig) -> Result<PostgresPool, AkitaError> 
             database_err!(format!("Failed to create PostgreSQL connection pool: {}", e))
         })?;
 
-    let mut conn = pool.get().map_err(|e| {
-        database_err!(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let mut conn = pool.get()?;
 
-    conn.simple_query("SELECT 1").map_err(|e| {
-        database_err!(format!("PostgreSQL connection test failed: {}", e))
-    })?;
+    conn.simple_query("SELECT 1")?;
 
     Ok(pool)
 }

@@ -35,11 +35,9 @@ where
     Dto: From<Entity> + Send + Sync + Serialize,
     Params: Request + Sync + Send,
 {
-    #[track_caller]
     fn get_akita(&self) -> Result<Arc<AkitaAsync>, AkitaError>;
 
     /// Public pagination query method
-    #[track_caller]
     async fn page(&self, arg: &Params) -> Result<IPage<Dto>, AkitaError> {
         let ak = self.get_akita()?;
         //Construct query conditions
@@ -77,7 +75,6 @@ where
     ///
     /// Get statistics
     ///
-    #[track_caller]
     async fn count(&self, arg: &Params) -> Result<u64, AkitaError> {
         let ak = self.get_akita()?;
         let wrapper = arg.get_wrapper();
@@ -89,7 +86,6 @@ where
     ///
     /// Public list query method
     ///
-    #[track_caller]
     async fn list(&self, arg: &Params) -> Result<Vec<Dto>, AkitaError> {
         let ak = self.get_akita()?;
         //构建查询条件
@@ -106,7 +102,6 @@ where
     ///
     /// Update the entity based on the id
     ///
-    #[track_caller]
     async fn update_by_id(&self, data: &Entity) -> Result<bool, AkitaError> {
         let ak = self.get_akita()?;
         if let Ok(res) = ak.update_by_id(data).await {
@@ -119,7 +114,6 @@ where
     ///
     /// Query a single value based on the ID query criteria
     ///
-    #[track_caller]
     async fn select_by_id(&self, id: String) -> Result<Option<Dto>, AkitaError> {
         let ak = self.get_akita()?;
         let detail: Option<Entity> = ak.select_by_id(&id).await?;
@@ -130,7 +124,6 @@ where
     ///
     /// Query individual values based on query criteria
     ///
-    #[track_caller]
     async fn select_one(&self, arg: &Params) -> Result<Option<Dto>, AkitaError> {
         let ak = self.get_akita()?;
         //构建查询条件
@@ -144,7 +137,6 @@ where
     ///
     /// Save the entity
     ///
-    #[track_caller]
     async fn save(&self, data: &Entity) -> Result<i64, AkitaError> {
         let ak = self.get_akita()?;
         let last_insert_id = ak.save_or_update::<_, i64>(data).await?;
@@ -154,7 +146,6 @@ where
     ///
     /// Bulk save entities
     ///
-    #[track_caller]
     async fn save_batch(&self, list: &Vec<Entity>) -> Result<(), AkitaError> {
         let ak = self.get_akita()?;
         let _ = ak.save_batch::<Entity, _>(list.clone()).await.ok();
@@ -164,7 +155,6 @@ where
     ///
     /// Delete the entity
     ///
-    #[track_caller]
     async fn remove_by_id(&self, id: &String) -> Result<bool, AkitaError> {
         let ak = self.get_akita()?;
         let res = ak.remove_by_id::<Entity, _>(id).await.ok();
@@ -174,7 +164,6 @@ where
     ///
     /// Bulk deletion of entities
     ///
-    #[track_caller]
     async fn remove_batch(&self, ids: Vec<u64>) -> Result<(), AkitaError> {
         let ak = self.get_akita()?;
         let _ = ak.remove_by_ids::<Entity, u64>(ids).await.ok();
@@ -192,13 +181,11 @@ where
     // 获取Mapper的引用
     fn get_mapper(&self) -> &M;
 
-    #[track_caller]
     fn get_akita(&self) -> Result<Arc<AkitaAsync>, AkitaError> {
         self.get_mapper().get_akita()
     }
 
     /// Public pagination query method
-    #[track_caller]
     async fn page(&self, arg: &Params) -> Result<IPage<Dto>, AkitaError> {
         self.get_mapper().page(arg).await
     }
@@ -206,7 +193,6 @@ where
     ///
     /// Get statistics
     ///
-    #[track_caller]
     async fn count(&self, arg: &Params) -> Result<u64, AkitaError> {
         self.get_mapper().count(arg).await
     }
@@ -214,7 +200,6 @@ where
     ///
     /// Public list query method
     ///
-    #[track_caller]
     async fn list(&self, arg: &Params) -> Result<Vec<Dto>, AkitaError> {
         self.get_mapper().list(arg).await
     }
@@ -222,7 +207,6 @@ where
     ///
     /// Update the entity based on the id
     ///
-    #[track_caller]
     async fn update_by_id(&self, data: &Entity) -> Result<bool, AkitaError> {
         self.get_mapper().update_by_id(data).await
     }
@@ -230,7 +214,6 @@ where
     ///
     /// Query a single value based on the ID query criteria
     ///
-    #[track_caller]
     async fn select_by_id(&self, id: String) -> Result<Option<Dto>, AkitaError> {
         self.get_mapper().select_by_id(id).await
     }
@@ -238,7 +221,6 @@ where
     ///
     /// Query individual values based on query criteria
     ///
-    #[track_caller]
     async fn select_one(&self, arg: &Params) -> Result<Option<Dto>, AkitaError> {
         self.get_mapper().select_one(arg).await
     }
@@ -247,7 +229,6 @@ where
     ///
     /// Save the entity
     ///
-    #[track_caller]
     async fn save(&self, data: &Entity) -> Result<i64, AkitaError> {
         self.get_mapper().save(data).await
     }
@@ -255,7 +236,6 @@ where
     ///
     /// Bulk save entities
     ///
-    #[track_caller]
     async fn save_batch(&self, list: &Vec<Entity>) -> Result<(), AkitaError> {
         self.get_mapper().save_batch(list).await
     }
@@ -263,7 +243,6 @@ where
     ///
     /// Delete the entity
     ///
-    #[track_caller]
     async fn remove_by_id(&self, id: &String) -> Result<bool, AkitaError> {
         self.get_mapper().remove_by_id(id).await
     }
@@ -271,7 +250,6 @@ where
     ///
     /// Bulk deletion of entities
     ///
-    #[track_caller]
     async fn remove_batch(&self, ids: Vec<u64>) -> Result<(), AkitaError> {
         self.get_mapper().remove_batch(ids).await
     }

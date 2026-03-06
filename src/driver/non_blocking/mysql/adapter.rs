@@ -46,25 +46,25 @@ impl MysqlAsyncAdapter {
     #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        conn.query_drop("START TRANSACTION")
-            .await
-            .map_err(|e| mysql_async_err!(e))
+        let _ = conn.query_drop("START TRANSACTION")
+            .await?;
+        Ok(())
     }
 
     #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        conn.query_drop("COMMIT")
-            .await
-            .map_err(|e| mysql_async_err!(e))
+        let _ = conn.query_drop("COMMIT")
+            .await?;
+        Ok(())
     }
 
     #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        conn.query_drop("ROLLBACK")
-            .await
-            .map_err(|e| mysql_async_err!(e))
+        let _ = conn.query_drop("ROLLBACK")
+            .await?;
+        Ok(())
     }
 
     #[track_caller]
@@ -80,13 +80,11 @@ impl MysqlAsyncAdapter {
         // Executing queries
         let result = conn
             .exec_iter(sql, params)
-            .await
-            .map_err(|e| mysql_async_err!(e))?;
+            .await?;
 
         let rows_fut = result.map_and_drop(|mysql_row| convert_mysql_row(mysql_row));
         let rows: Vec<Row> = rows_fut
-            .await
-            .map_err(|e| mysql_async_err!(e))?
+            .await?
             .into_iter()
             .collect::<crate::prelude::Result<Vec<Row>>>()?;
 
@@ -111,8 +109,7 @@ impl MysqlAsyncAdapter {
             }
             _ => {
                 conn.exec_drop(sql, mysql_params)
-                    .await
-                    .map_err(|e| mysql_async_err!(e))?;
+                    .await?;
 
                 Ok(ExecuteResult::AffectedRows(conn.affected_rows() as u64))
             }

@@ -75,9 +75,7 @@ impl PostgresAdapter {
                 let stmt_type = OperationType::detect_operation_type(sql);
 
                 // Prepare the statement
-                let statement = conn.prepare(sql).map_err(|e| {
-                    database_err!(format!("Failed to prepare statement: {}", e))
-                })?;
+                let statement = conn.prepare(sql)?;
 
                 let param_types = statement.params();
 
@@ -95,9 +93,7 @@ impl PostgresAdapter {
                 match stmt_type {
                     OperationType::Select => {
                         let mut records = Rows::new();
-                        let rows = conn.query(&statement ,&pg_params_ref).map_err(|e| {
-                            database_err!(format!("Failed to execute query: {}", e))
-                        })?;
+                        let rows = conn.query(&statement ,&pg_params_ref)?;
                         for row in rows {
                             let mut record = Vec::new();
                             for (i, column) in statement.columns().iter().enumerate() {
@@ -114,9 +110,7 @@ impl PostgresAdapter {
                     }
                     _ => {
                         // Perform updates
-                        let rows_affected = conn.execute(&statement, &pg_params_ref).map_err(|e| {
-                            database_err!(format!("Failed to execute update: {}", e))
-                        })?;
+                        let rows_affected = conn.execute(&statement, &pg_params_ref)?;
                         Ok(ExecuteResult::AffectedRows(rows_affected))
                     }
                 }
@@ -133,9 +127,7 @@ impl PostgresAdapter {
         match self.conn.write() {
             Ok(mut conn) => {
                 // Prepare the statement
-                let statement = conn.prepare(sql).map_err(|e| {
-                    database_err!(format!("Failed to prepare statement: {}", e))
-                })?;
+                let statement = conn.prepare(sql)?;
                 // Getting column names
                 let column_names: Vec<String> = statement
                     .columns()
@@ -152,10 +144,7 @@ impl PostgresAdapter {
                 let mut records = Rows::new();
                 // Executing queries
                 let rows = conn.
-                    query(&statement ,&pg_params_ref)
-                    .map_err(|e| {
-                    database_err!(format!("Failed to execute query: {}", e))
-                })?;
+                    query(&statement ,&pg_params_ref)?;
                 // Conversion result
                 for row in rows {
                     let mut record = Vec::new();
@@ -198,7 +187,8 @@ impl PostgresAdapter {
     pub fn batch_execute(&mut self, sql: &str) -> Result<(), AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {
-                conn.batch_execute(sql).map_err(AkitaError::from)
+                let _ = conn.batch_execute(sql)?;
+                Ok(())
             }
             Err(_) => {
                 Err(database_err!("error to get connection.".to_string()))
@@ -216,9 +206,7 @@ impl PostgresAdapter {
                 let sql = format!("COPY {} ({}) FROM STDIN WITH (FORMAT CSV)", table, columns_str);
 
                 // Start COPY
-                let sink = conn.copy_in(&sql).map_err(|e| {
-                    database_err!(format!("Failed to start COPY: {}", e))
-                })?;
+                let sink = conn.copy_in(&sql)?;
 
                 // Writing data
                 let mut writer = postgres::CopyInWriter::from(sink);

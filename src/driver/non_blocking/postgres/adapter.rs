@@ -48,8 +48,7 @@ impl PostgresAsyncAdapter {
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.conn
             .simple_query("START TRANSACTION")
-            .await
-            .map_err(|e| invalid_sql_err!(e.to_string()))?;
+            .await?;
         Ok(())
     }
 

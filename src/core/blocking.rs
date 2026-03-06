@@ -120,8 +120,7 @@ impl Akita {
     }
 
     pub fn with_interceptor_builder(mut self, builder: InterceptorBuilder) -> Result<Self, AkitaError> {
-        let chain = builder.build()
-            .map_err(|e| interceptor_err!(&e.to_string()))?;
+        let chain = builder.build()?;
         self.interceptor_chain = Some(Arc::new(chain));
         Ok(self)
     }

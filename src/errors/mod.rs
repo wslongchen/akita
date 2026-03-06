@@ -328,18 +328,27 @@ impl Error for AkitaError {
 
 // ===== From implementations (using from_current_level) =====
 impl From<Utf8Error> for AkitaError {
+    #[track_caller]
     fn from(err: Utf8Error) -> Self {
-        AkitaError::DataError(err.to_string(), SmartBacktrace::from_current_level())
+        AkitaError::data_error(err.to_string())
+    }
+}
+impl From<std::string::FromUtf8Error> for AkitaError {
+    #[track_caller]
+    fn from(err: std::string::FromUtf8Error) -> Self {
+        AkitaError::data_error(err.to_string())
     }
 }
 
 impl From<AkitaDataError> for AkitaError {
+    #[track_caller]
     fn from(err: AkitaDataError) -> Self {
-        AkitaError::AkitaDataError(err, SmartBacktrace::from_current_level())
+        AkitaError::akita_data_error(err)
     }
 }
 
 impl From<url::ParseError> for AkitaError {
+    #[track_caller]
     fn from(err: url::ParseError) -> Self {
         AkitaError::UrlParseError(err, SmartBacktrace::from_current_level())
     }
@@ -353,22 +362,25 @@ impl From<url::ParseError> for AkitaError {
     feature = "mssql-sync"
 ))]
 impl From<r2d2::Error> for AkitaError {
+    #[track_caller]
     fn from(err: r2d2::Error) -> Self {
-        AkitaError::R2D2Error(err, SmartBacktrace::from_current_level())
+        AkitaError::r2d2_error(err)
     }
 }
 
 #[cfg(feature = "mysql-sync")]
 impl From<mysql::Error> for AkitaError {
+    #[track_caller]
     fn from(err: mysql::Error) -> Self {
-        AkitaError::MySQLError(err, SmartBacktrace::from_current_level())
+        AkitaError::mysql_error(err)
     }
 }
 
 #[cfg(feature = "mysql-async")]
 impl From<mysql_async::Error> for AkitaError {
+    #[track_caller]
     fn from(err: mysql_async::Error) -> Self {
-        AkitaError::MySQLAsyncError(err, SmartBacktrace::from_current_level())
+        AkitaError::mysql_async_error(err)
     }
 }
 
@@ -380,8 +392,9 @@ impl From<mysql_async::Error> for AkitaError {
     feature = "mssql-async"
 ))]
 impl From<deadpool::managed::BuildError> for AkitaError {
+    #[track_caller]
     fn from(err: deadpool::managed::BuildError) -> Self {
-        AkitaError::DeadPoolError(err.to_string(), SmartBacktrace::from_current_level())
+        AkitaError::deadpool_error(err.to_string())
     }
 }
 
@@ -393,29 +406,33 @@ impl From<deadpool::managed::BuildError> for AkitaError {
     feature = "mssql-async"
 ))]
 impl From<deadpool_sync::InteractError> for AkitaError {
+    #[track_caller]
     fn from(err: deadpool_sync::InteractError) -> Self {
-        AkitaError::DeadPoolError(err.to_string(), SmartBacktrace::from_current_level())
+        AkitaError::deadpool_error(err.to_string())
     }
 }
 
 #[cfg(any(feature = "oracle-async", feature = "oracle-sync"))]
 impl From<oracle::Error> for AkitaError {
+    #[track_caller]
     fn from(err: oracle::Error) -> Self {
-        AkitaError::OracleError(err, SmartBacktrace::from_current_level())
+        AkitaError::oracle_error(err)
     }
 }
 
 #[cfg(any(feature = "mssql-async", feature = "mssql-sync"))]
 impl From<tiberius::error::Error> for AkitaError {
+    #[track_caller]
     fn from(err: tiberius::error::Error) -> Self {
-        AkitaError::MssqlError(err, SmartBacktrace::from_current_level())
+        AkitaError::mssql_error(err)
     }
 }
 
 #[cfg(feature = "postgres-sync")]
 impl From<postgres::error::Error> for AkitaError {
+    #[track_caller]
     fn from(err: postgres::error::Error) -> Self {
-        AkitaError::PostgresError(err, SmartBacktrace::from_current_level())
+        AkitaError::tokio_postgres_error(err)
     }
 }
 
@@ -428,47 +445,54 @@ impl From<postgres::error::Error> for AkitaError {
 
 #[cfg(feature = "mysql-sync")]
 impl From<mysql::UrlError> for AkitaError {
+    #[track_caller]
     fn from(err: mysql::UrlError) -> Self {
-        AkitaError::MySQLError(err.into(), SmartBacktrace::from_current_level())
+        AkitaError::mysql_error(err)
     }
 }
 
 #[cfg(feature = "mysql-sync")]
 impl From<mysql::FromValueError> for AkitaError {
+    #[track_caller]
     fn from(err: mysql::FromValueError) -> Self {
-        AkitaError::MySQLError(err.into(), SmartBacktrace::from_current_level())
+        AkitaError::mysql_error(err)
     }
 }
 
 #[cfg(feature = "mysql-sync")]
 impl From<mysql::FromRowError> for AkitaError {
+    #[track_caller]
     fn from(err: mysql::FromRowError) -> Self {
-        AkitaError::MySQLError(err.into(), SmartBacktrace::from_current_level())
+        AkitaError::mysql_error(err)
     }
 }
 
 #[cfg(any(feature = "sqlite-async", feature = "sqlite-sync"))]
 impl From<rusqlite::Error> for AkitaError {
+    #[track_caller]
     fn from(err: rusqlite::Error) -> Self {
-        AkitaError::SQLiteError(err, SmartBacktrace::from_current_level())
+        AkitaError::sqlite_error(err)
     }
 }
 
 impl From<ConversionError> for AkitaError {
+    #[track_caller]
     fn from(err: ConversionError) -> Self {
-        AkitaError::AkitaDataError(AkitaDataError::ConversionError(err), SmartBacktrace::from_current_level())
+        AkitaError::akita_data_error(AkitaDataError::ConversionError(err))
     }
 }
 
 impl From<SqlLoaderError> for AkitaError {
+    #[track_caller]
     fn from(err: SqlLoaderError) -> Self {
-        AkitaError::SqlLoaderError(err, SmartBacktrace::from_current_level())
+        AkitaError::sql_loader_error(err)
     }
 }
 
 impl From<SqlInjectionError> for AkitaError {
+    #[track_caller]
     fn from(err: SqlInjectionError) -> Self {
-        AkitaError::AkitaDataError(AkitaDataError::SqlInjectionError(err), SmartBacktrace::from_current_level())
+        AkitaError::akita_data_error(AkitaDataError::SqlInjectionError(err))
     }
 }
 

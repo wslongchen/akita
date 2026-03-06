@@ -54,7 +54,7 @@ where
                 wrapper = wrapper.order_by_asc(sort_field.split(",").collect())
             }
         }
-        
+
         let page_no = arg.get_page_no();
         let page_size = arg.get_page_size();
         // Perform a paginated query

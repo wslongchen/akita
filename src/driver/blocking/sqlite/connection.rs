@@ -167,13 +167,9 @@ pub fn init_sqlite_pool(cfg: AkitaConfig) -> Result<SqlitePool, AkitaError> {
         })?;
 
     // Testing connections
-    let conn = pool.get().map_err(|e| {
-        database_err!(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let conn = pool.get()?;
 
-    conn.execute_batch("SELECT 1").map_err(|e| {
-        database_err!(format!("SQLite connection test failed: {}", e))
-    })?;
+    conn.execute_batch("SELECT 1")?;
 
     Ok(pool)
 }

@@ -86,10 +86,7 @@ impl MySQLAsync {
 
         // Forward interception
         if let Some(chain) = &self.interceptor_chain {
-            chain.before_query(&mut ctx).await.map_err(|e| {
-                tracing::error!("Interceptor before_query failed: {}", e);
-                e
-            })?;
+            chain.before_query(&mut ctx).await?;
 
             if ctx.stop_propagation {
                 tracing::info!("Query propagation stopped by interceptor");
@@ -117,10 +114,7 @@ impl MySQLAsync {
 
         // Post interception
         if let Some(chain) = &self.interceptor_chain {
-            chain.after_query(&mut ctx, &mut result).await.map_err(|e| {
-                tracing::error!("Interceptor after_query failed: {}", e);
-                e
-            })?;
+            chain.after_query(&mut ctx, &mut result).await?;
         }
 
         // Logging query metrics

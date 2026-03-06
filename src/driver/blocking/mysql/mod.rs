@@ -93,6 +93,7 @@ impl MySQL {
     }
 
     /// Execute queries with interceptors
+    #[track_caller]
     fn execute_with_interceptors(
         &self,
         sql: &str,
@@ -148,6 +149,7 @@ impl MySQL {
     }
 
 
+    #[track_caller]
     fn query_with_interceptors(
         &self,
         sql: &str,

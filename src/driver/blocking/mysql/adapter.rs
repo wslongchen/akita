@@ -44,9 +44,9 @@ impl MysqlAdapter {
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
-                conn
-                    .query_drop("START TRANSACTION")
-                    .map_err(|err| mysql_err!(err))
+                let _ = conn
+                    .query_drop("START TRANSACTION")?;
+                Ok(())
             }
             Err(_) => {
                 Err(database_err!("Can't get the connection.".to_string()))
@@ -59,9 +59,9 @@ impl MysqlAdapter {
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
-                conn
-                    .query_drop("COMMIT")
-                    .map_err(|err| mysql_err!(err))
+                let _ = conn
+                    .query_drop("COMMIT")?;
+                Ok(())
             }
             Err(_) => {
                 Err(database_err!("Can't get the connection.".to_string()))
@@ -74,9 +74,9 @@ impl MysqlAdapter {
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         match self.conn.write() {
             Ok(mut conn) => {
-                conn
-                    .query_drop("ROLLBACK")
-                    .map_err(|err| mysql_err!(err))
+                let _ = conn
+                    .query_drop("ROLLBACK")?;
+                Ok(())
             }
             Err(_) => {
                 Err(database_err!("Can't get the connection.".to_string()))
@@ -97,16 +97,14 @@ impl MysqlAdapter {
             Ok(mut conn) => {
                 // Prepare and execute queries
                 let stmt = conn
-                    .prep(&sql)
-                    .map_err(|err| mysql_err!(err))?;
+                    .prep(&sql)?;
 
                 let result = conn
                     .exec_map(
                         &stmt,
                         mysql_params,
                         |mysql_row| convert_mysql_row(mysql_row),
-                    )
-                    .map_err(|err| mysql_err!(err))?;
+                    )?;
 
                 let rows: Vec<Row> = result
                     .into_iter()
@@ -132,8 +130,7 @@ impl MysqlAdapter {
                 let mysql_params = convert_to_mysql_params(params)?;
                 // Prepare and execute queries
                 let stmt = conn
-                    .prep(sql)
-                    .map_err(|err| mysql_err!(err))?;
+                    .prep(sql)?;
                 let stmt_type = OperationType::detect_operation_type(&sql);
                 match stmt_type {
                     OperationType::Select => {
@@ -141,7 +138,7 @@ impl MysqlAdapter {
                         Ok(ExecuteResult::Rows(rows))
                     }
                     _ => {
-                        conn.exec_drop(&stmt, mysql_params).map_err(|err| mysql_err!(err))?;
+                        conn.exec_drop(&stmt, mysql_params)?;
                         Ok(ExecuteResult::AffectedRows(conn.affected_rows()))
                     }
                 }
@@ -365,11 +362,9 @@ fn convert_mysql_row(mysql_row: MysqlRow) -> crate::prelude::Result<Row> {
 
 /// Converted decimal
 fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql_value.try_into()
-        .map_err(|_e| data_err!("convert decimal error...".to_string()))?;
+    let bytes: Vec<u8> = mysql_value.try_into()?;
 
-    let decimal_str = String::from_utf8(bytes)
-        .map_err(|e| data_err!(e.to_string()))?;
+    let decimal_str = String::from_utf8(bytes)?;
 
     let big_decimal = bigdecimal::BigDecimal::parse_bytes(decimal_str.as_bytes(), 10)
         .ok_or_else(|| data_err!("Invalid decimal format".to_string()))?;
@@ -379,7 +374,10 @@ fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<Akit
 
 /// Converted bit
 fn convert_bit_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql::from_value_opt(mysql_value).map_err(|e| data_err!(e.to_string()))?;
+    let bytes: Vec<u8> = match mysql::from_value_opt(mysql_value) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(data_err!(e.to_string())),
+    };
     if bytes.len() == 1 {
         Ok(AkitaValue::Bool(bytes[0] != 0))
     } else {
@@ -409,10 +407,24 @@ fn try_generic_conversion(mysql_value: MysqlValue) -> crate::prelude::Result<Aki
 }
 
 /// Type-safe conversion
+#[track_caller]
 fn try_convert<T>(value: MysqlValue) -> crate::prelude::Result<T>
 where
     T: mysql::prelude::FromValue,
 {
 
-    mysql::from_value_opt::<T>(value).map_err(|e| data_err!(e.to_string()))
+    match mysql::from_value_opt::<T>(value) {
+        Ok(val) => Ok(val),
+        Err(e) => Err(data_err!(e.to_string())),
+    }
+}
+
+#[track_caller]
+fn handle_prep_error<E: Into<mysql::Error>>(err: E) -> AkitaError {
+    mysql_err!(err)
+}
+
+#[track_caller]
+fn handle_exec_error<E: Into<mysql::Error>>(err: E) -> AkitaError {
+    mysql_err!(err)
 }

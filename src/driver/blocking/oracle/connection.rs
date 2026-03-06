@@ -90,14 +90,9 @@ pub fn init_oracle_pool(cfg: AkitaConfig) -> Result<OraclePool, AkitaError> {
             database_err!(format!("Failed to create Oracle connection pool: {}", e))
         })?;
 
-    let conn = pool.get().map_err(|e| {
-        database_err!(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let conn = pool.get()?;
 
-    conn.query_row("SELECT 1 FROM DUAL", &[])
-        .map_err(|e| {
-            database_err!(format!("Oracle connection test failed: {}", e))
-        })?;
+    conn.query_row("SELECT 1 FROM DUAL", &[])?;
 
     Ok(pool)
 }

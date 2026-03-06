@@ -75,14 +75,19 @@ cfg_if! {
 
 
 pub trait DbExecutor {
+    #[track_caller]
     fn start(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     fn commit(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     fn rollback(&self) -> crate::errors::Result<()>;
 
+    #[track_caller]
     fn query(&self, sql: &str, param: Params) -> crate::errors::Result<Rows>;
 
+    #[track_caller]
     fn execute(&self, sql: &str, param: Params) -> crate::errors::Result<ExecuteResult>;
 
     fn affected_rows(&self) -> u64 { 0 }
