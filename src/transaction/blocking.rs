@@ -32,12 +32,14 @@ pub struct AkitaTransaction {
 
 #[allow(unused)]
 impl AkitaTransaction {
+    #[track_caller]
     pub fn commit(&mut self) -> crate::prelude::Result<()> {
         self.conn.commit()?;
         self.committed = true;
         Ok(())
     }
 
+    #[track_caller]
     pub fn rollback(&mut self) -> crate::prelude::Result<()> {
         self.conn.rollback()?;
         self.rolled_back = true;

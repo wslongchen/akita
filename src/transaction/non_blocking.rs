@@ -34,12 +34,14 @@ pub struct AsyncAkitaTransaction {
 
 #[allow(unused)]
 impl AsyncAkitaTransaction {
+    #[track_caller]
     pub async fn commit(&mut self) -> crate::prelude::Result<()> {
         self.conn.commit().await?;
         self.committed = true;
         Ok(())
     }
 
+    #[track_caller]
     pub async fn rollback(&mut self) -> crate::prelude::Result<()> {
         self.conn.rollback().await?;
         self.rolled_back = true;

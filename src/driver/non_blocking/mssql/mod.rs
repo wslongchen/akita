@@ -67,6 +67,7 @@ impl MssqlAsync {
         self.interceptor_chain.clone()
     }
 
+    #[track_caller]
     async fn execute_with_interceptors(
         &self,
         sql: &str,
@@ -114,6 +115,7 @@ impl MssqlAsync {
         result
     }
 
+    #[track_caller]
     async fn query_with_interceptors(
         &self,
         sql: &str,

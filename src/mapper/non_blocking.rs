@@ -22,86 +22,103 @@
 use async_trait::async_trait;
 use crate::prelude::*;
 use std::marker::Sync;
+use crate::data_err;
 use crate::mapper::IPage;
 
 
 #[async_trait]
 pub trait AsyncAkitaMapper {
     /// Get all the table of records
+    #[track_caller]
     async fn list<T>(&self, wrapper: Wrapper) -> Result<Vec<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send;
 
     /// Get one the table of records
+    #[track_caller]
     async fn select_one<T>(&self, wrapper: Wrapper) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send;
 
     /// Get one the table of records by id
+    #[track_caller]
     async fn select_by_id<T, I>(&self, id: I) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send,
         I: IntoAkitaValue + Sync + Send;
 
     /// Get table of records with page
+    #[track_caller]
     async fn page<T>(&self, page: u64, size: u64, wrapper: Wrapper) -> Result<IPage<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send;
 
     /// Get the total count of records
+    #[track_caller]
     async fn count<T>(&self, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields + Sync + Send;
 
     /// Remove the records by wrapper.
+    #[track_caller]
     async fn remove<T>(&self, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields + Sync + Send;
 
     /// Remove the records by wrapper.
+    #[track_caller]
     async fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64>
     where
         I: IntoAkitaValue + Sync + Send,
         T: GetTableName + GetFields + Sync + Send;
 
     /// Remove the records by id.
+    #[track_caller]
     async fn remove_by_id<T, I>(&self, id: I) -> Result<u64>
     where
         I: IntoAkitaValue + Into<AkitaValue> + Sync + Send,
         T: GetTableName + GetFields + Sync + Send;
 
     /// Update the records by wrapper.
+    #[track_caller]
     async fn update<T>(&self, entity: &T, wrapper: Wrapper) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send;
 
     /// Update the records by id.
+    #[track_caller]
     async fn update_by_id<T>(&self, entity: &T) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send;
 
+    #[track_caller]
     async fn update_batch_by_id<T>(&self, entities: &[T]) -> Result<u64>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send;
 
+    #[track_caller]
     async fn save_batch<T, E>(&self, entities: E) -> Result<()>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send,
         E: IntoIterator<Item = T> + Send + Sync;
 
+    #[track_caller]
     async fn save<T, I>(&self, entity: &T) -> Result<Option<I>>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send,
         I: FromAkitaValue + Sync + Send;
 
     /// save or update
+    #[track_caller]
     async fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>>
     where
         T: GetTableName + GetFields + IntoAkitaValue + Sync + Send,
         I: FromAkitaValue + Sync + Send;
 
+    #[track_caller]
     async fn exec_iter<S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(&self, sql: S, params: P) -> Result<Rows>;
 
+    #[track_caller]
     async fn simple_query<T, Q>(&self, query: Q) -> crate::errors::Result<Vec<T>>
     where
         Q: Into<String> + Send + Sync,
@@ -110,6 +127,7 @@ pub trait AsyncAkitaMapper {
         self.query_map(query, from_akita_value).await
     }
 
+    #[track_caller]
     async fn query_opt<T, Q>(&self, query: Q) -> crate::errors::Result<Vec<crate::errors::Result<T>>>
     where
         Q: Into<String> + Send + Sync,
@@ -118,6 +136,7 @@ pub trait AsyncAkitaMapper {
         self.query_map(query, from_akita_value_opt).await.map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
+    #[track_caller]
     async fn query_first<S: Into<String> + Send + Sync, R: Sync + Send>(
         &self, sql: S
     ) -> crate::errors::Result<R>
@@ -127,6 +146,7 @@ pub trait AsyncAkitaMapper {
         self.exec_first(sql, ()).await
     }
 
+    #[track_caller]
     async fn query_first_opt<R, S: Into<String> + Send + Sync>(
         &self, sql: S,
     ) -> crate::errors::Result<Option<R>>
@@ -136,6 +156,7 @@ pub trait AsyncAkitaMapper {
         self.exec_first_opt(sql, ()).await
     }
 
+    #[track_caller]
     async fn query_map<T, F, Q, U>(&self, query: Q, mut f: F) -> crate::errors::Result<Vec<U>>
     where
         Q: Into<String> + Send + Sync,
@@ -149,6 +170,7 @@ pub trait AsyncAkitaMapper {
         }).await
     }
 
+    #[track_caller]
     async fn query_fold<T, F, Q, U>(&self, query: Q, init: U, mut f: F) -> crate::errors::Result<U>
     where
         Q: Into<String> + Send + Sync,
@@ -156,10 +178,11 @@ pub trait AsyncAkitaMapper {
         U: Send + Sync, 
         F: FnMut(U, T) -> U + Send + Sync,
     {
-        self.exec_iter::<_, _>(query, ()).await.map(|r| r.object_iter().map(|data| T::from_value(&data))
+        self.exec_iter::<_, _>(query, ()).await.map(|r| r.object_iter().map(|data| from_akita_value(data))
             .fold(init, |acc, row| f(acc, row)))
     }
 
+    #[track_caller]
     async fn query_drop<Q>(&self, query: Q) -> crate::errors::Result<()>
     where
         Q: Into<String> + Send + Sync,
@@ -167,6 +190,7 @@ pub trait AsyncAkitaMapper {
         self.query_iter(query).await.map(drop)
     }
 
+    #[track_caller]
     async fn exec_map<T, F, Q, U>(&self, query: Q, mut f: F) -> crate::errors::Result<Vec<U>>
     where
         Q: Into<String> + Send + Sync,
@@ -180,6 +204,7 @@ pub trait AsyncAkitaMapper {
         }).await
     }
 
+    #[track_caller]
     async fn query_iter<S: Into<String> + Send + Sync>(
         &self,
         sql: S,
@@ -189,6 +214,7 @@ pub trait AsyncAkitaMapper {
     }
 
     #[allow(clippy::redundant_closure)]
+    #[track_caller]
     async fn exec_raw<R, S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(
         &self,
         sql: S,
@@ -201,6 +227,7 @@ pub trait AsyncAkitaMapper {
         Ok(rows.object_iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
     }
 
+    #[track_caller]
     async fn exec_first<R, S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(
         &self,
         sql: S,
@@ -213,14 +240,15 @@ pub trait AsyncAkitaMapper {
         let result: crate::errors::Result<Vec<R>> = self.exec_raw(&sql, params).await;
         match result {
             Ok(mut result) => match result.len() {
-                0 => Err(AkitaError::DataError("Empty record returned".to_string())),
+                0 => Err(data_err!("Empty record returned")),
                 1 => Ok(result.remove(0)),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned")),
             },
             Err(e) => Err(e),
         }
     }
 
+    #[track_caller]
     async fn exec_drop<S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(
         &self,
         sql: S,
@@ -232,6 +260,7 @@ pub trait AsyncAkitaMapper {
         Ok(())
     }
 
+    #[track_caller]
     async fn exec_first_opt<R, S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(
         &self,
         sql: S,
@@ -246,7 +275,7 @@ pub trait AsyncAkitaMapper {
             Ok(mut result) => match result.len() {
                 0 => Ok(None),
                 1 => Ok(Some(result.remove(0))),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned")),
             },
             Err(e) => Err(e),
         }

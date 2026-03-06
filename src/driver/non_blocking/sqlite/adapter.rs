@@ -41,7 +41,8 @@ impl SqliteAsyncAdapter {
             conn,
         }
     }
-    
+
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.conn.interact(|conn| {
             conn.execute("BEGIN TRANSACTION", [])?;
@@ -49,6 +50,7 @@ impl SqliteAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         self.conn.interact(|conn| {
             conn.execute("COMMIT", [])?;
@@ -56,6 +58,7 @@ impl SqliteAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         self.conn.interact(|conn| {
             conn.execute("ROLLBACK", [])?;
@@ -63,12 +66,14 @@ impl SqliteAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         let sqlite_params = convert_to_sqlite_params(params);
 
         self.inner_query(sql, sqlite_params).await
     }
 
+    #[track_caller]
     async fn inner_query(&self, sql: &str, sqlite_params: Vec<Box<dyn ToSql + Sync + Send>>) -> crate::prelude::Result<Rows> {
         let sql = sql.to_string();
         self.conn.interact(move |conn| {
@@ -108,6 +113,7 @@ impl SqliteAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let sqlite_params = convert_to_sqlite_params(params);
         let stmt_type = OperationType::detect_operation_type(sql);
@@ -142,6 +148,7 @@ impl SqliteAsyncAdapter {
         }).await.unwrap_or(0)
     }
 
+    #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
         self.conn.interact(|conn| {
             // SQLite does not have a ping command and performs simple queries
@@ -150,6 +157,7 @@ impl SqliteAsyncAdapter {
         }).await?
     }
 
+    #[track_caller]
     pub async fn is_valid(&self) -> crate::prelude::Result<bool> {
         match self.ping().await {
             Ok(_) => Ok(true),

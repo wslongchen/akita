@@ -31,6 +31,7 @@ use uuid::Uuid;
 use crate::errors::AkitaError;
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use crate::comm::ExecuteResult;
+use crate::database_err;
 use crate::driver::blocking::postgres::PostgresConnection;
 
 pub struct PostgresAdapter {
@@ -45,23 +46,27 @@ impl PostgresAdapter {
     }
 
     /// Start the transaction
+    #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("START TRANSACTION", Params::None)?;
         Ok(())
     }
 
     /// Submit transactions
+    #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("COMMIT", Params::None)?;
         Ok(())
     }
 
     /// Roll back transactions
+    #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         self.execute("ROLLBACK", Params::None)?;
         Ok(())
     }
 
+    #[track_caller]
     pub fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -70,9 +75,7 @@ impl PostgresAdapter {
                 let stmt_type = OperationType::detect_operation_type(sql);
 
                 // Prepare the statement
-                let statement = conn.prepare(sql).map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
-                })?;
+                let statement = conn.prepare(sql)?;
 
                 let param_types = statement.params();
 
@@ -90,9 +93,7 @@ impl PostgresAdapter {
                 match stmt_type {
                     OperationType::Select => {
                         let mut records = Rows::new();
-                        let rows = conn.query(&statement ,&pg_params_ref).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to execute query: {}", e))
-                        })?;
+                        let rows = conn.query(&statement ,&pg_params_ref)?;
                         for row in rows {
                             let mut record = Vec::new();
                             for (i, column) in statement.columns().iter().enumerate() {
@@ -109,27 +110,24 @@ impl PostgresAdapter {
                     }
                     _ => {
                         // Perform updates
-                        let rows_affected = conn.execute(&statement, &pg_params_ref).map_err(|e| {
-                            AkitaError::DatabaseError(format!("Failed to execute update: {}", e))
-                        })?;
+                        let rows_affected = conn.execute(&statement, &pg_params_ref)?;
                         Ok(ExecuteResult::AffectedRows(rows_affected))
                     }
                 }
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("error to get connection.".to_string()))
+                Err(database_err!("error to get connection.".to_string()))
             }
         }
     }
 
-    
+
+    #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         match self.conn.write() {
             Ok(mut conn) => {
                 // Prepare the statement
-                let statement = conn.prepare(sql).map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to prepare statement: {}", e))
-                })?;
+                let statement = conn.prepare(sql)?;
                 // Getting column names
                 let column_names: Vec<String> = statement
                     .columns()
@@ -146,10 +144,7 @@ impl PostgresAdapter {
                 let mut records = Rows::new();
                 // Executing queries
                 let rows = conn.
-                    query(&statement ,&pg_params_ref)
-                    .map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to execute query: {}", e))
-                })?;
+                    query(&statement ,&pg_params_ref)?;
                 // Conversion result
                 for row in rows {
                     let mut record = Vec::new();
@@ -166,13 +161,14 @@ impl PostgresAdapter {
                 Ok(records)
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("error to get connection.".to_string()))
+                Err(database_err!("error to get connection.".to_string()))
             }
         }
         
     }
 
     /// Specific to PostgreSQL: Perform bulk inserts
+    #[track_caller]
     pub fn execute_batch(&self, sql: &str, params_list: Vec<Params>) -> Result<Vec<ExecuteResult>, AkitaError> {
         if params_list.is_empty() {
             return Ok(vec![]);
@@ -186,20 +182,23 @@ impl PostgresAdapter {
 
         Ok(results)
     }
-    
+
+    #[track_caller]
     pub fn batch_execute(&mut self, sql: &str) -> Result<(), AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {
-                conn.batch_execute(sql).map_err(AkitaError::from)
+                let _ = conn.batch_execute(sql)?;
+                Ok(())
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("error to get connection.".to_string()))
+                Err(database_err!("error to get connection.".to_string()))
             }
         }
         
     }
 
     /// Postgresql-specific: COPY (high-performance bulk import)
+    #[track_caller]
     pub fn copy_in(&mut self, table: &str, columns: &[&str], data: &[Vec<AkitaValue>]) -> Result<u64, AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {
@@ -207,9 +206,7 @@ impl PostgresAdapter {
                 let sql = format!("COPY {} ({}) FROM STDIN WITH (FORMAT CSV)", table, columns_str);
 
                 // Start COPY
-                let sink = conn.copy_in(&sql).map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to start COPY: {}", e))
-                })?;
+                let sink = conn.copy_in(&sql)?;
 
                 // Writing data
                 let mut writer = postgres::CopyInWriter::from(sink);
@@ -221,16 +218,16 @@ impl PostgresAdapter {
                         .join(",");
 
                     writer.write_all(line.as_bytes()).map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to write COPY data: {}", e))
+                        database_err!(format!("Failed to write COPY data: {}", e))
                     })?;
                     writer.write_all(b"\n").map_err(|e| {
-                        AkitaError::DatabaseError(format!("Failed to write newline: {}", e))
+                        database_err!(format!("Failed to write newline: {}", e))
                     })?;
                 }
 
                 // Complete COPY
                 writer.finish().map_err(|e| {
-                    AkitaError::DatabaseError(format!("Failed to finish COPY: {}", e))
+                    database_err!(format!("Failed to finish COPY: {}", e))
                 })?;
 
                 // Get the number of affected rows (PostgreSQL COPY does not return the number of rows directly)
@@ -248,7 +245,7 @@ impl PostgresAdapter {
                 Ok(0)
             }
             Err(_) => {
-                Err(AkitaError::DatabaseError("error to get connection.".to_string()))
+                Err(database_err!("error to get connection.".to_string()))
             }
         }
         
@@ -349,7 +346,7 @@ fn convert_named_params(sql: &str, named_params: &IndexMap<String, AkitaValue>)
                         postgres_params.push(value.clone());
                     }
                 } else {
-                    return Err(AkitaError::DatabaseError(format!(
+                    return Err(database_err!(format!(
                         "Undefined named parameters: :{}", param_name
                     )));
                 }
@@ -381,7 +378,7 @@ fn convert_positional_params(sql: &str, param_values: &[AkitaValue])
     while let Some(ch) = chars.next() {
         if ch == '?' {
             if param_counter - 1 >= param_values.len() {
-                return Err(AkitaError::DatabaseError(format!(
+                return Err(database_err!(format!(
                     "Insufficient number of parameters: SQL requires at least {} parameters, but provides only {}",
                     param_counter, param_values.len()
                 )));
@@ -396,7 +393,7 @@ fn convert_positional_params(sql: &str, param_values: &[AkitaValue])
     // Check that the number of parameters matches
     let expected_params = param_counter - 1;
     if expected_params != param_values.len() {
-        return Err(AkitaError::DatabaseError(format!(
+        return Err(database_err!(format!(
             "Mismatched number of arguments: SQL requires {} arguments, but provides {}",
             expected_params, param_values.len()
         )));
@@ -426,7 +423,7 @@ fn convert_batch_positional_params(sql: &str, param_values: &[AkitaValue])
     let placeholder_count = sql.chars().filter(|&c| c == '?').count();
 
     if placeholder_count != param_values.len() {
-        return Err(AkitaError::DatabaseError(format!(
+        return Err(database_err!(format!(
             "Bulk operate parameter mismatch: SQL has {} placeholders, providing {} parameters",
             placeholder_count, param_values.len()
         )));

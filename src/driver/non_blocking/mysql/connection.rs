@@ -24,6 +24,7 @@ use deadpool::Runtime;
 use mysql_async::{Conn, Opts};
 use mysql_async::prelude::Queryable;
 use tokio::runtime::Handle;
+use crate::database_err;
 use crate::driver::non_blocking::get_tokio_context;
 use crate::errors::AkitaError;
 
@@ -45,7 +46,7 @@ impl MysqlAsyncConnectionManager {
         let connection_string = config.get_connection_string()?;
 
         let opts = Opts::from_url(&connection_string)
-            .map_err(|e| AkitaError::DatabaseError(format!("Invalid MySQL URL: {}", e)))?;
+            .map_err(|e| database_err!(format!("Invalid MySQL URL: {}", e)))?;
 
         Ok(Self {
             opts,
@@ -93,9 +94,9 @@ pub async fn init_mysql_async_pool(config: crate::config::AkitaConfig) -> Result
 
     // Testing connections
     let mut conn: MysqlAsyncConnection = pool.get().await
-        .map_err(|e| AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e)))?;
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
     conn.query_drop("SELECT 1").await
-        .map_err(|e| AkitaError::DatabaseError(format!("MySQL async connection test failed: {}", e)))?;
+        .map_err(|e| database_err!(format!("MySQL async connection test failed: {}", e)))?;
 
     tracing::info!("MySQL async connection pool initialized successfully");
 

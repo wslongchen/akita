@@ -22,6 +22,7 @@ use std::sync::Arc;
 use crate::errors::Result;
 use crate::prelude::{AkitaError};
 use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
+use crate::data_err;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
 
@@ -190,9 +191,9 @@ where
         let result: Result<Vec<R>> = self.exec_raw(&sql, params);
         match result {
             Ok(mut result) => match result.len() {
-                0 => Err(AkitaError::DataError("Empty record returned".to_string())),
+                0 => Err(data_err!("Empty record returned".to_string())),
                 1 => Ok(result.remove(0)),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned".to_string())),
             },
             Err(e) => Err(e),
         }
@@ -223,7 +224,7 @@ where
             Ok(mut result) => match result.len() {
                 0 => Ok(None),
                 1 => Ok(Some(result.remove(0))),
-                _ => Err(AkitaError::DataError("More than one record returned".to_string())),
+                _ => Err(data_err!("More than one record returned".to_string())),
             },
             Err(e) => Err(e),
         }

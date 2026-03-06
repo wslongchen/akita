@@ -29,6 +29,7 @@ use rusqlite::{Connection, Error, OpenFlags};
 use tokio::runtime::Handle;
 use tokio::task;
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::DriverType;
 use crate::driver::non_blocking::get_tokio_context;
 use crate::errors::AkitaError;
@@ -69,7 +70,7 @@ impl fmt::Debug for SqliteAsyncConnectionManager {
 impl SqliteAsyncConnectionManager {
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         if cfg.get_platform()? != DriverType::Sqlite {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "Database type mismatch: expected SQLite".to_string()
             ));
         }
@@ -169,7 +170,7 @@ pub async fn init_sqlite_async_pool(config: crate::config::AkitaConfig) -> Resul
 
     // Testing connections
     let conn: SqliteAsyncConnection = pool.get().await
-        .map_err(|e| AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e)))?;
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
     conn
         .interact(|conn| {
             conn.query_row("SELECT 1", [], |_| Ok(())).unwrap_or_default();

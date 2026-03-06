@@ -25,6 +25,7 @@ use std::sync::Arc;
 use akita_core::InterceptorType;
 use crate::comm::{ExecuteContext, ExecuteResult};
 use crate::interceptor::non_blocking::AsyncAkitaInterceptor;
+use crate::interceptor_err;
 use crate::prelude::AkitaError;
 
 /// Interceptor chain manager
@@ -92,7 +93,7 @@ impl AsyncInterceptorChain {
             // Check the depth limit
             depth += 1;
             if depth > self.config.max_interceptor_depth {
-                return Err(AkitaError::InterceptorError("Interceptor chain too deep".to_string()));
+                return Err(interceptor_err!("Interceptor chain too deep".to_string()));
             }
 
             // Check if the table is ignored

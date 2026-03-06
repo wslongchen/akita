@@ -21,11 +21,12 @@
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use crate::comm::ExecuteResult;
-use crate::errors::AkitaError;
+use crate::errors::{AkitaError, SmartBacktrace};
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use std::sync::Arc;
 use serde_json::Value;
 use tokio::sync::Mutex;
+use crate::{database_err, mssql_err};
 use crate::driver::non_blocking::mssql::MssqlAsyncConnection;
 
 /// SQL Server Asynchronous adapter
@@ -41,33 +42,37 @@ impl MssqlAsyncAdapter {
         }
     }
 
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
             .simple_query("BEGIN TRANSACTION")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
 
+    #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
             .simple_query("COMMIT")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
 
+    #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut client = self.client.lock().await;
         client
             .simple_query("ROLLBACK")
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| mssql_err!(e))?;
         Ok(())
     }
-    
+
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         let mssql_params = convert_to_mssql_params(params);
         let param_refs: Vec<&dyn tiberius::ToSql> = mssql_params
@@ -77,15 +82,16 @@ impl MssqlAsyncAdapter {
 
         self.inner_query(sql, &param_refs).await
     }
-    
+
+    #[track_caller]
     async fn inner_query(&self, sql: &str, param_refs: &[& dyn tiberius::ToSql]) -> Result<Rows, AkitaError> {
         let mut client = self.client.lock().await;
         let stream = client
             .query(sql,&param_refs)
             .await
-            .map_err(|e| AkitaError::MssqlError(e))?;
+            .map_err(|e| mssql_err!(e))?;
         let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to get result: {}", e))
+            database_err!(format!("Failed to get result: {}", e))
         })?;
         if rows.is_empty() {
             return Ok(Rows::new())
@@ -112,6 +118,7 @@ impl MssqlAsyncAdapter {
         Ok(records)
     }
 
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let mut client = self.client.lock().await;
 
@@ -132,7 +139,7 @@ impl MssqlAsyncAdapter {
                 let result = client
                     .execute(sql, &param_refs)
                     .await
-                    .map_err(|e| AkitaError::MssqlError(e))?;
+                    .map_err(|e| mssql_err!(e))?;
 
                 Ok(ExecuteResult::AffectedRows(result.total() as u64))
             }

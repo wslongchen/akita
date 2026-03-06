@@ -21,6 +21,7 @@
 use mysql::{Conn, Error, Opts};
 use mysql::prelude::Queryable;
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::errors::AkitaError;
 
 pub type MysqlPool = r2d2::Pool<MysqlConnectionManager>;
@@ -40,7 +41,7 @@ impl MysqlConnectionManager {
         // Gets the parsed connection string
         let connection_string = cfg.get_connection_string()?;
         let opts = mysql::Opts::from_url(&connection_string)
-            .map_err(|e| AkitaError::DatabaseError(format!("Invalid MySQL URL: {}", e)))?;
+            .map_err(|e| database_err!(format!("Invalid MySQL URL: {}", e)))?;
         Ok(Self {
             params: Opts::from(opts),
             cfg: cfg.clone(),
@@ -89,17 +90,13 @@ pub fn init_mysql_pool(cfg: AkitaConfig) -> Result<MysqlPool, AkitaError> {
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            AkitaError::DatabaseError(format!("Failed to create MySQL connection pool: {}", e))
+            database_err!(format!("Failed to create MySQL connection pool: {}", e))
         })?;
 
     // Testing connections
-    let mut conn = pool.get().map_err(|e| {
-        AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let mut conn = pool.get()?;
 
-    conn.query_drop("SELECT 1").map_err(|e| {
-        AkitaError::DatabaseError(format!("MySQL connection test failed: {}", e))
-    })?;
+    conn.query_drop("SELECT 1")?;
 
     Ok(pool)
 }

@@ -21,6 +21,7 @@
 use std::collections::HashSet;
 use akita_core::{AkitaValue, Condition, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, QueryData, TableName, Wrapper};
 use crate::driver::DriverType;
+use crate::empty_data_err;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
 use crate::mapper::PaginationOptions;
@@ -165,7 +166,7 @@ impl SqlBuilder for OracleSqlBuilder {
     // Oracle needs to handle double table inserts
     fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if columns.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // Build column names (uppercase for Oracle)
@@ -224,7 +225,7 @@ impl SqlBuilder for OracleSqlBuilder {
         data: &BatchInsertData
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
         let id_field_name = data.id_field.as_ref()
             .map(|f| f.alias.as_ref().unwrap_or(&f.name).to_string());
@@ -244,7 +245,7 @@ impl SqlBuilder for OracleSqlBuilder {
             .unzip();
 
         if column_names.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
         
         let mut sql_parts = Vec::new();

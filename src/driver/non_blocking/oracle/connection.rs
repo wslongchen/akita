@@ -28,6 +28,7 @@ use oracle::{Connection, Connector, ErrorKind};
 use tokio::runtime::Handle;
 use tokio::task;
 use crate::config::AkitaConfig;
+use crate::database_err;
 use crate::driver::DriverType;
 use crate::driver::non_blocking::get_tokio_context;
 use crate::errors::AkitaError;
@@ -116,7 +117,7 @@ pub async fn init_oracle_async_pool(config: crate::config::AkitaConfig) -> Resul
 
     // Testing connections
     let conn: OracleAsyncConnection = pool.get().await
-        .map_err(|e| AkitaError::DatabaseError(format!("Failed to get connection from pool: {}", e)))?;
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
     conn
         .interact(|conn| {
             conn.query_row_as::<i32>("SELECT 1 FROM DUAL", &[]).unwrap_or_default();
@@ -149,18 +150,18 @@ impl TryFrom<&AkitaConfig> for Connector {
 
     fn try_from(cfg: &AkitaConfig) -> Result<Self, Self::Error> {
         if cfg.get_platform()? != DriverType::Oracle {
-            return Err(AkitaError::DatabaseError(
+            return Err(database_err!(
                 "Database type mismatch: expected Oracle".to_string()
             ));
         }
 
         // Use smart acquisition methods
         let username = cfg.get_username()?.ok_or_else(|| {
-            AkitaError::DatabaseError("Oracle username is required".to_string())
+            database_err!("Oracle username is required".to_string())
         })?;
 
         let password = cfg.get_password()?.ok_or_else(|| {
-            AkitaError::DatabaseError("Oracle password is required".to_string())
+            database_err!("Oracle password is required".to_string())
         })?;
 
         // Building connection strings
@@ -180,12 +181,12 @@ impl TryFrom<&AkitaConfig> for Connector {
                 if let Some(at_index) = url.find('@') {
                     connect_string = url[at_index + 1..].to_string();
                 } else {
-                    return Err(AkitaError::DatabaseError(
+                    return Err(database_err!(
                         "Oracle connection string is required".to_string()
                     ));
                 }
             } else {
-                return Err(AkitaError::DatabaseError(
+                return Err(database_err!(
                     "Oracle connection string is required".to_string()
                 ));
             }

@@ -29,6 +29,7 @@ use deadpool::managed::Manager;
 use serde_json::{Map, Value};
 use tokio::sync::RwLock;
 use crate::driver::non_blocking::mysql::MysqlAsyncConnection;
+use crate::{data_err, mysql_async_err};
 
 /// MySQL Asynchronous adapter
 pub struct MysqlAsyncAdapter {
@@ -41,46 +42,49 @@ impl MysqlAsyncAdapter {
             conn: Arc::new(RwLock::new(conn)),
         }
     }
-    
+
+    #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        conn.query_drop("START TRANSACTION")
-            .await
-            .map_err(|e| AkitaError::MySQLAsyncError(e))
-    }
-    
-    pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
-        let mut conn = self.conn.write().await;
-        conn.query_drop("COMMIT")
-            .await
-            .map_err(|e| AkitaError::MySQLAsyncError(e))
-    }
-    
-    pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
-        let mut conn = self.conn.write().await;
-        conn.query_drop("ROLLBACK")
-            .await
-            .map_err(|e| AkitaError::MySQLAsyncError(e))
+        let _ = conn.query_drop("START TRANSACTION")
+            .await?;
+        Ok(())
     }
 
+    #[track_caller]
+    pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
+        let mut conn = self.conn.write().await;
+        let _ = conn.query_drop("COMMIT")
+            .await?;
+        Ok(())
+    }
+
+    #[track_caller]
+    pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
+        let mut conn = self.conn.write().await;
+        let _ = conn.query_drop("ROLLBACK")
+            .await?;
+        Ok(())
+    }
+
+    #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Conversion parameters
         let mysql_params = convert_to_mysql_params(params)?;
         self.inner_query(sql, mysql_params).await
     }
-    
+
+    #[track_caller]
     async fn inner_query(&self, sql:  &str, params: mysql_async::Params) -> crate::prelude::Result<Rows> {
         let mut conn = self.conn.write().await;
         // Executing queries
         let result = conn
             .exec_iter(sql, params)
-            .await
-            .map_err(|e| AkitaError::MySQLAsyncError(e))?;
+            .await?;
 
         let rows_fut = result.map_and_drop(|mysql_row| convert_mysql_row(mysql_row));
         let rows: Vec<Row> = rows_fut
-            .await
-            .map_err(|e| AkitaError::MySQLAsyncError(e))?
+            .await?
             .into_iter()
             .collect::<crate::prelude::Result<Vec<Row>>>()?;
 
@@ -89,7 +93,8 @@ impl MysqlAsyncAdapter {
             count: None,
         })
     }
-    
+
+    #[track_caller]
     pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         let mut conn = self.conn.write().await;
         // Conversion parameters
@@ -104,8 +109,7 @@ impl MysqlAsyncAdapter {
             }
             _ => {
                 conn.exec_drop(sql, mysql_params)
-                    .await
-                    .map_err(|e| AkitaError::MySQLAsyncError(e))?;
+                    .await?;
 
                 Ok(ExecuteResult::AffectedRows(conn.affected_rows() as u64))
             }
@@ -132,12 +136,14 @@ impl MysqlAsyncAdapter {
     }
 
     /// Ping Checking connections
+    #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        conn.ping().await.map_err(|e| AkitaError::MySQLAsyncError(e))
+        conn.ping().await.map_err(|e| mysql_async_err!(e))
     }
 
     /// Check that the connection is valid
+    #[track_caller]
     pub async fn is_valid(&self) -> crate::prelude::Result<bool> {
         match self.ping().await {
             Ok(_) => Ok(true),
@@ -271,7 +277,7 @@ fn convert_mysql_value(mysql_value: MysqlValue, column_type: mysql_async::consts
         ColumnType::MYSQL_TYPE_JSON => {
             let val: String = try_convert(mysql_value)?;
             let json_val = serde_json::from_str(&val)
-                .map_err(|e| AkitaError::DataError(e.to_string()))?;
+                .map_err(|e| data_err!(e.to_string()))?;
             Ok(AkitaValue::Json(json_val))
         }
         ColumnType::MYSQL_TYPE_TINY_BLOB | ColumnType::MYSQL_TYPE_MEDIUM_BLOB |
@@ -324,20 +330,20 @@ fn convert_mysql_row(mysql_row: MysqlRow) -> crate::prelude::Result<Row> {
 /// Converted decimal
 fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
     let bytes: Vec<u8> = mysql_value.try_into()
-        .map_err(|_e| AkitaError::DataError("convert decimal error...".to_string()))?;
+        .map_err(|_e| data_err!("convert decimal error...".to_string()))?;
 
     let decimal_str = String::from_utf8(bytes)
-        .map_err(|e| AkitaError::DataError(e.to_string()))?;
+        .map_err(|e| data_err!(e.to_string()))?;
 
     let big_decimal = bigdecimal::BigDecimal::parse_bytes(decimal_str.as_bytes(), 10)
-        .ok_or_else(|| AkitaError::DataError("Invalid decimal format".to_string()))?;
+        .ok_or_else(|| data_err!("Invalid decimal format".to_string()))?;
 
     Ok(AkitaValue::BigDecimal(big_decimal))
 }
 
 /// Converted bit
 fn convert_bit_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql_async::from_value_opt(mysql_value).map_err(|e| AkitaError::DataError(e.to_string()))?;
+    let bytes: Vec<u8> = mysql_async::from_value_opt(mysql_value).map_err(|e| data_err!(e.to_string()))?;
     if bytes.len() == 1 {
         Ok(AkitaValue::Bool(bytes[0] != 0))
     } else {
@@ -363,7 +369,7 @@ fn try_generic_conversion(mysql_value: MysqlValue) -> crate::prelude::Result<Aki
         return Ok(AkitaValue::Blob(bytes));
     }
 
-    Err(AkitaError::DataError("Unsupported MySQL value type".to_string()))
+    Err(data_err!("Unsupported MySQL value type".to_string()))
 }
 
 
@@ -395,5 +401,5 @@ where
     T: mysql_async::prelude::FromValue,
 {
 
-    mysql_async::from_value_opt::<T>(value).map_err(|e| AkitaError::DataError(e.to_string()))
+    mysql_async::from_value_opt::<T>(value).map_err(|e| data_err!(e.to_string()))
 }

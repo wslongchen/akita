@@ -22,6 +22,7 @@ use tiberius::ToSql;
 use crate::errors::{AkitaError, Result};
 use tokio::runtime::Runtime;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
+use crate::{database_err, tokio_err};
 
 /// Synchronous SQL Server client wrapper
 pub struct SyncMssqlClient {
@@ -36,17 +37,17 @@ impl SyncMssqlClient {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .map_err(|e| AkitaError::TokioError(format!("Failed to create runtime: {}", e)))?;
+            .map_err(|e| tokio_err!(format!("Failed to create runtime: {}", e)))?;
 
         // Connect to the database asynchronously
         let client = runtime.block_on(async {
             // Establishing a TCP connection
             let tcp = tokio::net::TcpStream::connect(config.get_addr())
                 .await
-                .map_err(|e| AkitaError::TokioError(format!("TCP connection failed: {}", e)))?;
+                .map_err(|e| tokio_err!(format!("TCP connection failed: {}", e)))?;
 
             tcp.set_nodelay(true).map_err(|e| {
-                AkitaError::TokioError(format!("Failed to set TCP no delay: {}", e))
+                tokio_err!(format!("Failed to set TCP no delay: {}", e))
             })?;
 
             // Convert tokio::net::TcpStream to a futures-compatible type
@@ -54,7 +55,7 @@ impl SyncMssqlClient {
 
             tiberius::Client::connect(config, compat_tcp)
                 .await
-                .map_err(|e| AkitaError::DatabaseError(format!("Database connection failed: {}", e)))
+                .map_err(|e| database_err!(format!("Database connection failed: {}", e)))
         })?;
 
         Ok(Self {
@@ -71,10 +72,10 @@ impl SyncMssqlClient {
 
         self.runtime.block_on(async {
             let stream = client.query(sql, params).await.map_err(|e| {
-                AkitaError::DatabaseError(format!("Query failed: {}", e))
+                database_err!(format!("Query failed: {}", e))
             })?;
             let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get result: {}", e))
+                database_err!(format!("Failed to get result: {}", e))
             })?;
 
             Ok(rows)
@@ -88,11 +89,11 @@ impl SyncMssqlClient {
 
         self.runtime.block_on(async {
             let stream = client.simple_query(sql).await.map_err(|e| {
-                AkitaError::DatabaseError(format!("Simple Query failed: {}", e))
+                database_err!(format!("Simple Query failed: {}", e))
             })?;
 
             let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-                AkitaError::DatabaseError(format!("Failed to get result: {}", e))
+                database_err!(format!("Failed to get result: {}", e))
             })?;
 
             Ok(rows)
@@ -107,7 +108,7 @@ impl SyncMssqlClient {
 
         self.runtime.block_on(async {
             let result = client.execute(sql, params).await.map_err(|e| {
-                AkitaError::DatabaseError(format!("Execute failed: {}", e))
+                database_err!(format!("Execute failed: {}", e))
             })?;
 
             Ok(result.total())

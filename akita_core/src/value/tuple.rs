@@ -93,7 +93,7 @@ impl <A> FromAkitaValue for (A,) where A: FromAkitaValue {
         match value {
             AkitaValue::List(elements) if elements.len() == 1 => {
                 Ok((
-                    from_akita_value_opt(&elements[0])?,
+                    from_akita_value_opt(elements[0].clone())?,
                 ))
             }
             _ => Err(AkitaDataError::ConversionError(ConversionError::ConversionError {

@@ -19,6 +19,7 @@
  *  
  */
 use akita_core::{AkitaValue, FieldName, FieldType, IdentifierType, Params, TableName, Wrapper};
+use crate::empty_data_err;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
 
@@ -91,7 +92,7 @@ impl SqlBuilder for SqliteBuilder {
 
     fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if columns.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
         
         // Building column names
@@ -149,7 +150,7 @@ impl SqlBuilder for SqliteBuilder {
         data: &BatchInsertData
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
-            return Err(AkitaError::EmptyData);
+            return Err(empty_data_err!());
         }
 
         // Building column names

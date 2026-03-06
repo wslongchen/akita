@@ -35,14 +35,17 @@ use crate::errors::AkitaError;
 #[async_trait::async_trait]
 pub trait AsyncAkitaInterceptor: Send + Sync {
     /// Call before executing the query
+    #[track_caller]
     async fn before_execute(&self, ctx: &mut ExecuteContext) -> crate::prelude::Result<()>;
 
     /// Call after executing the query
+    #[track_caller]
     async fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult, AkitaError>) -> crate::prelude::Result<()> {
         Ok(())
     }
 
     /// Call when the query executes an error
+    #[track_caller]
     async fn on_error(&self, _ctx: &ExecuteContext, error: &mut AkitaError) -> crate::prelude::Result<()> {
         // 默认实现，子类可以重写
         tracing::error!("Interceptor '{}' encountered error: {}", self.name(), error);
@@ -72,8 +75,10 @@ pub trait AsyncAkitaInterceptor: Send + Sync {
     }
 
     /// Interceptor initialization
+    #[track_caller]
     async fn init(&self) -> crate::prelude::Result<()> { Ok(()) }
 
     /// Interceptor destruction
+    #[track_caller]
     async fn destroy(&self) -> crate::prelude::Result<()> { Ok(()) }
 }
