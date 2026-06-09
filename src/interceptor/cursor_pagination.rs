@@ -95,6 +95,25 @@ pub struct CursorPaginationResult {
 }
 
 impl CursorPaginationResult {
+    /// Create a new cursor pagination result.
+    ///
+    /// # Arguments
+    /// * `has_more` - Whether there are more records beyond this page.
+    /// * `next_cursor` - The cursor value for fetching the next page, or `None` if at the end.
+    /// * `prev_cursor` - The cursor value for fetching the previous page, or `None` if at the start.
+    ///
+    /// # Returns
+    /// A new `CursorPaginationResult` with the given pagination metadata.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let result = CursorPaginationResult::new(
+    ///     true,
+    ///     Some("456".to_string()),
+    ///     Some("123".to_string()),
+    /// );
+    /// assert!(result.has_more);
+    /// ```
     pub fn new(has_more: bool, next_cursor: Option<String>, prev_cursor: Option<String>) -> Self {
         Self {
             has_more,
@@ -124,6 +143,17 @@ impl Default for CursorPaginationInterceptor {
 }
 
 impl CursorPaginationInterceptor {
+    /// Create a new cursor pagination interceptor with default settings.
+    ///
+    /// The default limit is 10 and the maximum limit is 1000.
+    ///
+    /// # Returns
+    /// A new `CursorPaginationInterceptor` with default configuration.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let interceptor = CursorPaginationInterceptor::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             default_limit: 10,

@@ -68,12 +68,34 @@ pub enum TimestampFormat {
 }
 
 impl TimestampFillHandler {
+    /// Create a new timestamp fill handler with the default `DateTime` format.
+    ///
+    /// # Returns
+    /// A new `TimestampFillHandler` that produces `NaiveDateTime` timestamps.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let handler = TimestampFillHandler::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             format: TimestampFormat::DateTime,
         }
     }
 
+    /// Set the timestamp format for this handler.
+    ///
+    /// # Arguments
+    /// * `format` - The desired timestamp format (`DateTime`, `UnixSeconds`, or `UnixMillis`).
+    ///
+    /// # Returns
+    /// The handler with the updated format (builder pattern).
+    ///
+    /// # Example
+    /// ```ignore
+    /// let handler = TimestampFillHandler::new()
+    ///     .with_format(TimestampFormat::UnixSeconds);
+    /// ```
     pub fn with_format(mut self, format: TimestampFormat) -> Self {
         self.format = format;
         self
@@ -105,6 +127,15 @@ impl FieldFillHandler for TimestampFillHandler {
 pub struct UuidFillHandler;
 
 impl UuidFillHandler {
+    /// Create a new UUID fill handler.
+    ///
+    /// # Returns
+    /// A new `UuidFillHandler` that generates UUID v4 strings.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let handler = UuidFillHandler::new();
+    /// ```
     pub fn new() -> Self {
         Self
     }
@@ -126,6 +157,19 @@ pub struct FixedValueFillHandler {
 }
 
 impl FixedValueFillHandler {
+    /// Create a new fixed value fill handler.
+    ///
+    /// # Arguments
+    /// * `value` - The fixed value to return for every fill operation.
+    ///
+    /// # Returns
+    /// A new `FixedValueFillHandler` that always returns the given value.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use akita_core::AkitaValue;
+    /// let handler = FixedValueFillHandler::new(AkitaValue::Text("system".to_string()));
+    /// ```
     pub fn new(value: AkitaValue) -> Self {
         Self { value }
     }
@@ -157,6 +201,15 @@ impl Default for FieldFillInterceptor {
 }
 
 impl FieldFillInterceptor {
+    /// Create a new field fill interceptor with no handlers configured.
+    ///
+    /// # Returns
+    /// A new `FieldFillInterceptor` in enabled state with an empty handler map.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let interceptor = FieldFillInterceptor::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             handlers: HashMap::new(),

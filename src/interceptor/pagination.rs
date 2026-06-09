@@ -56,6 +56,23 @@ pub struct PaginationRequest {
 }
 
 impl PaginationRequest {
+    /// Create a new pagination request.
+    ///
+    /// By default, `count_total` is set to `true`. Use [`without_count`](Self::without_count)
+    /// to disable total count queries.
+    ///
+    /// # Arguments
+    /// * `page` - Page number (1-based).
+    /// * `size` - Number of records per page.
+    ///
+    /// # Returns
+    /// A new `PaginationRequest` with total counting enabled.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let request = PaginationRequest::new(1, 10);
+    /// assert_eq!(request.offset(), 0);
+    /// ```
     pub fn new(page: u64, size: u64) -> Self {
         Self {
             page,
@@ -64,6 +81,19 @@ impl PaginationRequest {
         }
     }
 
+    /// Disable total record counting for this pagination request.
+    ///
+    /// When disabled, the interceptor will not execute a COUNT query, which
+    /// can improve performance for large datasets.
+    ///
+    /// # Returns
+    /// The pagination request with `count_total` set to `false`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let request = PaginationRequest::new(1, 10).without_count();
+    /// assert!(!request.count_total);
+    /// ```
     pub fn without_count(mut self) -> Self {
         self.count_total = false;
         self
@@ -93,6 +123,23 @@ pub struct PaginationResult {
 }
 
 impl PaginationResult {
+    /// Create a new pagination result.
+    ///
+    /// Automatically calculates the total number of pages when `total` is `Some`.
+    ///
+    /// # Arguments
+    /// * `page` - The current page number (1-based).
+    /// * `size` - The page size used for this query.
+    /// * `total` - The total number of matching records, or `None` if not counted.
+    ///
+    /// # Returns
+    /// A new `PaginationResult` with `pages` computed from `total` and `size`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let result = PaginationResult::new(2, 10, Some(25));
+    /// assert_eq!(result.pages, Some(3));
+    /// ```
     pub fn new(page: u64, size: u64, total: Option<u64>) -> Self {
         let pages = total.map(|t| if size > 0 { (t + size - 1) / size } else { 0 });
 
@@ -125,6 +172,17 @@ impl Default for PaginationInterceptor {
 }
 
 impl PaginationInterceptor {
+    /// Create a new pagination interceptor with default settings.
+    ///
+    /// The default page size is 10 and the maximum page size is 1000.
+    ///
+    /// # Returns
+    /// A new `PaginationInterceptor` with default configuration.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let interceptor = PaginationInterceptor::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             default_page_size: 10,

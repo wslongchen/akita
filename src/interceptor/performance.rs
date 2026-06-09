@@ -100,6 +100,18 @@ pub struct MetricsCollector {
 }
 
 impl MetricsCollector {
+    /// Create a new metrics collector with all counters initialized to zero.
+    ///
+    /// # Returns
+    /// A new `MetricsCollector` ready to record query metrics.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let collector = MetricsCollector::new();
+    /// collector.record_query(100, false);
+    /// let metrics = collector.get_metrics();
+    /// assert_eq!(metrics.total_queries, 1);
+    /// ```
     pub fn new() -> Self {
         Self {
             total_queries: Arc::new(AtomicU64::new(0)),

@@ -91,6 +91,14 @@ impl SubQuery {
     }
 
     /// Create a new NOT IN subquery for a specific column.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let sub = SubQuery::not_in_query("id")
+    ///     .select(vec!["id"])
+    ///     .from("banned_users")
+    ///     .where_eq("status", "banned");
+    /// ```
     pub fn not_in_query(column: &str) -> Self {
         Self {
             wrapper: Wrapper::new(),
@@ -117,6 +125,17 @@ impl SubQuery {
     }
 
     /// Create a new NOT EXISTS subquery.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let sub = SubQuery::not_exists()
+    ///     .select(vec!["1"])
+    ///     .from("orders")
+    ///     .where_eq("orders.user_id", "users.id");
+    ///
+    /// let wrapper = Wrapper::new()
+    ///     .exists_subquery(sub);
+    /// ```
     pub fn not_exists() -> Self {
         Self {
             wrapper: Wrapper::new(),
@@ -125,19 +144,37 @@ impl SubQuery {
         }
     }
 
-    /// Set the SELECT columns.
+    /// Set the SELECT columns for the subquery.
+    ///
+    /// # Parameters
+    /// - `columns`: A vector of column names or expressions to select.
+    ///
+    /// # Returns
+    /// The modified `SubQuery` builder with the SELECT clause set.
     pub fn select<S: Into<String>>(mut self, columns: Vec<S>) -> Self {
         self.wrapper = self.wrapper.select(columns);
         self
     }
 
-    /// Set the FROM table.
+    /// Set the FROM table for the subquery.
+    ///
+    /// # Parameters
+    /// - `table`: The table name to query from.
+    ///
+    /// # Returns
+    /// The modified `SubQuery` builder with the FROM clause set.
     pub fn from<S: Into<String>>(mut self, table: S) -> Self {
         self.wrapper = self.wrapper.table(table);
         self
     }
 
-    /// Set the table alias.
+    /// Set the table alias for the subquery.
+    ///
+    /// # Parameters
+    /// - `alias`: The alias name for the table.
+    ///
+    /// # Returns
+    /// The modified `SubQuery` builder with the alias set.
     pub fn alias<S: Into<String>>(mut self, alias: S) -> Self {
         self.wrapper = self.wrapper.alias(alias);
         self
@@ -145,61 +182,102 @@ impl SubQuery {
 
     // ========== WHERE conditions ==========
 
-    /// Add an equals condition.
+    /// Add an equals (`=`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
+    ///
+    /// # Returns
+    /// The modified `SubQuery` builder with the condition added.
     pub fn where_eq<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.eq(column, value);
         self
     }
 
-    /// Add a not equals condition.
+    /// Add a not equals (`!=`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
     pub fn where_ne<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.ne(column, value);
         self
     }
 
-    /// Add a greater than condition.
+    /// Add a greater than (`>`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
     pub fn where_gt<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.gt(column, value);
         self
     }
 
-    /// Add a greater than or equals condition.
+    /// Add a greater than or equals (`>=`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
     pub fn where_ge<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.ge(column, value);
         self
     }
 
-    /// Add a less than condition.
+    /// Add a less than (`<`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
     pub fn where_lt<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.lt(column, value);
         self
     }
 
-    /// Add a less than or equals condition.
+    /// Add a less than or equals (`<=`) condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The value to compare against.
     pub fn where_le<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.le(column, value);
         self
     }
 
-    /// Add a LIKE condition.
+    /// Add a `LIKE` condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to compare.
+    /// - `value`: The pattern value to match against (supports `%` and `_` wildcards).
     pub fn where_like<S: Into<String>, V: IntoAkitaValue>(mut self, column: S, value: V) -> Self {
         self.wrapper = self.wrapper.like(column, value);
         self
     }
 
-    /// Add an IS NULL condition.
+    /// Add an `IS NULL` condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to check for null.
     pub fn where_is_null<S: Into<String>>(mut self, column: S) -> Self {
         self.wrapper = self.wrapper.is_null(column);
         self
     }
 
-    /// Add an IS NOT NULL condition.
+    /// Add an `IS NOT NULL` condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to check for non-null.
     pub fn where_is_not_null<S: Into<String>>(mut self, column: S) -> Self {
         self.wrapper = self.wrapper.is_not_null(column);
         self
     }
 
-    /// Add an IN condition.
+    /// Add an `IN` condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to check.
+    /// - `values`: An iterable of values to match against.
     pub fn where_in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
@@ -210,7 +288,12 @@ impl SubQuery {
         self
     }
 
-    /// Add a BETWEEN condition.
+    /// Add a `BETWEEN` condition to the subquery.
+    ///
+    /// # Parameters
+    /// - `column`: The column name to check.
+    /// - `start`: The lower bound value (inclusive).
+    /// - `end`: The upper bound value (inclusive).
     pub fn where_between<S: Into<String>, V: IntoAkitaValue>(
         mut self,
         column: S,
@@ -223,23 +306,41 @@ impl SubQuery {
 
     // ========== Build ==========
 
-    /// Build the subquery SQL.
+    /// Build the subquery into its component parts.
+    ///
+    /// Consumes the builder and returns a tuple of:
+    /// - The `SubQueryType` (IN, NOT IN, EXISTS, NOT EXISTS)
+    /// - The optional column name (set for IN/NOT IN queries)
+    /// - The generated SQL string
+    ///
+    /// # Returns
+    /// A tuple `(SubQueryType, Option<String>, String)` containing the query type,
+    /// column, and the generated SQL.
     pub fn build(self) -> (SubQueryType, Option<String>, String) {
         let sql = self.wrapper.build_select_sql();
         (self.query_type, self.column, sql)
     }
 
-    /// Get the query type.
+    /// Get a reference to the subquery type.
+    ///
+    /// # Returns
+    /// A reference to the `SubQueryType` enum variant indicating whether this is
+    /// an IN, NOT IN, EXISTS, or NOT EXISTS subquery.
     pub fn query_type(&self) -> &SubQueryType {
         &self.query_type
     }
 
-    /// Get the column (for IN/NOT IN queries).
+    /// Get the column name for IN/NOT IN queries.
+    ///
+    /// Returns `Some(column)` for IN and NOT IN subqueries, or `None` for
+    /// EXISTS and NOT EXISTS subqueries.
     pub fn column(&self) -> Option<&String> {
         self.column.as_ref()
     }
 
-    /// Get the underlying wrapper.
+    /// Get a reference to the underlying `Wrapper`.
+    ///
+    /// This can be used to inspect or further modify the query before building.
     pub fn wrapper(&self) -> &Wrapper {
         &self.wrapper
     }

@@ -24,18 +24,36 @@
 //! This module contains common types and helper functions used by both
 //! `DBPoolWrapper` (blocking) and `AsyncDBPoolWrapper` (non-blocking).
 
-/// Database driver types supported by the pool
+/// Database driver types supported by the connection pool.
+///
+/// Each variant corresponds to a specific database backend that Akita can
+/// connect to through the pool abstraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PoolDriverType {
+    /// MySQL / MariaDB database driver.
     MySQL,
+    /// PostgreSQL database driver.
     PostgreSQL,
+    /// SQLite embedded database driver.
     SQLite,
+    /// Oracle database driver.
     Oracle,
+    /// Microsoft SQL Server database driver.
     MSSQL,
 }
 
 impl PoolDriverType {
-    /// Get a human-readable name for the driver type
+    /// Get a human-readable display name for the driver type.
+    ///
+    /// # Returns
+    /// A static string slice with the canonical name of the database driver
+    /// (e.g., `"MySQL"`, `"PostgreSQL"`, `"SQL Server"`).
+    ///
+    /// # Example
+    /// ```ignore
+    /// let driver = PoolDriverType::PostgreSQL;
+    /// assert_eq!(driver.display_name(), "PostgreSQL");
+    /// ```
     pub fn display_name(&self) -> &'static str {
         match self {
             PoolDriverType::MySQL => "MySQL",

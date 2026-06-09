@@ -85,6 +85,21 @@ pub struct OptimisticLockerInterceptor {
 }
 
 impl OptimisticLockerInterceptor {
+    /// Create a new optimistic lock interceptor with the given configuration.
+    ///
+    /// # Arguments
+    /// * `config` - The optimistic lock configuration specifying the version column and ignored tables.
+    ///
+    /// # Returns
+    /// A new `OptimisticLockerInterceptor` using the provided configuration.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use akita::interceptor::optimistic_lock::{OptimisticLockerInterceptor, OptimisticLockConfig};
+    ///
+    /// let config = OptimisticLockConfig::default().with_column("lock_version");
+    /// let interceptor = OptimisticLockerInterceptor::new(config);
+    /// ```
     pub fn new(config: OptimisticLockConfig) -> Self {
         Self { config }
     }

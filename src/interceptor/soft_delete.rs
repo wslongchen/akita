@@ -94,6 +94,21 @@ pub struct SoftDeleteInterceptor {
 }
 
 impl SoftDeleteInterceptor {
+    /// Create a new soft delete interceptor with the given configuration.
+    ///
+    /// # Arguments
+    /// * `config` - The soft delete configuration specifying column name, values, and ignored tables.
+    ///
+    /// # Returns
+    /// A new `SoftDeleteInterceptor` using the provided configuration.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use akita::interceptor::soft_delete::{SoftDeleteInterceptor, SoftDeleteConfig};
+    ///
+    /// let config = SoftDeleteConfig::default().with_column("is_deleted");
+    /// let interceptor = SoftDeleteInterceptor::new(config);
+    /// ```
     pub fn new(config: SoftDeleteConfig) -> Self {
         Self { config }
     }

@@ -41,13 +41,27 @@ use akita_core::Params;
 /// tx.commit()?;
 /// ```
 pub struct SavepointGuard<'a, E: SavepointExecutor> {
+    /// A mutable reference to the executor that owns the database connection.
     executor: &'a mut E,
+    /// The savepoint name used in SQL statements.
     name: String,
+    /// Whether the savepoint has been explicitly released or rolled back.
     released: bool,
 }
 
 impl<'a, E: SavepointExecutor> SavepointGuard<'a, E> {
     /// Create a new savepoint with the given name.
+    ///
+    /// Issues a `SAVEPOINT <name>` statement immediately. If the guard is
+    /// dropped without calling [`release()`](Self::release), the savepoint
+    /// is automatically rolled back.
+    ///
+    /// # Parameters
+    /// - `executor`: A mutable reference to the savepoint-capable executor.
+    /// - `name`: The savepoint name (alphanumeric and underscores only).
+    ///
+    /// # Returns
+    /// A `SavepointGuard` that manages the savepoint lifecycle.
     pub fn new(executor: &'a mut E, name: &str) -> Result<Self> {
         executor.create_savepoint(name)?;
         Ok(Self {
@@ -57,7 +71,13 @@ impl<'a, E: SavepointExecutor> SavepointGuard<'a, E> {
         })
     }
 
-    /// Release the savepoint (commit the savepoint).
+    /// Release (commit) the savepoint.
+    ///
+    /// Issues a `RELEASE SAVEPOINT <name>` statement and marks the guard as
+    /// released so that the `Drop` impl will not roll back.
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or an error if the release statement fails.
     pub fn release(mut self) -> Result<()> {
         self.executor.release_savepoint(&self.name)?;
         self.released = true;
@@ -65,6 +85,12 @@ impl<'a, E: SavepointExecutor> SavepointGuard<'a, E> {
     }
 
     /// Rollback to the savepoint.
+    ///
+    /// Issues a `ROLLBACK TO SAVEPOINT <name>` statement and marks the guard
+    /// as released so that the `Drop` impl will not roll back again.
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or an error if the rollback statement fails.
     pub fn rollback(mut self) -> Result<()> {
         self.executor.rollback_to_savepoint(&self.name)?;
         self.released = true;
@@ -72,6 +98,9 @@ impl<'a, E: SavepointExecutor> SavepointGuard<'a, E> {
     }
 
     /// Get the savepoint name.
+    ///
+    /// # Returns
+    /// A string slice containing the savepoint name used in SQL statements.
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -89,29 +118,68 @@ impl<'a, E: SavepointExecutor> Drop for SavepointGuard<'a, E> {
 ///
 /// This trait is implemented by both `DbDriver` (blocking) and `AsyncDbDriver` (non-blocking).
 pub trait SavepointExecutor {
-    /// Create a new savepoint.
+    /// Create a new savepoint with the given name.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name (should be sanitized before use).
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or an error if the savepoint could not be created.
     fn create_savepoint(&mut self, name: &str) -> Result<()>;
 
-    /// Release a savepoint (commit the savepoint).
+    /// Release (commit) a savepoint, discarding the ability to roll back to it.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name to release.
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or an error if the release fails.
     fn release_savepoint(&mut self, name: &str) -> Result<()>;
 
-    /// Rollback to a savepoint.
+    /// Roll back to a savepoint, undoing all changes made after it was created.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name to roll back to.
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or an error if the rollback fails.
     fn rollback_to_savepoint(&mut self, name: &str) -> Result<()>;
 }
 
 /// Generate savepoint SQL statements.
+///
+/// This module provides pure functions for building the SQL text needed for
+/// savepoint operations. All names are sanitized to prevent SQL injection.
 pub mod sql {
-    /// Generate CREATE SAVEPOINT SQL.
+    /// Generate a `SAVEPOINT` SQL statement.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name (will be sanitized).
+    ///
+    /// # Returns
+    /// A `String` containing the `SAVEPOINT <name>` SQL statement.
     pub fn create_savepoint(name: &str) -> String {
         format!("SAVEPOINT {}", sanitize_name(name))
     }
 
-    /// Generate RELEASE SAVEPOINT SQL.
+    /// Generate a `RELEASE SAVEPOINT` SQL statement.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name (will be sanitized).
+    ///
+    /// # Returns
+    /// A `String` containing the `RELEASE SAVEPOINT <name>` SQL statement.
     pub fn release_savepoint(name: &str) -> String {
         format!("RELEASE SAVEPOINT {}", sanitize_name(name))
     }
 
-    /// Generate ROLLBACK TO SAVEPOINT SQL.
+    /// Generate a `ROLLBACK TO SAVEPOINT` SQL statement.
+    ///
+    /// # Parameters
+    /// - `name`: The savepoint name (will be sanitized).
+    ///
+    /// # Returns
+    /// A `String` containing the `ROLLBACK TO SAVEPOINT <name>` SQL statement.
     pub fn rollback_to_savepoint(name: &str) -> String {
         format!("ROLLBACK TO SAVEPOINT {}", sanitize_name(name))
     }

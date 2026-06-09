@@ -84,6 +84,22 @@ pub struct TenantLineInterceptor {
 }
 
 impl TenantLineInterceptor {
+    /// Create a new tenant line interceptor with the given configuration.
+    ///
+    /// # Arguments
+    /// * `config` - The tenant configuration specifying the tenant column, ID, and ignored tables.
+    ///
+    /// # Returns
+    /// A new `TenantLineInterceptor` using the provided configuration.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use akita::interceptor::tenant::{TenantLineInterceptor, TenantConfig};
+    /// use akita_core::AkitaValue;
+    ///
+    /// let config = TenantConfig::new("tenant_id", AkitaValue::Text("t001".to_string()));
+    /// let interceptor = TenantLineInterceptor::new(config);
+    /// ```
     pub fn new(config: TenantConfig) -> Self {
         Self { config }
     }

@@ -30,7 +30,15 @@ use akita_core::{AkitaValue, FromAkitaValue, IntoAkitaValue, Rows};
 
 /// Process raw rows into a vector of deserialized objects.
 ///
-/// This is the core logic shared by both sync and async `exec_raw` implementations.
+/// Each row is converted from its `AkitaValue` representation into the target
+/// type `R` using the `FromAkitaValue` trait. This is the core logic shared by
+/// both sync and async `exec_raw` implementations.
+///
+/// # Parameters
+/// - `rows`: The raw rows returned from a query.
+///
+/// # Returns
+/// A `Vec<R>` of deserialized objects, one per input row.
 pub fn process_rows_to_vec<R: FromAkitaValue>(rows: Rows) -> Vec<R> {
     rows.object_iter()
         .map(|data| R::from_value(&data))
@@ -39,7 +47,16 @@ pub fn process_rows_to_vec<R: FromAkitaValue>(rows: Rows) -> Vec<R> {
 
 /// Extract a single record from rows, returning an error if empty or multiple.
 ///
-/// This is the core logic shared by both sync and async `exec_first` implementations.
+/// Expects exactly one row in the result set. Returns an error if zero rows or
+/// more than one row is returned. This is the core logic shared by both sync
+/// and async `exec_first` implementations.
+///
+/// # Parameters
+/// - `rows`: The raw rows returned from a query.
+///
+/// # Returns
+/// `Ok(R)` with the single deserialized record, or an `Err` if the result set
+/// does not contain exactly one row.
 pub fn extract_single<R: FromAkitaValue>(rows: Rows) -> Result<R> {
     let mut results = process_rows_to_vec::<R>(rows);
     match results.len() {
@@ -51,10 +68,16 @@ pub fn extract_single<R: FromAkitaValue>(rows: Rows) -> Result<R> {
 
 /// Extract an optional single record from rows.
 ///
-/// Returns `Ok(None)` if empty, `Ok(Some(value))` if exactly one,
-/// or an error if multiple records found.
+/// Returns `Ok(None)` if the result set is empty, `Ok(Some(value))` if exactly
+/// one row is present, or an error if multiple records are found. This is the
+/// core logic shared by both sync and async `exec_first_opt` implementations.
 ///
-/// This is the core logic shared by both sync and async `exec_first_opt` implementations.
+/// # Parameters
+/// - `rows`: The raw rows returned from a query.
+///
+/// # Returns
+/// `Ok(None)` when no rows are found, `Ok(Some(R))` when exactly one row is
+/// found, or an `Err` when more than one row is returned.
 pub fn extract_optional<R: FromAkitaValue>(rows: Rows) -> Result<Option<R>> {
     let mut results = process_rows_to_vec::<R>(rows);
     match results.len() {
@@ -64,9 +87,19 @@ pub fn extract_optional<R: FromAkitaValue>(rows: Rows) -> Result<Option<R>> {
     }
 }
 
-/// Fold rows using a function and initial value.
+/// Fold (reduce) rows using a function and an initial accumulator value.
 ///
-/// This is the core logic shared by both sync and async `query_fold` implementations.
+/// Each row is deserialized to type `T` and then folded into the accumulator
+/// of type `U` using the provided closure. This is the core logic shared by
+/// both sync and async `query_fold` implementations.
+///
+/// # Parameters
+/// - `rows`: The raw rows returned from a query.
+/// - `init`: The initial accumulator value.
+/// - `f`: A closure that combines the accumulator with each deserialized row.
+///
+/// # Returns
+/// The final accumulated value after processing all rows.
 pub fn fold_rows<T, F, U>(rows: Rows, init: U, mut f: F) -> U
 where
     T: FromAkitaValue,
@@ -77,9 +110,18 @@ where
         .fold(init, |acc, row| f(acc, row))
 }
 
-/// Map rows using a transformation function.
+/// Map rows through a transformation function.
 ///
-/// This is the core logic shared by both sync and async `query_map` implementations.
+/// Each row is deserialized to type `T` and then transformed into type `U`
+/// using the provided closure. This is the core logic shared by both sync and
+/// async `query_map` implementations.
+///
+/// # Parameters
+/// - `rows`: The raw rows returned from a query.
+/// - `f`: A closure that transforms each deserialized row.
+///
+/// # Returns
+/// A `Vec<U>` of transformed values, one per input row.
 pub fn map_rows<T, F, U>(rows: Rows, mut f: F) -> Vec<U>
 where
     T: FromAkitaValue,

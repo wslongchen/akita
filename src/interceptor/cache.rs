@@ -172,8 +172,35 @@ impl CacheProvider for MemoryCacheProvider {
     }
 }
 
-/// No-op cache provider (disabled caching).
+/// No-op cache provider that disables caching entirely.
+///
+/// All operations are no-ops: `get` always returns `None`, `set` discards
+/// the value, and `size` always returns 0. Useful as a placeholder or to
+/// disable caching without removing the interceptor.
+///
+/// # Example
+/// ```ignore
+/// use akita::interceptor::cache::{CacheInterceptor, NoopCacheProvider};
+///
+/// let interceptor = CacheInterceptor::new(Box::new(NoopCacheProvider));
+/// ```
 pub struct NoopCacheProvider;
+
+impl NoopCacheProvider {
+    /// Create a new no-op cache provider instance.
+    ///
+    /// # Returns
+    /// A new `NoopCacheProvider` that discards all cache operations.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for NoopCacheProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl CacheProvider for NoopCacheProvider {
     fn get(&self, _key: &str) -> Option<Vec<u8>> {

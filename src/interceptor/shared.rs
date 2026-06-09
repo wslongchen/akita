@@ -96,17 +96,33 @@ pub fn check_depth_limit(
     Ok(())
 }
 
-/// Helper struct for interceptor registration in builders
+/// An entry in the interceptor registry, pairing an interceptor with its configuration.
+///
+/// Each registered interceptor is stored as an `InterceptorEntry`, which holds both the
+/// interceptor implementation and the configuration that controls when and how it runs.
 pub struct InterceptorEntry {
+    /// The interceptor implementation instance.
     pub interceptor: Arc<dyn InterceptorBase>,
+    /// Configuration controlling enablement, ordering, and filtering for this interceptor.
     pub config: InterceptorConfigItem,
 }
 
-/// Helper functions for builder operations
+/// Helper functions for managing interceptor registration in builder patterns.
+///
+/// These functions operate on a `HashMap<String, InterceptorEntry>` and provide
+/// operations for registering, enabling, disabling, and configuring interceptors.
 pub mod builder_helpers {
     use super::*;
 
-    /// Register an interceptor in the map
+    /// Register an interceptor in the map.
+    ///
+    /// The interceptor is inserted using its [`name()`](InterceptorBase::name) as the key.
+    /// By default the interceptor is **disabled** and has no ignored tables or
+    /// supported-operation filters.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `interceptor`: The interceptor instance to register.
     pub fn register_interceptor(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         interceptor: Arc<dyn InterceptorBase>,
@@ -127,7 +143,17 @@ pub mod builder_helpers {
         );
     }
 
-    /// Enable an interceptor by name
+    /// Enable an interceptor by name.
+    ///
+    /// Sets the `enabled` flag to `true` for the interceptor identified by `name`.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `name`: The name of the interceptor to enable.
+    ///
+    /// # Returns
+    /// `Ok(())` if the interceptor was found and enabled, or an error if no
+    /// interceptor with the given name is registered.
     pub fn enable_interceptor(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         name: &str,
@@ -143,7 +169,17 @@ pub mod builder_helpers {
         }
     }
 
-    /// Disable an interceptor by name
+    /// Disable an interceptor by name.
+    ///
+    /// Sets the `enabled` flag to `false` for the interceptor identified by `name`.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `name`: The name of the interceptor to disable.
+    ///
+    /// # Returns
+    /// `Ok(())` if the interceptor was found and disabled, or an error if no
+    /// interceptor with the given name is registered.
     pub fn disable_interceptor(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         name: &str,
@@ -159,7 +195,19 @@ pub mod builder_helpers {
         }
     }
 
-    /// Set order for an interceptor
+    /// Set the execution order for an interceptor.
+    ///
+    /// Lower values execute first. The order determines the position of this
+    /// interceptor in the chain when it is run.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `name`: The name of the interceptor to configure.
+    /// - `order`: The new execution order value (lower runs first).
+    ///
+    /// # Returns
+    /// `Ok(())` if the interceptor was found and its order updated, or an error
+    /// if no interceptor with the given name is registered.
     pub fn set_interceptor_order(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         name: &str,
@@ -176,7 +224,19 @@ pub mod builder_helpers {
         }
     }
 
-    /// Add a table to ignore for an interceptor
+    /// Add a table to the ignore list for an interceptor.
+    ///
+    /// When a table is in the ignore list, the interceptor will be skipped for
+    /// any operations targeting that table.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `name`: The name of the interceptor to configure.
+    /// - `table`: The table name to add to the ignore list.
+    ///
+    /// # Returns
+    /// `Ok(())` if the interceptor was found and the table was added, or an error
+    /// if no interceptor with the given name is registered.
     pub fn ignore_table(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         name: &str,
@@ -193,7 +253,19 @@ pub mod builder_helpers {
         }
     }
 
-    /// Set supported operations for an interceptor
+    /// Set the supported operation types for an interceptor.
+    ///
+    /// When the supported operations set is non-empty, the interceptor will only
+    /// run for operations that match one of the specified types.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The mutable map of registered interceptors.
+    /// - `name`: The name of the interceptor to configure.
+    /// - `operations`: A slice of operation types the interceptor should handle.
+    ///
+    /// # Returns
+    /// `Ok(())` if the interceptor was found and its operations were updated, or
+    /// an error if no interceptor with the given name is registered.
     pub fn set_operations(
         interceptors: &mut HashMap<String, InterceptorEntry>,
         name: &str,
@@ -210,7 +282,17 @@ pub mod builder_helpers {
         }
     }
 
-    /// Get enabled interceptors sorted by order
+    /// Get all enabled interceptors, sorted by their execution order.
+    ///
+    /// Returns a vector of `(interceptor, config)` tuples, ordered from lowest
+    /// order value (first to execute) to highest (last to execute).
+    ///
+    /// # Parameters
+    /// - `interceptors`: The map of registered interceptors.
+    ///
+    /// # Returns
+    /// A vector of cloned interceptor references and their configuration items,
+    /// sorted by order.
     pub fn get_enabled_interceptors(
         interceptors: &HashMap<String, InterceptorEntry>,
     ) -> Vec<(Arc<dyn InterceptorBase>, InterceptorConfigItem)> {
@@ -224,17 +306,39 @@ pub mod builder_helpers {
         enabled
     }
 
-    /// Get registered interceptor names
+    /// Get the names of all registered interceptors.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The map of registered interceptors.
+    ///
+    /// # Returns
+    /// A vector of string slices containing the names of all registered interceptors.
     pub fn registered_interceptors(interceptors: &HashMap<String, InterceptorEntry>) -> Vec<&str> {
         interceptors.keys().map(|s| s.as_str()).collect()
     }
 
-    /// Check if an interceptor is registered
+    /// Check whether an interceptor with the given name is registered.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The map of registered interceptors.
+    /// - `name`: The name to look up.
+    ///
+    /// # Returns
+    /// `true` if an interceptor with that name exists in the map, `false` otherwise.
     pub fn is_registered(interceptors: &HashMap<String, InterceptorEntry>, name: &str) -> bool {
         interceptors.contains_key(name)
     }
 
-    /// Check if an interceptor is enabled
+    /// Check whether an interceptor with the given name is currently enabled.
+    ///
+    /// Returns `false` if the interceptor is not registered or is disabled.
+    ///
+    /// # Parameters
+    /// - `interceptors`: The map of registered interceptors.
+    /// - `name`: The name to look up.
+    ///
+    /// # Returns
+    /// `true` if the interceptor exists and is enabled, `false` otherwise.
     pub fn is_enabled(interceptors: &HashMap<String, InterceptorEntry>, name: &str) -> bool {
         interceptors
             .get(name)
@@ -243,10 +347,17 @@ pub mod builder_helpers {
     }
 }
 
-/// Common interceptor chain configuration presets
+/// Common interceptor chain configuration presets.
+///
+/// Provides ready-made `InterceptorConfig` values for typical environments
+/// such as development, production, and high-security deployments.
 pub mod presets {
     use super::InterceptorConfig;
 
+    /// Create a development-friendly interceptor configuration.
+    ///
+    /// Enables async execution, metrics, and tracing with generous limits
+    /// (depth 20, timeout 10 s) for easier debugging during development.
     pub fn development() -> InterceptorConfig {
         InterceptorConfig {
             enable_async: true,
@@ -257,6 +368,10 @@ pub mod presets {
         }
     }
 
+    /// Create a production-ready interceptor configuration.
+    ///
+    /// Enables async execution and metrics but disables tracing to reduce overhead.
+    /// Uses stricter limits (depth 10, timeout 5 s) suitable for production workloads.
     pub fn production() -> InterceptorConfig {
         InterceptorConfig {
             enable_async: true,
@@ -267,6 +382,10 @@ pub mod presets {
         }
     }
 
+    /// Create a high-security interceptor configuration.
+    ///
+    /// Enables async execution, metrics, and tracing with moderate limits
+    /// (depth 15, timeout 8 s) for environments that require enhanced auditing.
     pub fn high_security() -> InterceptorConfig {
         InterceptorConfig {
             enable_async: true,
