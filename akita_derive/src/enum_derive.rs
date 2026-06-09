@@ -20,7 +20,7 @@
  */
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data, Fields, Variant, Meta, NestedMeta};
+use syn::{parse_macro_input, DeriveInput, Data, Fields, Variant, Meta};
 use proc_macro2::Span;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -56,19 +56,20 @@ pub fn derive_akita_enum(input: TokenStream) -> TokenStream {
 /// Resolves the storage mode properties of enums
 fn parse_enum_storage_attr(attrs: &[syn::Attribute]) -> EnumStorage {
     for attr in attrs {
-        if attr.path.is_ident("akita_enum") {
-            if let Ok(meta) = attr.parse_meta() {
-                if let Meta::List(list) = meta {
-                    for nested in list.nested.iter() {
-                        if let NestedMeta::Meta(Meta::NameValue(nv)) = nested {
+        if attr.path().is_ident("akita_enum") {
+            if let Meta::List(list) = &attr.meta {
+                let nested = list.parse_args_with(Punctuated::<Meta, Comma>::parse_terminated);
+                if let Ok(nested) = nested {
+                    for meta in nested.iter() {
+                        if let Meta::NameValue(nv) = meta {
                             if nv.path.is_ident("storage") {
-                                if let syn::Lit::Str(lit_str) = &nv.lit {
+                                if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit_str), .. }) = &nv.value {
                                     return match lit_str.value().as_str() {
                                         "string" => EnumStorage::String,
                                         "int" => EnumStorage::Int,
                                         "ordinal" => EnumStorage::Ordinal,
                                         "json" => EnumStorage::Json,
-                                        _ => EnumStorage::String, // 默认
+                                        _ => EnumStorage::String,
                                     };
                                 }
                             }
@@ -323,13 +324,14 @@ fn get_variant_index(
 ) -> i64 {
     // Check for explicit akita_enum(value =...) Attributes
     for attr in &variant.attrs {
-        if attr.path.is_ident("akita_enum") {
-            if let Ok(meta) = attr.parse_meta() {
-                if let Meta::List(list) = meta {
-                    for nested in list.nested.iter() {
-                        if let NestedMeta::Meta(Meta::NameValue(nv)) = nested {
+        if attr.path().is_ident("akita_enum") {
+            if let Meta::List(list) = &attr.meta {
+                let nested = list.parse_args_with(Punctuated::<Meta, Comma>::parse_terminated);
+                if let Ok(nested) = nested {
+                    for meta in nested.iter() {
+                        if let Meta::NameValue(nv) = meta {
                             if nv.path.is_ident("value") {
-                                if let syn::Lit::Int(lit_int) = &nv.lit {
+                                if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = &nv.value {
                                     return lit_int.base10_parse::<i64>().unwrap_or(0);
                                 }
                             }

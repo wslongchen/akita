@@ -21,12 +21,13 @@
 
 //!
 //! Generate Database Methods.
-//! 
+//!
 use proc_macro::TokenStream;
 use proc_macro_error::{ proc_macro_error};
 use quote::{quote, ToTokens};
-use syn::{parse_macro_input, AttributeArgs, ItemFn};
+use syn::{parse_macro_input, ItemFn};
 use crate::sql_derive::impl_sql_with_config;
+use crate::comm::AttrArgs;
 
 #[macro_use]
 mod table_derive;
@@ -68,7 +69,7 @@ pub fn to_akita(input: TokenStream) -> TokenStream {
 ///     age: i32,
 /// }
 /// ```
-/// 
+///
 #[proc_macro_derive(Entity, attributes(field, table, schema, id, fill))]
 #[proc_macro_error]
 pub fn to_table(input: TokenStream) -> TokenStream {
@@ -106,7 +107,7 @@ pub fn derive_akita_enum(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn sql(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Attempt to parse to XML schema
@@ -128,7 +129,7 @@ pub fn sql(args: TokenStream, func: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn sql_xml(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Parsing parameters
@@ -148,7 +149,7 @@ pub fn sql_xml(args: TokenStream, func: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn query(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Parses parameters, allowing for a more flexible syntax
@@ -169,7 +170,7 @@ pub fn query(args: TokenStream, func: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn insert(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Automatically check if u64 is returned (insert ID)
@@ -214,7 +215,7 @@ pub fn insert(args: TokenStream, func: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn update(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     let config = sql_derive::parse_positional_query_args(&args, &target_fn)
@@ -233,7 +234,7 @@ pub fn update(args: TokenStream, func: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     let config = sql_derive::parse_positional_query_args(&args, &target_fn)
@@ -246,14 +247,14 @@ pub fn delete(args: TokenStream, func: TokenStream) -> TokenStream {
 /// Shortcut macros: Used to query a single record
 ///```rust
 /// use akita_derive::select_one;
-/// 
+///
 /// #[select_one("SELECT * FROM t_system_user WHERE id = ?")]
 ///     fn get_user_by_id(id: i64) -> Result<Option<User>, AkitaError> {
 ///     }
 /// ```
 #[proc_macro_attribute]
 pub fn select_one(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Make sure the return type is Option<T> or Result<Option<T>>
@@ -280,14 +281,14 @@ pub fn select_one(args: TokenStream, func: TokenStream) -> TokenStream {
 ///Shortcut macros: Used to query multiple records
 ///```rust
 /// use akita_derive::list;
-/// 
+///
 /// #[list("SELECT * FROM t_system_user ORDER BY id")]
 ///     fn get_all_users() -> Result<Vec<User>, AkitaError> {
 ///     }
 /// ```
 #[proc_macro_attribute]
 pub fn list(args: TokenStream, func: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let args = parse_macro_input!(args as AttrArgs);
     let target_fn = parse_macro_input!(func as ItemFn);
 
     // Make sure the return type is Vec<T> or Result<Vec<T>>

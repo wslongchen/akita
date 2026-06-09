@@ -206,11 +206,11 @@ pub fn find_struct_annotations(struct_attrs: &[syn::Attribute]) -> Vec<FieldExtr
     let mut annotations = Vec::new();
 
     for attr in struct_attrs {
-        if attr.path == parse_quote!(table) {
+        if attr.path().is_ident("table") {
             if let Ok(extras) = parse_table_attribute(attr) {
                 annotations.extend(extras);
             }
-        } else if attr.path == parse_quote!(schema) {
+        } else if attr.path().is_ident("schema") {
             if let Ok(extra) = parse_schema_attribute(attr) {
                 annotations.push(extra);
             }
@@ -233,8 +233,17 @@ fn parse_schema_attribute(attr: &syn::Attribute) -> syn::Result<FieldExtra> {
     }
 }
 
+/// Helper: extract a `syn::Lit` from a syn 2 MetaNameValue's `.value` field (which is `syn::Expr`)
+fn lit_from_expr(expr: &syn::Expr) -> Option<&syn::Lit> {
+    if let syn::Expr::Lit(syn::ExprLit { lit, .. }) = expr {
+        Some(lit)
+    } else {
+        None
+    }
+}
+
 fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<FieldExtra>> {
-    let meta = attr.parse_meta()?;
+    let meta = attr.meta.clone();
 
     let extract_name = |meta_item: &syn::Meta| -> syn::Result<String> {
         match meta_item {
@@ -244,9 +253,9 @@ fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<Fi
                     .ok_or_else(|| syn::Error::new(path.span(), "expected identifier"))
             }
             syn::Meta::NameValue(nv) if nv.path.is_ident("name") => {
-                match &nv.lit {
-                    syn::Lit::Str(s) => Ok(s.value()),
-                    _ => Err(syn::Error::new(nv.lit.span(), "name must be a string")),
+                match lit_from_expr(&nv.value) {
+                    Some(syn::Lit::Str(s)) => Ok(s.value()),
+                    _ => Err(syn::Error::new(nv.value.span(), "name must be a string")),
                 }
             }
             _ => Err(syn::Error::new(
@@ -263,40 +272,32 @@ fn parse_attribute(attr: &syn::Attribute, is_schema: bool) -> syn::Result<Vec<Fi
         }
         syn::Meta::List(list) => {
             let mut extras = Vec::new();
+            let nested = list.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)?;
 
-            for nested in &list.nested {
-                if let syn::NestedMeta::Meta(meta_item) = nested {
-                    // Checks for the ignore_interceptors property
-                    if let syn::Meta::NameValue(nv) = meta_item {
-                        if nv.path.is_ident("ignore_interceptors") {
-                            if let syn::Lit::Str(s) = &nv.lit {
-                                // Parse a comma-separated list of interceptors
-                                let interceptors: Vec<String> = s.value()
-                                    .split(',')
-                                    .map(|s| s.trim().to_string())
-                                    .filter(|s| !s.is_empty())
-                                    .collect();
+            for meta_item in nested.iter() {
+                // Checks for the ignore_interceptors property
+                if let syn::Meta::NameValue(nv) = meta_item {
+                    if nv.path.is_ident("ignore_interceptors") {
+                        if let Some(syn::Lit::Str(s)) = lit_from_expr(&nv.value) {
+                            let interceptors: Vec<String> = s.value()
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
 
-                                extras.push(FieldExtra::IgnoreInterceptors(interceptors));
-                                continue;
-                            } else {
-                                return Err(syn::Error::new(
-                                    nv.lit.span(),
-                                    "ignore_interceptors must be a string"
-                                ));
-                            }
+                            extras.push(FieldExtra::IgnoreInterceptors(interceptors));
+                            continue;
+                        } else {
+                            return Err(syn::Error::new(
+                                nv.value.span(),
+                                "ignore_interceptors must be a string"
+                            ));
                         }
                     }
-
-                    // The handling of other properties (name, etc.) remains the same
-                    let name = extract_name(meta_item)?;
-                    extras.push(create_field_extra(is_schema, &name));
-                } else {
-                    return Err(syn::Error::new(
-                        nested.span(),
-                        "unexpected nested meta item"
-                    ));
                 }
+
+                let name = extract_name(meta_item)?;
+                extras.push(create_field_extra(is_schema, &name));
             }
 
             if extras.is_empty() {
@@ -423,16 +424,28 @@ pub fn find_extra_for_field(
     let mut has_field = false;
 
     for attr in &field.attrs {
-        if attr.path != parse_quote!(field) && attr.path != parse_quote!(id) {
+        if !attr.path().is_ident("field") && !attr.path().is_ident("id") {
             continue;
         }
-        if attr.path == parse_quote!(field) || attr.path != parse_quote!(id) {
+        if attr.path().is_ident("field") || !attr.path().is_ident("id") {
             has_field = true;
         }
 
-        match attr.parse_meta() {
-            Ok(syn::Meta::List(syn::MetaList { ref nested, path, .. })) => {
-                let meta_items = nested.iter().collect::<Vec<_>>();
+        let meta = &attr.meta;
+        match meta {
+            syn::Meta::List(list) => {
+                let path = &list.path;
+                let nested = list.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated);
+                let nested = match nested {
+                    Ok(n) => n,
+                    Err(e) => {
+                        abort!(attr.span(),
+                            "Unable to parse this attribute for the field `{}` with the error: {:?}",
+                            field_ident, e
+                        );
+                    }
+                };
+                let meta_items: Vec<&syn::Meta> = nested.iter().collect();
                 let tfield_type = path.get_ident().unwrap().to_string();
                 if tfield_type.eq("id") {
                     extras.push(FieldExtra::TableId)
@@ -440,120 +453,118 @@ pub fn find_extra_for_field(
                     extras.push(FieldExtra::Field)
                 }
                 // only field from there on
-                for meta_item in meta_items {
-                    match *meta_item {
-                        syn::NestedMeta::Meta(ref item) => match *item {
-                            // name, exist, fill, select
-                            syn::Meta::Path(ref name) => {
-                                match name.get_ident().unwrap().to_string() {
-                                    // "fill" => {
-                                    //     extras.push(FieldExtra::Name());
-                                    // }
-                                    _ => {
-                                        let mut ident = proc_macro2::TokenStream::new();
-                                        name.to_tokens(&mut ident);
-                                        abort!(name.span(), "Unexpected annotion: {}", ident)
-                                    }
+                for meta_item in &meta_items {
+                    match meta_item {
+                        // name, exist, fill, select
+                        syn::Meta::Path(name) => {
+                            match name.get_ident().unwrap().to_string() {
+                                _ => {
+                                    let mut ident = proc_macro2::TokenStream::new();
+                                    name.to_tokens(&mut ident);
+                                    abort!(name.span(), "Unexpected annotion: {}", ident)
                                 }
                             }
-                            // fill, name, select, numberic_scale, exist
-                            syn::Meta::NameValue(syn::MetaNameValue {
-                                                     ref path, ref lit, ..
-                                                 }) => {
-                                let ident = path.get_ident().unwrap();
-                                match ident.to_string().as_ref() {
-                                    "fill" => {
-                                        match lit_to_string(lit) {
-                                            Some(s) => extras.push(FieldExtra::Fill{
-                                                function: s,
-                                                mode: None,
-                                                argument: None,
-                                            }),
-                                            None => error(lit.span(), "invalid argument for `fill` annotion: only strings are allowed"),
-                                        };
-                                    }
-                                    "converter" => {
-                                        match lit_to_string(lit) {
-                                            Some(s) => extras.push(FieldExtra::Converter(s)),
-                                            None => error(lit.span(), "invalid argument for `converter` annotion: only strings are allowed"),
-                                        };
-                                    }
-                                    "name" => {
-                                        match lit_to_string(lit) {
-                                            Some(s) => extras.push(FieldExtra::Name(s)),
-                                            None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
-                                        };
-                                    }
-                                    "id_type" => {
-                                        match lit_to_string(lit) {
-                                            Some(s) => match s.to_lowercase().as_ref() {
-                                                "auto" | "none" | "input" | "assign_id" | "assign_uuid" => extras.push(FieldExtra::IdType(s)),
-                                                _=> error(lit.span(), "invalid argument for `id_type` annotion: only `auto` `none` `input` `assign_id` `assign_uuid` are allowed")
-                                            },
-                                            None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
-                                        };
-                                    }
-                                    "select" => {
-                                        match lit_to_bool(lit) {
-                                            Some(s) => extras.push(FieldExtra::Select(s)),
-                                            None => error(lit.span(), "invalid argument for `select` annotion: only boolean are allowed"),
-                                        };
-                                    }
-                                    "exist" => {
-                                        match lit_to_bool(lit) {
-                                            Some(s) => extras.push(FieldExtra::Exist(s)),
-                                            None => error(lit.span(), "invalid argument for `exist` annotion: only boolean are allowed"),
-                                        };
-                                    }
-                                    "numberic_scale" => {
-                                        match lit_to_u64_or_path(lit) {
-                                            Some(s) => {
-                                                assert_has_number(rust_ident.clone(), "numberic_scale", &field.ty);
-                                                extras.push(FieldExtra::NumericScale(s));
-                                            },
-                                            None => error(lit.span(), "invalid argument for `numberic_scale` annotion: only strings are allowed"),
-                                        };
-                                    }
-                                    v => abort!(
-                                        path.span(),
-                                        "unexpected name value annotion: {:?}",
-                                        v
-                                    ),
-                                };
-                            }
-                            // Annotion with several args.
-                            syn::Meta::List(syn::MetaList { ref path, ref nested, .. }) => {
-                                let meta_items = nested.iter().cloned().collect::<Vec<_>>();
-                                let ident = path.get_ident().unwrap();
-                                match ident.to_string().as_ref() {
-                                    "fill" => {
-                                        extras.push(extract_fill_custom(
-                                            rust_ident.clone(),
-                                            attr,
-                                            &meta_items,
-                                        ));
-                                    }
-                                    "id_type"
-                                    | "select"
-                                    | "exist"
-                                    | "name"
-                                    | "numberic_scale" => {
-                                        extras.push(extract_one_arg_annotion(
-                                            "value",
-                                            ident.to_string(),
-                                            rust_ident.clone(),
-                                            &meta_items,
-                                        ));
-                                    }
-                                    v => abort!(path.span(), "unexpected list annotion: {:?}", v),
+                        }
+                        // fill, name, select, numberic_scale, exist
+                        syn::Meta::NameValue(syn::MetaNameValue {
+                                                 ref path, ref value, ..
+                                             }) => {
+                            let lit_opt = lit_from_expr(value);
+                            let ident = path.get_ident().unwrap();
+                            match ident.to_string().as_ref() {
+                                "fill" => {
+                                    match lit_to_string_opt(lit_opt) {
+                                        Some(s) => extras.push(FieldExtra::Fill{
+                                            function: s,
+                                            mode: None,
+                                            argument: None,
+                                        }),
+                                        None => error(value.span(), "invalid argument for `fill` annotion: only strings are allowed"),
+                                    };
                                 }
+                                "converter" => {
+                                    match lit_to_string_opt(lit_opt) {
+                                        Some(s) => extras.push(FieldExtra::Converter(s)),
+                                        None => error(value.span(), "invalid argument for `converter` annotion: only strings are allowed"),
+                                    };
+                                }
+                                "name" => {
+                                    match lit_to_string_opt(lit_opt) {
+                                        Some(s) => extras.push(FieldExtra::Name(s)),
+                                        None => error(value.span(), "invalid argument for `name` annotion: only strings are allowed"),
+                                    };
+                                }
+                                "id_type" => {
+                                    match lit_to_string_opt(lit_opt) {
+                                        Some(s) => match s.to_lowercase().as_ref() {
+                                            "auto" | "none" | "input" | "assign_id" | "assign_uuid" => extras.push(FieldExtra::IdType(s)),
+                                            _=> error(value.span(), "invalid argument for `id_type` annotion: only `auto` `none` `input` `assign_id` `assign_uuid` are allowed")
+                                        },
+                                        None => error(value.span(), "invalid argument for `name` annotion: only strings are allowed"),
+                                    };
+                                }
+                                "select" => {
+                                    match lit_to_bool_opt(lit_opt) {
+                                        Some(s) => extras.push(FieldExtra::Select(s)),
+                                        None => error(value.span(), "invalid argument for `select` annotion: only boolean are allowed"),
+                                    };
+                                }
+                                "exist" => {
+                                    match lit_to_bool_opt(lit_opt) {
+                                        Some(s) => extras.push(FieldExtra::Exist(s)),
+                                        None => error(value.span(), "invalid argument for `exist` annotion: only boolean are allowed"),
+                                    };
+                                }
+                                "numberic_scale" => {
+                                    match lit_to_u64_or_path_opt(lit_opt) {
+                                        Some(s) => {
+                                            assert_has_number(rust_ident.clone(), "numberic_scale", &field.ty);
+                                            extras.push(FieldExtra::NumericScale(s));
+                                        },
+                                        None => error(value.span(), "invalid argument for `numberic_scale` annotion: only strings are allowed"),
+                                    };
+                                }
+                                v => abort!(
+                                    path.span(),
+                                    "unexpected name value annotion: {:?}",
+                                    v
+                                ),
+                            };
+                        }
+                        // Annotion with several args.
+                        syn::Meta::List(ref list_inner) => {
+                            let inner_items = list_inner.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .collect::<Vec<_>>();
+                            let ident = path.get_ident().unwrap();
+                            match ident.to_string().as_ref() {
+                                "fill" => {
+                                    extras.push(extract_fill_custom(
+                                        rust_ident.clone(),
+                                        attr,
+                                        &inner_items,
+                                    ));
+                                }
+                                "id_type"
+                                | "select"
+                                | "exist"
+                                | "name"
+                                | "numberic_scale" => {
+                                    extras.push(extract_one_arg_annotion(
+                                        "value",
+                                        ident.to_string(),
+                                        rust_ident.clone(),
+                                        &inner_items,
+                                    ));
+                                }
+                                v => abort!(path.span(), "unexpected list annotion: {:?}", v),
                             }
-                        },
-                        _ => unreachable!("Found a non Meta while looking for annotions"),
-                    };
+                        }
+                    }
                 }
             }
-            Ok(syn::Meta::Path(ref name)) => {
+            syn::Meta::Path(name) => {
                 let ident = name.get_ident().unwrap();
                 match ident.to_string().as_ref() {
                     "id" => {
@@ -562,56 +573,57 @@ pub fn find_extra_for_field(
                     _ => extras.push(FieldExtra::Field),
                 }
             },
-            Ok(syn::Meta::NameValue(syn::MetaNameValue { ref lit, ref path, .. })) => {
+            syn::Meta::NameValue(syn::MetaNameValue { ref value, ref path, .. }) => {
+                let lit_opt = lit_from_expr(value);
                 let ident = path.get_ident().unwrap();
                 match ident.to_string().as_ref() {
                     "fill" => {
-                        match lit_to_string(lit) {
+                        match lit_to_string_opt(lit_opt) {
                             Some(s) => extras.push(FieldExtra::Fill{
                                 function: s,
                                 mode: None,
                                 argument: None,
                             }),
-                            None => error(lit.span(), "invalid argument for `fill` annotion: only strings are allowed"),
+                            None => error(value.span(), "invalid argument for `fill` annotion: only strings are allowed"),
                         };
                     }
                     "name" => {
-                        match lit_to_string(lit) {
+                        match lit_to_string_opt(lit_opt) {
                             Some(s) => extras.push(FieldExtra::Name(s)),
-                            None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
+                            None => error(value.span(), "invalid argument for `name` annotion: only strings are allowed"),
                         };
                     }
                     "id_type" => {
-                        match lit_to_string(lit) {
+                        match lit_to_string_opt(lit_opt) {
                             Some(s) => {
                                 match s.to_lowercase().as_ref() {
                                     "auto" | "none" | "input" | "assign_id" | "assign_uuid" => extras.push(FieldExtra::IdType(s)),
-                                    _=> error(lit.span(), "invalid argument for `id_type` annotion: only `auto` `none` `input` `assign_id` `assign_uuid` are allowed")
+                                    _=> error(value.span(), "invalid argument for `id_type` annotion: only `auto` `none` `input` `assign_id` `assign_uuid` are allowed")
                                 }
 
                             },
-                            None => error(lit.span(), "invalid argument for `name` annotion: only strings are allowed"),
+                            None => error(value.span(), "invalid argument for `name` annotion: only strings are allowed"),
                         };
                     }
                     "select" => {
-                        match lit_to_bool(lit) {
+                        match lit_to_bool_opt(lit_opt) {
                             Some(s) => extras.push(FieldExtra::Select(s)),
-                            None => error(lit.span(), "invalid argument for `select` annotion: only boolean are allowed"),
+                            None => error(value.span(), "invalid argument for `select` annotion: only boolean are allowed"),
                         };
                     }
                     "exist" => {
-                        match lit_to_bool(lit) {
+                        match lit_to_bool_opt(lit_opt) {
                             Some(s) => extras.push(FieldExtra::Exist(s)),
-                            None => error(lit.span(), "invalid argument for `exist` annotion: only boolean are allowed"),
+                            None => error(value.span(), "invalid argument for `exist` annotion: only boolean are allowed"),
                         };
                     }
                     "numberic_scale" => {
-                        match lit_to_u64_or_path(lit) {
+                        match lit_to_u64_or_path_opt(lit_opt) {
                             Some(s) => {
                                 assert_has_number(rust_ident.clone(), "numberic_scale", &field.ty);
                                 extras.push(FieldExtra::NumericScale(s));
                             },
-                            None => error(lit.span(), "invalid argument for `numberic_scale` annotion: only strings are allowed"),
+                            None => error(value.span(), "invalid argument for `numberic_scale` annotion: only strings are allowed"),
                         };
                     }
                     v => abort!(
@@ -620,20 +632,6 @@ pub fn find_extra_for_field(
                                         v
                                     ),
                 };
-            },
-            Err(e) => {
-                let error_string = format!("{:?}", e);
-                if error_string == "Error(\"expected literal\")" {
-                    abort!(attr.span(),
-                        "This attributes for the field `{}` seem to be misformed, please annotion the syntax with the documentation",
-                        field_ident
-                    );
-                } else {
-                    abort!(attr.span(),
-                        "Unable to parse this attribute for the field `{}` with the error: {:?}",
-                        field_ident, e
-                    );
-                }
             },
         }
 
@@ -650,44 +648,42 @@ pub fn extract_one_arg_annotion(
     val_name: &str,
     name: String,
     field: String,
-    meta_items: &[syn::NestedMeta],
+    meta_items: &[syn::Meta],
 ) -> FieldExtra {
-    let mut value = None;
+    let mut result_value = None;
     for meta_item in meta_items {
-        match *meta_item {
-            syn::NestedMeta::Meta(ref item) => match *item {
-                syn::Meta::NameValue(syn::MetaNameValue { ref path, ref lit, .. }) => {
-                    let ident = path.get_ident().unwrap();
-                    match ident.to_string().as_str() {
-                        v if v == val_name => {
-                            value = match lit_to_string(lit) {
-                                Some(s) => Some(s),
-                                None => abort!(
-                                    item.span(),
-                                    "Invalid argument type for `{}` for annotion `{}` on field `{}`: only a string is allowed",
-                                    val_name, name, field
-                                ),
-                            };
-                        }
-                        v => abort!(
-                            path.span(),
-                            "Unknown argument `{}` for annotion `{}` on field `{}`",
-                            v,
-                            name,
-                            field
-                        ),
+        match meta_item {
+            syn::Meta::NameValue(syn::MetaNameValue { ref path, value: ref nv_expr, .. }) => {
+                let lit_opt = lit_from_expr(nv_expr);
+                let ident = path.get_ident().unwrap();
+                match ident.to_string().as_str() {
+                    v if v == val_name => {
+                        result_value = match lit_to_string_opt(lit_opt) {
+                            Some(s) => Some(s),
+                            None => abort!(
+                                meta_item.span(),
+                                "Invalid argument type for `{}` for annotion `{}` on field `{}`: only a string is allowed",
+                                val_name, name, field
+                            ),
+                        };
                     }
+                    v => abort!(
+                        path.span(),
+                        "Unknown argument `{}` for annotion `{}` on field `{}`",
+                        v,
+                        name,
+                        field
+                    ),
                 }
-                _ => abort!(
-                    item.span(),
-                    "unexpected item {:?} while parsing `range` annotion",
-                    item
-                ),
-            },
-            _ => unreachable!(),
+            }
+            _ => abort!(
+                meta_item.span(),
+                "unexpected item {:?} while parsing `range` annotion",
+                meta_item
+            ),
         }
 
-        if value.is_none() {
+        if result_value.is_none() {
             abort!(
                 meta_item.span(),
                 "Missing argument `{}` for annotion `{}` on field `{}`",
@@ -699,12 +695,11 @@ pub fn extract_one_arg_annotion(
     }
 
     let extra = match name.as_ref() {
-        "fill" => FieldExtra::Fill { function: value.unwrap(), argument: None, mode: None },
-        "id_type" => FieldExtra::IdType(value.unwrap()),
-        "select" => FieldExtra::Select(value.unwrap().parse::<bool>().unwrap_or(true)),
-        "exist" => FieldExtra::Exist(value.unwrap().parse::<bool>().unwrap_or(true)),
-        "name" => FieldExtra::Name(value.unwrap()),
-        // "numberic_scale" => FieldExtra::NumericScale(value.unwrap()),
+        "fill" => FieldExtra::Fill { function: result_value.unwrap(), argument: None, mode: None },
+        "id_type" => FieldExtra::IdType(result_value.unwrap()),
+        "select" => FieldExtra::Select(result_value.unwrap().parse::<bool>().unwrap_or(true)),
+        "exist" => FieldExtra::Exist(result_value.unwrap().parse::<bool>().unwrap_or(true)),
+        "name" => FieldExtra::Name(result_value.unwrap()),
         _ => unreachable!(),
     };
     extra
@@ -713,7 +708,7 @@ pub fn extract_one_arg_annotion(
 pub fn extract_fill_custom(
     field: String,
     attr: &syn::Attribute,
-    meta_items: &[syn::NestedMeta],
+    meta_items: &[syn::Meta],
 ) -> FieldExtra {
     let mut function = None;
     let mut argument = None;
@@ -724,62 +719,60 @@ pub fn extract_fill_custom(
     };
 
     for meta_item in meta_items {
-        match *meta_item {
-            syn::NestedMeta::Meta(ref item) => match *item {
-                syn::Meta::NameValue(syn::MetaNameValue { ref path, ref lit, .. }) => {
-                    let ident = path.get_ident().unwrap();
-                    match ident.to_string().as_ref() {
-                        "function" => {
-                            function = match lit_to_string(lit) {
-                                Some(s) => Some(s),
-                                None => error(lit.span(), "invalid argument type for `function` of `fill` annotion: expected a string")
-                            };
-                        }
-                        "mode" => {
-                            mode = match lit_to_string(lit) {
-                                Some(s) => match s.as_ref() {
-                                    "default" | "insert" | "update" => {
-                                        Some(s)
-                                    }
-                                    _ => {
-                                        error(lit.span(), "invalid argument type for `mode` of `fill` annotion: expected `default`,`insert`,`update` ")
-                                    }
-                                },
-                                None => error(lit.span(), "invalid argument type for `mode` of `fill` annotion: expected a string")
-                            };
-                        }
-                        "arg" => {
-                            match lit_to_string(lit) {
-                                Some(s) => {
-                                    match syn::parse_str::<syn::Type>(s.as_str()) {
-                                        Ok(arg_type) => {
-                                            assert_custom_arg_type(&lit.span(), &arg_type);
-                                            argument = Some(CustomArgument::new(lit.span().clone(), arg_type));
-                                        }
-                                        Err(_) => {
-                                            let mut msg = "invalid argument type for `arg` of `fill` annotion: The string has to be a single type.".to_string();
-                                            msg.push_str("\n(Tip: You can combine multiple types into one tuple.)");
-
-                                            error(lit.span(), msg.as_str());
-                                        }
-                                    }
-                                },
-                                None => error(lit.span(), "invalid argument type for `arg` of `fill` annotion: expected a string")
-                            };
-                        }
-                        v => error(path.span(), &format!(
-                            "unknown argument `{}` for annotion `fill` (it only has `function`, `arg`)",
-                            v
-                        )),
+        match meta_item {
+            syn::Meta::NameValue(syn::MetaNameValue { ref path, ref value, .. }) => {
+                let lit_opt = lit_from_expr(value);
+                let ident = path.get_ident().unwrap();
+                match ident.to_string().as_ref() {
+                    "function" => {
+                        function = match lit_to_string_opt(lit_opt) {
+                            Some(s) => Some(s),
+                            None => error(value.span(), "invalid argument type for `function` of `fill` annotion: expected a string")
+                        };
                     }
+                    "mode" => {
+                        mode = match lit_to_string_opt(lit_opt) {
+                            Some(s) => match s.as_ref() {
+                                "default" | "insert" | "update" => {
+                                    Some(s)
+                                }
+                                _ => {
+                                    error(value.span(), "invalid argument type for `mode` of `fill` annotion: expected `default`,`insert`,`update` ")
+                                }
+                            },
+                            None => error(value.span(), "invalid argument type for `mode` of `fill` annotion: expected a string")
+                        };
+                    }
+                    "arg" => {
+                        match lit_to_string_opt(lit_opt) {
+                            Some(s) => {
+                                match syn::parse_str::<syn::Type>(s.as_str()) {
+                                    Ok(arg_type) => {
+                                        assert_custom_arg_type(&value.span(), &arg_type);
+                                        argument = Some(CustomArgument::new(value.span(), arg_type));
+                                    }
+                                    Err(_) => {
+                                        let mut msg = "invalid argument type for `arg` of `fill` annotion: The string has to be a single type.".to_string();
+                                        msg.push_str("\n(Tip: You can combine multiple types into one tuple.)");
+
+                                        error(value.span(), msg.as_str());
+                                    }
+                                }
+                            },
+                            None => error(value.span(), "invalid argument type for `arg` of `fill` annotion: expected a string")
+                        };
+                    }
+                    v => error(path.span(), &format!(
+                        "unknown argument `{}` for annotion `fill` (it only has `function`, `arg`)",
+                        v
+                    )),
                 }
-                _ => abort!(
-                    item.span(),
-                    "unexpected item {:?} while parsing `fill` annotion",
-                    item
-                ),
-            },
-            _ => unreachable!(),
+            }
+            _ => abort!(
+                meta_item.span(),
+                "unexpected item {:?} while parsing `fill` annotion",
+                meta_item
+            ),
         }
     }
 
@@ -866,6 +859,11 @@ pub fn lit_to_string(lit: &syn::Lit) -> Option<String> {
     }
 }
 
+/// Version that takes an Option<&syn::Lit>
+pub fn lit_to_string_opt(lit: Option<&syn::Lit>) -> Option<String> {
+    lit.and_then(lit_to_string)
+}
+
 pub fn lit_to_int(lit: &syn::Lit) -> Option<u64> {
     match *lit {
         syn::Lit::Int(ref s) => Some(s.base10_parse().unwrap()),
@@ -887,11 +885,21 @@ pub fn lit_to_u64_or_path(lit: &syn::Lit) -> Option<ValueOrPath<u64>> {
     None
 }
 
+/// Version that takes an Option<&syn::Lit>
+pub fn lit_to_u64_or_path_opt(lit: Option<&syn::Lit>) -> Option<ValueOrPath<u64>> {
+    lit.and_then(lit_to_u64_or_path)
+}
+
 pub fn lit_to_bool(lit: &syn::Lit) -> Option<bool> {
     match *lit {
         syn::Lit::Bool(ref s) => Some(s.value),
         _ => None,
     }
+}
+
+/// Version that takes an Option<&syn::Lit>
+pub fn lit_to_bool_opt(lit: Option<&syn::Lit>) -> Option<bool> {
+    lit.and_then(lit_to_bool)
 }
 
 pub fn to_snake_name(name: &String) -> String {
