@@ -16,34 +16,37 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 
+pub use crate::comm::*;
+pub use crate::config::*;
+pub use crate::converter::*;
+pub use crate::driver::DriverType;
 #[doc(inline)]
 pub use crate::errors::*;
-pub use crate::xml::*;
-pub use crate::comm::*;
-pub use crate::converter::*;
-pub use crate::key::*;
-pub use crate::config::*;
 pub use crate::ext::Request;
-pub use crate::driver::DriverType;
+pub use crate::interceptor::InterceptorBase;
 pub use crate::interceptor::LoggingInterceptor;
+pub use crate::key::*;
 pub use crate::mapper::IPage;
+pub use crate::xml::*;
 #[doc(inline)]
 pub use chrono::{Local, NaiveDate, NaiveDateTime};
 
 #[cfg(feature = "auth")]
-pub use crate::driver::{DataBaseUser,Role, GrantUserPrivilege, Privilege, UserInfo};
+pub use crate::driver::{DataBaseUser, GrantUserPrivilege, Privilege, Role, UserInfo};
 
 // re-export
 pub use akita_core::*;
-pub use akita_derive::{query,insert, update,select_one, ToValue, FromValue, sql, sql_xml, delete, list,AkitaEnum};
+pub use akita_derive::{
+    delete, insert, list, query, select_one, sql, sql_xml, update, AkitaEnum, FromValue, ToValue,
+};
 
 cfg_if! {if #[cfg(all(
     any(
         feature = "mysql-sync",
-        feature = "postgres-sync", 
+        feature = "postgres-sync",
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
@@ -64,7 +67,7 @@ cfg_if! {if #[cfg(all(
     feature = "auth",
     any(
         feature = "mysql-sync",
-        feature = "postgres-sync", 
+        feature = "postgres-sync",
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
@@ -97,14 +100,14 @@ cfg_if! {if #[cfg(any(
 cfg_if! {if #[cfg(all(
     any(
         feature = "mysql-sync",
-        feature = "postgres-sync", 
+        feature = "postgres-sync",
         feature = "sqlite-sync",
         feature = "oracle-sync",
         feature = "mssql-sync"
     ),
     not(any(
         feature = "mysql-async",
-        feature = "postgres-async", 
+        feature = "postgres-async",
         feature = "sqlite-async",
         feature = "mssql-async",
         feature = "oracle-async"
@@ -113,8 +116,6 @@ cfg_if! {if #[cfg(all(
     /// Synchronize AKita exports
     pub type Akita = AkitaSync;
 }}
-
-
 
 // These aliases are defined only when asynchrony is enabled and synchronization is not
 cfg_if! {if #[cfg(all(
@@ -143,5 +144,5 @@ cfg_if! {if #[cfg(all(
     pub use AsyncAkitaMapper as AkitaMapper;
     pub use AsyncAkitaInterceptor as AkitaInterceptor;
     pub use AsyncEntity as Entity;
-    
+
 }}

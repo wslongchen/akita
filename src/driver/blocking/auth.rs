@@ -16,12 +16,12 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use akita_core::{SchemaContent, TableInfo, TableName};
-use crate::driver::auth::{DataBaseUser};
+use crate::driver::auth::DataBaseUser;
 use crate::driver::{GrantUserPrivilege, Role, UserInfo};
 use crate::errors::Result;
+use akita_core::{SchemaContent, TableInfo, TableName};
 
 pub trait DbManager {
     fn get_table(&self, table_name: &TableName) -> Result<Option<TableInfo>>;
@@ -33,7 +33,7 @@ pub trait DbManager {
     fn get_all_tables(&self, schema: &str) -> Result<Vec<TableInfo>>;
 
     fn get_table_names(&self, schema: &str) -> Result<Vec<TableName>>;
-    
+
     fn get_users(&self) -> Result<Vec<DataBaseUser>>;
 
     fn exist_user(&self, user: &UserInfo) -> Result<bool>;

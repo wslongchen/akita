@@ -18,19 +18,19 @@
  *  *
  *
  */
-use std::str::FromStr;
 use crate::comm::ExecuteResult;
 use crate::driver::non_blocking::postgres::connection::PostgresAsyncConnection;
 use crate::errors::AkitaError;
+use crate::{database_err, invalid_sql_err};
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
-use std::sync::Arc;
 use bigdecimal::BigDecimal;
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::Value;
+use std::str::FromStr;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::types::{ToSql, Type};
 use uuid::Uuid;
-use crate::{database_err, invalid_sql_err};
 
 /// PostgreSQL Asynchronous adapter
 pub struct PostgresAsyncAdapter {
@@ -46,9 +46,7 @@ impl PostgresAsyncAdapter {
 
     #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn
-            .simple_query("START TRANSACTION")
-            .await?;
+        self.conn.simple_query("START TRANSACTION").await?;
         Ok(())
     }
 
@@ -73,9 +71,11 @@ impl PostgresAsyncAdapter {
     #[track_caller]
     pub async fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Prepare the statement
-        let statement = self.conn.prepare(sql).await.map_err(|e| {
-            database_err!(format!("Failed to prepare statement: {}", e))
-        })?;
+        let statement = self
+            .conn
+            .prepare(sql)
+            .await
+            .map_err(|e| database_err!(format!("Failed to prepare statement: {}", e)))?;
         let param_types = statement.params();
         // Getting column names
         let column_names: Vec<String> = statement
@@ -89,8 +89,9 @@ impl PostgresAsyncAdapter {
             .iter()
             .map(|p| p.as_ref() as &(dyn ToSql + Sync))
             .collect();
-        
-        let rows = self.conn
+
+        let rows = self
+            .conn
             .query(&statement, &pg_params_ref)
             .await
             .map_err(|e| invalid_sql_err!(e.to_string()))?;
@@ -113,12 +114,18 @@ impl PostgresAsyncAdapter {
     }
 
     #[track_caller]
-    pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
+    pub async fn execute(
+        &self,
+        sql: &str,
+        params: Params,
+    ) -> crate::prelude::Result<ExecuteResult> {
         // Prepare the statement
-        let statement = self.conn.prepare(sql).await.map_err(|e| {
-            database_err!(format!("Failed to prepare statement: {}", e))
-        })?;
-        
+        let statement = self
+            .conn
+            .prepare(sql)
+            .await
+            .map_err(|e| database_err!(format!("Failed to prepare statement: {}", e)))?;
+
         // Get the statement type (query, update, etc.)
         let stmt_type = OperationType::detect_operation_type(sql);
 
@@ -135,10 +142,11 @@ impl PostgresAsyncAdapter {
             .iter()
             .map(|p| p.as_ref() as &(dyn ToSql + Sync))
             .collect();
-        
+
         match stmt_type {
             OperationType::Select => {
-                let rows = self.conn
+                let rows = self
+                    .conn
                     .query(&statement, &pg_params_ref)
                     .await
                     .map_err(|e| invalid_sql_err!(e.to_string()))?;
@@ -160,7 +168,8 @@ impl PostgresAsyncAdapter {
                 Ok(ExecuteResult::Rows(records))
             }
             _ => {
-                let result = self.conn
+                let result = self
+                    .conn
                     .execute(&statement, &pg_params_ref)
                     .await
                     .map_err(|e| invalid_sql_err!(e.to_string()))?;
@@ -208,25 +217,25 @@ impl PostgresAsyncAdapter {
     }
 }
 
-
 /// Convert AkitaValue to PostgreSQL parameters
-fn convert_to_pg_params(param_types: &[Type], params: Params) -> Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>> {
+fn convert_to_pg_params(
+    param_types: &[Type],
+    params: Params,
+) -> Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>> {
     match params {
         Params::None => vec![],
-        Params::Positional(param) => {
-            param.into_iter()
-                .zip(param_types.iter())
-                .map(|(val, pg_type)| {
-                    convert_pg_value_with_type(val, pg_type)
-                })
-                .collect()
-        }
-        Params::Named(named_params) => {
-            named_params.values().cloned().into_iter()
-                .zip(param_types.iter())
-                .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
-                .collect::<Vec<_>>()
-        }
+        Params::Positional(param) => param
+            .into_iter()
+            .zip(param_types.iter())
+            .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
+            .collect(),
+        Params::Named(named_params) => named_params
+            .values()
+            .cloned()
+            .into_iter()
+            .zip(param_types.iter())
+            .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
+            .collect::<Vec<_>>(),
     }
 }
 
@@ -258,25 +267,21 @@ fn convert_pg_value_with_type(val: AkitaValue, pg_type: &Type) -> Box<dyn ToSql 
         AkitaValue::BigDecimal(v) => Box::new(v.to_string()),
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
-        AkitaValue::Json(j) => {
-            match j {
-                Value::Bool(v) => Box::new(v),
-                Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        Box::new(n as i64)
-                    } else if let Some(n) = v.as_f64() {
-                        Box::new(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        Box::new(n)
-                    } else {
-                        Box::new(v.to_string())
-                    }
-
-
-                },
-                Value::String(v) => Box::new(v),
-                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            Value::Bool(v) => Box::new(v),
+            Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    Box::new(n as i64)
+                } else if let Some(n) = v.as_f64() {
+                    Box::new(n)
+                } else if let Some(n) = v.as_i64() {
+                    Box::new(n)
+                } else {
+                    Box::new(v.to_string())
+                }
             }
+            Value::String(v) => Box::new(v),
+            _ => Box::new(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(v) => Box::new(v.simple().to_string()),
         AkitaValue::Date(v) => Box::new(v.clone()),
@@ -298,7 +303,7 @@ fn convert_integer_to_pg(value: i64, target_type: &Type) -> Box<dyn ToSql + Sync
     match target_type {
         // If there is explicit type information, match exactly
         &Type::INT2 => Box::new(value as i16),
-        &Type::INT4 => Box::new(value as i32),  // This is required for the seventh parameter
+        &Type::INT4 => Box::new(value as i32), // This is required for the seventh parameter
         &Type::INT8 => Box::new(value),
 
         // If no type information is available, it is inferred from the value size
@@ -313,12 +318,9 @@ fn convert_integer_to_pg(value: i64, target_type: &Type) -> Box<dyn ToSql + Sync
                 Box::new(value)
             }
         }
-        _ => {
-            Box::new(value)
-        }
+        _ => Box::new(value),
     }
 }
-
 
 fn get_value_from_row(row: &tokio_postgres::Row, index: usize, pg_type: &Type) -> AkitaValue {
     if row.is_empty() {

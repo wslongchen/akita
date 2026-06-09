@@ -20,11 +20,11 @@
  */
 
 use crate::config::AkitaConfig;
-use crate::{connection_valid_err, database_err, driver, r2d2_err};
-use crate::driver::blocking::{DbDriver};
+use crate::driver::blocking::DbDriver;
 use crate::driver::DriverType;
 use crate::errors::{AkitaError, Result, SmartBacktrace};
-use crate::pool::{PoolStatus};
+use crate::pool::PoolStatus;
+use crate::{connection_valid_err, database_err, driver, r2d2_err};
 use akita_core::cfg_if;
 
 cfg_if! {if #[cfg(feature = "mysql-sync")]{
@@ -36,7 +36,6 @@ cfg_if! {if #[cfg(feature = "sqlite-sync")]{
     use crate::driver::blocking::sqlite::{self as sqlite, Sqlite};
     use crate::driver::blocking::sqlite::{SqlitePool, SqliteConnection};
 }}
-
 
 cfg_if! {if #[cfg(feature = "oracle-sync")]{
     use crate::driver::blocking::{oracle::{Oracle, OraclePool}};
@@ -75,7 +74,6 @@ pub struct DBPoolWrapper {
     _inner: DBPool,
     _cfg: AkitaConfig,
 }
-
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -147,15 +145,25 @@ impl SyncPool for DBPool {
         let conn = self.acquire()?;
         match conn {
             #[cfg(feature = "mysql-sync")]
-            PooledConnection::PooledMysql(pooled_mysql) => Ok(DbDriver::MysqlDriver(Box::new(MySQL::new(pooled_mysql)))),
+            PooledConnection::PooledMysql(pooled_mysql) => {
+                Ok(DbDriver::MysqlDriver(Box::new(MySQL::new(pooled_mysql))))
+            }
             #[cfg(feature = "sqlite-sync")]
-            PooledConnection::PooledSqlite(pooled_sqlite) => Ok(DbDriver::SqliteDriver(Box::new(Sqlite::new(pooled_sqlite)))),
+            PooledConnection::PooledSqlite(pooled_sqlite) => {
+                Ok(DbDriver::SqliteDriver(Box::new(Sqlite::new(pooled_sqlite))))
+            }
             #[cfg(feature = "oracle-sync")]
-            PooledConnection::PooledOracle(pooled_oracle) => Ok(DbDriver::OracleDriver(Box::new(Oracle::new(pooled_oracle)))),
+            PooledConnection::PooledOracle(pooled_oracle) => {
+                Ok(DbDriver::OracleDriver(Box::new(Oracle::new(pooled_oracle))))
+            }
             #[cfg(feature = "postgres-sync")]
-            PooledConnection::PooledPostgres(pooled_postgres) => Ok(DbDriver::PostgresDriver(Box::new(Postgres::new(pooled_postgres)))),
+            PooledConnection::PooledPostgres(pooled_postgres) => Ok(DbDriver::PostgresDriver(
+                Box::new(Postgres::new(pooled_postgres)),
+            )),
             #[cfg(feature = "mssql-sync")]
-            PooledConnection::PooledMssql(pooled_mssql) => Ok(DbDriver::MssqlDriver(Box::new(Mssql::new(pooled_mssql)))),
+            PooledConnection::PooledMssql(pooled_mssql) => {
+                Ok(DbDriver::MssqlDriver(Box::new(Mssql::new(pooled_mssql))))
+            }
         }
     }
 
@@ -165,35 +173,35 @@ impl SyncPool for DBPool {
             DBPool::MysqlPool(pool) => {
                 let state = pool.state();
                 let size = state.connections as usize;
-                let available= state.idle_connections as usize;
+                let available = state.idle_connections as usize;
                 PoolStatus { size, available }
             }
             #[cfg(feature = "postgres-sync")]
             DBPool::PostgresPool(pool) => {
                 let state = pool.state();
                 let size = state.connections as usize;
-                let available= state.idle_connections as usize;
+                let available = state.idle_connections as usize;
                 PoolStatus { size, available }
             }
             #[cfg(feature = "oracle-sync")]
             DBPool::OraclePool(pool) => {
                 let state = pool.state();
                 let size = state.connections as usize;
-                let available= state.idle_connections as usize;
+                let available = state.idle_connections as usize;
                 PoolStatus { size, available }
             }
             #[cfg(feature = "sqlite-sync")]
             DBPool::SqlitePool(pool) => {
                 let state = pool.state();
                 let size = state.connections as usize;
-                let available= state.idle_connections as usize;
+                let available = state.idle_connections as usize;
                 PoolStatus { size, available }
             }
             #[cfg(feature = "mssql-sync")]
             DBPool::MssqlPool(pool) => {
                 let state = pool.state();
                 let size = state.connections as usize;
-                let available= state.idle_connections as usize;
+                let available = state.idle_connections as usize;
                 PoolStatus { size, available }
             }
         }
@@ -207,37 +215,50 @@ impl SyncPool for DBPool {
 #[allow(unused)]
 impl DBPoolWrapper {
     #[track_caller]
-    pub fn new(mut cfg: AkitaConfig) -> Result<Self>  {
+    pub fn new(mut cfg: AkitaConfig) -> Result<Self> {
         let driver_type = cfg.get_platform()?;
         match driver_type {
             #[cfg(feature = "mysql-sync")]
             DriverType::MySQL => {
                 let pool_mysql = mmysql::init_mysql_pool(cfg.clone())?;
-                Ok(DBPoolWrapper { _inner: DBPool::MysqlPool(pool_mysql), _cfg: cfg })
+                Ok(DBPoolWrapper {
+                    _inner: DBPool::MysqlPool(pool_mysql),
+                    _cfg: cfg,
+                })
             }
             #[cfg(feature = "sqlite-sync")]
             DriverType::Sqlite => {
                 let pool_sqlite = sqlite::init_sqlite_pool(cfg.clone())?;
-                Ok(DBPoolWrapper { _inner: DBPool::SqlitePool(pool_sqlite), _cfg: cfg })
+                Ok(DBPoolWrapper {
+                    _inner: DBPool::SqlitePool(pool_sqlite),
+                    _cfg: cfg,
+                })
             }
             #[cfg(feature = "oracle-sync")]
             DriverType::Oracle => {
                 let pool_oracle = driver::blocking::oracle::init_oracle_pool(cfg.clone())?;
-                Ok(DBPoolWrapper { _inner: DBPool::OraclePool(pool_oracle), _cfg: cfg })
+                Ok(DBPoolWrapper {
+                    _inner: DBPool::OraclePool(pool_oracle),
+                    _cfg: cfg,
+                })
             }
             #[cfg(feature = "postgres-sync")]
             DriverType::Postgres => {
                 let pool_postgres = driver::blocking::postgres::init_postgres_pool(cfg.clone())?;
-                Ok(DBPoolWrapper { _inner: DBPool::PostgresPool(pool_postgres), _cfg: cfg })
+                Ok(DBPoolWrapper {
+                    _inner: DBPool::PostgresPool(pool_postgres),
+                    _cfg: cfg,
+                })
             }
             #[cfg(feature = "mssql-sync")]
             DriverType::Mssql => {
                 let pool_mssql = driver::blocking::mssql::init_mssql_pool(cfg.clone())?;
-                Ok(DBPoolWrapper { _inner: DBPool::MssqlPool(pool_mssql), _cfg: cfg })
+                Ok(DBPoolWrapper {
+                    _inner: DBPool::MssqlPool(pool_mssql),
+                    _cfg: cfg,
+                })
             }
-            _ => {
-                Err(database_err!("Unknown".to_string()))
-            }
+            _ => Err(database_err!("Unknown".to_string())),
         }
     }
 
@@ -251,7 +272,7 @@ impl DBPoolWrapper {
     pub fn database(&self) -> Result<DbDriver> {
         self._inner.database()
     }
-    
+
     pub fn config(&self) -> &AkitaConfig {
         &self._cfg
     }
@@ -304,7 +325,6 @@ impl DBPoolWrapper {
                     Err(e) => Err(r2d2_err!(e)),
                 }
             }
-            
         }
     }
 }

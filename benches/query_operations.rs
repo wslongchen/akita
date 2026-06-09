@@ -20,9 +20,9 @@
  */
 
 // benches/query_operations_bench.rs
+use akita::prelude::*;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
-use akita::prelude::*;
 
 mod common;
 use common::*;
@@ -67,7 +67,8 @@ pub fn bench_query_operations(c: &mut Criterion) {
             page_size,
             |b, &size| {
                 b.iter(|| {
-                    black_box(repository.page(black_box(1), black_box(size), Wrapper::new())).unwrap();
+                    black_box(repository.page(black_box(1), black_box(size), Wrapper::new()))
+                        .unwrap();
                 });
             },
         );

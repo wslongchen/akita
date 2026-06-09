@@ -16,22 +16,29 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::sync::Arc;
+use crate::core::non_blocking::AkitaAsync;
+use crate::ext::Request;
+use crate::mapper::non_blocking::AsyncAkitaMapper;
+use crate::mapper::IPage;
+use crate::prelude::AkitaError;
 use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Wrapper};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use crate::core::non_blocking::AkitaAsync;
-use crate::ext::Request;
-use crate::mapper::IPage;
-use crate::mapper::non_blocking::AsyncAkitaMapper;
-use crate::prelude::{AkitaError};
+use std::sync::Arc;
 
 #[async_trait::async_trait]
 pub trait AsyncMapper<Entity, Dto, Params>: Sync + Send
 where
-    Entity: GetTableName + GetFields + FromAkitaValue + IntoAkitaValue + DeserializeOwned + Clone + Sync + Send,
+    Entity: GetTableName
+        + GetFields
+        + FromAkitaValue
+        + IntoAkitaValue
+        + DeserializeOwned
+        + Clone
+        + Sync
+        + Send,
     Dto: From<Entity> + Send + Sync + Serialize,
     Params: Request + Sync + Send,
 {
@@ -53,7 +60,7 @@ where
                 wrapper = wrapper.order_by_asc(sort_field.split(",").collect())
             }
         }
-        
+
         let page_no = arg.get_page_no();
         let page_size = arg.get_page_size();
         // Perform a paginated query
@@ -78,7 +85,7 @@ where
     async fn count(&self, arg: &Params) -> Result<u64, AkitaError> {
         let ak = self.get_akita()?;
         let wrapper = arg.get_wrapper();
-        //执行查询
+        // Execute query
         let count = ak.count::<Entity>(wrapper).await?;
         Ok(count)
     }
@@ -88,9 +95,9 @@ where
     ///
     async fn list(&self, arg: &Params) -> Result<Vec<Dto>, AkitaError> {
         let ak = self.get_akita()?;
-        //构建查询条件
+        // Build query conditions
         let wrapper = arg.get_wrapper();
-        //执行查询
+        // Execute query
         let list: Vec<Entity> = ak.list(wrapper).await?;
         let result = list
             .into_iter()
@@ -133,7 +140,6 @@ where
         return Ok(vo);
     }
 
-
     ///
     /// Save the entity
     ///
@@ -174,10 +180,17 @@ where
 #[async_trait::async_trait]
 pub trait AsyncService<Entity, Dto, Params, M: AsyncMapper<Entity, Dto, Params>>
 where
-    Entity: GetTableName + GetFields + FromAkitaValue + IntoAkitaValue + DeserializeOwned + Clone + Sync + Send,
+    Entity: GetTableName
+        + GetFields
+        + FromAkitaValue
+        + IntoAkitaValue
+        + DeserializeOwned
+        + Clone
+        + Sync
+        + Send,
     Dto: From<Entity> + Send + Sync + Serialize,
-    Params: Request + Sync + Send {
-
+    Params: Request + Sync + Send,
+{
     // 获取Mapper的引用
     fn get_mapper(&self) -> &M;
 
@@ -224,7 +237,6 @@ where
     async fn select_one(&self, arg: &Params) -> Result<Option<Dto>, AkitaError> {
         self.get_mapper().select_one(arg).await
     }
-
 
     ///
     /// Save the entity

@@ -16,22 +16,22 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::config::AkitaConfig;
+use crate::database_err;
+use crate::driver::non_blocking::get_tokio_context;
+use crate::driver::DriverType;
+use crate::errors::AkitaError;
 use async_trait::async_trait;
 use deadpool::managed::{Metrics, Object, Pool, RecycleError, RecycleResult};
 use deadpool::Runtime;
 use deadpool_sync::SyncWrapper;
 use oracle::{Connection, Connector, ErrorKind};
+use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::runtime::Handle;
 use tokio::task;
-use crate::config::AkitaConfig;
-use crate::database_err;
-use crate::driver::DriverType;
-use crate::driver::non_blocking::get_tokio_context;
-use crate::errors::AkitaError;
 
 /// Oracle Asynchronous connection pool type
 pub type OracleAsyncPool = Pool<OracleAsyncConnectionManager>;
@@ -66,7 +66,6 @@ impl OracleAsyncConnectionManager {
     }
 }
 
-
 #[async_trait]
 impl deadpool::managed::Manager for OracleAsyncConnectionManager {
     type Type = SyncWrapper<Connection>;
@@ -75,10 +74,14 @@ impl deadpool::managed::Manager for OracleAsyncConnectionManager {
     async fn create(&self) -> Result<Self::Type, Self::Error> {
         // A connection is created in a blocked thread
         let conn = self.connector.connect();
-        SyncWrapper::new(self.runtime, move|| conn).await
+        SyncWrapper::new(self.runtime, move || conn).await
     }
 
-    async fn recycle(&self, conn: &mut Self::Type, _metrics: &Metrics) -> RecycleResult<Self::Error> {
+    async fn recycle(
+        &self,
+        conn: &mut Self::Type,
+        _metrics: &Metrics,
+    ) -> RecycleResult<Self::Error> {
         // Perform a simple query to check the connection
         if conn.is_mutex_poisoned() {
             return Err(RecycleError::Message(
@@ -88,7 +91,8 @@ impl deadpool::managed::Manager for OracleAsyncConnectionManager {
         let recycle_count = self.recycle_count.fetch_add(1, Ordering::Relaxed);
         let n: Option<usize> = conn
             .interact(move |conn| conn.query_row("SELECT 1 FROM DUAL", &[&recycle_count]))
-            .await.map(|res| res.iter().next().map(|row| row.get(0).unwrap_or(0)))
+            .await
+            .map(|res| res.iter().next().map(|row| row.get(0).unwrap_or(0)))
             .map_err(|e| RecycleError::Message(format!("{}", e)))?;
         if n.unwrap_or_default() == recycle_count {
             Ok(())
@@ -99,7 +103,9 @@ impl deadpool::managed::Manager for OracleAsyncConnectionManager {
 }
 
 /// Initialize the Oracle asynchronous connection pool
-pub async fn init_oracle_async_pool(config: crate::config::AkitaConfig) -> Result<OracleAsyncPool, AkitaError> {
+pub async fn init_oracle_async_pool(
+    config: crate::config::AkitaConfig,
+) -> Result<OracleAsyncPool, AkitaError> {
     let manager = OracleAsyncConnectionManager::new(&config)?;
     // Check the Tokio context
     let _handle = get_tokio_context()?;
@@ -113,27 +119,28 @@ pub async fn init_oracle_async_pool(config: crate::config::AkitaConfig) -> Resul
         ..Default::default()
     };
 
-    let pool = Pool::builder(manager).runtime(Runtime::Tokio1).config(pool_config).build()?;
+    let pool = Pool::builder(manager)
+        .runtime(Runtime::Tokio1)
+        .config(pool_config)
+        .build()?;
 
     // Testing connections
-    let conn: OracleAsyncConnection = pool.get().await
+    let conn: OracleAsyncConnection = pool
+        .get()
+        .await
         .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
-    conn
-        .interact(|conn| {
-            conn.query_row_as::<i32>("SELECT 1 FROM DUAL", &[]).unwrap_or_default();
-        })
-        .await?;
-    
+    conn.interact(|conn| {
+        conn.query_row_as::<i32>("SELECT 1 FROM DUAL", &[])
+            .unwrap_or_default();
+    })
+    .await?;
+
     tracing::info!("Oracle async connection pool initialized successfully");
 
     Ok(pool)
 }
 
-
-#[cfg(all(
-    feature = "oracle-async",
-    not(feature = "oracle-sync")
-))]
+#[cfg(all(feature = "oracle-async", not(feature = "oracle-sync")))]
 impl TryFrom<AkitaConfig> for Connector {
     type Error = AkitaError;
 
@@ -141,10 +148,7 @@ impl TryFrom<AkitaConfig> for Connector {
         Connector::try_from(&v)
     }
 }
-#[cfg(all(
-    feature = "oracle-async",
-    not(feature = "oracle-sync")
-))]
+#[cfg(all(feature = "oracle-async", not(feature = "oracle-sync")))]
 impl TryFrom<&AkitaConfig> for Connector {
     type Error = AkitaError;
 
@@ -156,13 +160,13 @@ impl TryFrom<&AkitaConfig> for Connector {
         }
 
         // Use smart acquisition methods
-        let username = cfg.get_username()?.ok_or_else(|| {
-            database_err!("Oracle username is required".to_string())
-        })?;
+        let username = cfg
+            .get_username()?
+            .ok_or_else(|| database_err!("Oracle username is required".to_string()))?;
 
-        let password = cfg.get_password()?.ok_or_else(|| {
-            database_err!("Oracle password is required".to_string())
-        })?;
+        let password = cfg
+            .get_password()?
+            .ok_or_else(|| database_err!("Oracle password is required".to_string()))?;
 
         // Building connection strings
         let mut connect_string = String::new();
@@ -192,8 +196,6 @@ impl TryFrom<&AkitaConfig> for Connector {
             }
         }
 
-
         Ok(Connector::new(username, password, connect_string))
     }
 }
-

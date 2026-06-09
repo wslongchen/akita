@@ -16,50 +16,45 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::str::FromStr;
-use indexmap::IndexMap;
-use serde_json::Value;
-use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector, SqlSecurityConfig};
 use crate::comm::ExecuteResult;
 use crate::driver::blocking::mssql::MssqlConnection;
 use crate::errors::AkitaError;
+use akita_core::{
+    AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector, SqlSecurityConfig,
+};
+use indexmap::IndexMap;
+use serde_json::Value;
+use std::str::FromStr;
 
 pub struct MssqlAdapter {
     conn: MssqlConnection,
 }
 
-
 impl MssqlAdapter {
     pub fn new(conn: MssqlConnection) -> Self {
-        Self {
-            conn,
-        }
+        Self { conn }
     }
 
     /// Start the transaction
     #[track_caller]
     pub fn start_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn
-            .simple_query("BEGIN TRANSACTION;")?;
+        self.conn.simple_query("BEGIN TRANSACTION;")?;
         Ok(())
-        
     }
 
     /// Submit transactions
     #[track_caller]
     pub fn commit_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn
-            .simple_query("COMMIT TRANSACTION;")?;
+        self.conn.simple_query("COMMIT TRANSACTION;")?;
         Ok(())
     }
 
     /// Roll back transactions
     #[track_caller]
     pub fn rollback_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn
-            .simple_query("ROLLBACK TRANSACTION;")?;
+        self.conn.simple_query("ROLLBACK TRANSACTION;")?;
         Ok(())
     }
 
@@ -75,10 +70,14 @@ impl MssqlAdapter {
     }
 
     #[track_caller]
-    fn inner_query(&self, sql: &str, param_refs: &[&dyn tiberius::ToSql]) -> Result<Rows, AkitaError> {
+    fn inner_query(
+        &self,
+        sql: &str,
+        param_refs: &[&dyn tiberius::ToSql],
+    ) -> Result<Rows, AkitaError> {
         let rows = self.conn.query(sql, &param_refs)?;
         if rows.is_empty() {
-            return Ok(Rows::new())
+            return Ok(Rows::new());
         }
         let first_row = &rows[0];
         let column_names: Vec<String> = (0..first_row.columns().len())
@@ -128,21 +127,18 @@ impl MssqlAdapter {
 fn convert_to_mssql_params(params: Params) -> Vec<Box<dyn tiberius::ToSql>> {
     match params {
         Params::None => vec![],
-        Params::Positional(param_values) => {
-            param_values
-                .into_iter()
-                .map(|v| convert_akita_value_to_mssql(v))
-                .collect::<Vec<_>>()
-        },
-        Params::Named(named_params) => {
-            named_params.values().cloned().into_iter()
-                .map(|v| convert_akita_value_to_mssql(v))
-                .collect::<Vec<_>>()
-        },
+        Params::Positional(param_values) => param_values
+            .into_iter()
+            .map(|v| convert_akita_value_to_mssql(v))
+            .collect::<Vec<_>>(),
+        Params::Named(named_params) => named_params
+            .values()
+            .cloned()
+            .into_iter()
+            .map(|v| convert_akita_value_to_mssql(v))
+            .collect::<Vec<_>>(),
     }
-    
 }
-
 
 fn convert_akita_value_to_mssql(val: AkitaValue) -> Box<dyn tiberius::ToSql> {
     use tiberius::numeric::BigDecimal;
@@ -156,7 +152,7 @@ fn convert_akita_value_to_mssql(val: AkitaValue) -> Box<dyn tiberius::ToSql> {
                 (v as i16 + 256) as u8
             };
             Box::new(unsigned)
-        },
+        }
         AkitaValue::Smallint(v) => Box::new(v),
         AkitaValue::Int(v) => Box::new(v),
         AkitaValue::Bigint(v) => Box::new(v),
@@ -169,25 +165,21 @@ fn convert_akita_value_to_mssql(val: AkitaValue) -> Box<dyn tiberius::ToSql> {
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
         AkitaValue::Json(v) => Box::new(serde_json::to_string(&v).unwrap_or_default()),
-        AkitaValue::Json(j) => {
-            match j {
-                Value::Bool(v) => Box::new(v),
-                Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        Box::new(n as i64)
-                    } else if let Some(n) = v.as_f64() {
-                        Box::new(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        Box::new(n)
-                    } else {
-                        Box::new(v.to_string())
-                    }
-
-
-                },
-                Value::String(v) => Box::new(v),
-                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            Value::Bool(v) => Box::new(v),
+            Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    Box::new(n as i64)
+                } else if let Some(n) = v.as_f64() {
+                    Box::new(n)
+                } else if let Some(n) = v.as_i64() {
+                    Box::new(n)
+                } else {
+                    Box::new(v.to_string())
+                }
             }
+            Value::String(v) => Box::new(v),
+            _ => Box::new(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(v) => Box::new(v),
         AkitaValue::Date(v) => Box::new(v),
@@ -197,10 +189,9 @@ fn convert_akita_value_to_mssql(val: AkitaValue) -> Box<dyn tiberius::ToSql> {
     }
 }
 
-
 fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaValue, AkitaError> {
-    use tiberius::numeric::BigDecimal;
     use chrono::{NaiveDate, NaiveDateTime};
+    use tiberius::numeric::BigDecimal;
 
     let column = &row.columns()[index];
 
@@ -293,9 +284,12 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
         }
 
         // String Types
-        tiberius::ColumnType::BigVarChar | tiberius::ColumnType::BigChar
-        | tiberius::ColumnType::NVarchar | tiberius::ColumnType::NChar
-        | tiberius::ColumnType::Text | tiberius::ColumnType::NText => {
+        tiberius::ColumnType::BigVarChar
+        | tiberius::ColumnType::BigChar
+        | tiberius::ColumnType::NVarchar
+        | tiberius::ColumnType::NChar
+        | tiberius::ColumnType::Text
+        | tiberius::ColumnType::NText => {
             let val: Option<&str> = row.get(index);
             Ok(match val {
                 Some(v) => AkitaValue::Text(v.to_string()),
@@ -321,9 +315,11 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
             })
         }
 
-        tiberius::ColumnType::Datetime | tiberius::ColumnType::Datetime4
-        | tiberius::ColumnType::Datetimen | tiberius::ColumnType::Datetime2 => {
-            if let Ok(val) = row.try_get::<NaiveDateTime,_>(index) {
+        tiberius::ColumnType::Datetime
+        | tiberius::ColumnType::Datetime4
+        | tiberius::ColumnType::Datetimen
+        | tiberius::ColumnType::Datetime2 => {
+            if let Ok(val) = row.try_get::<NaiveDateTime, _>(index) {
                 return Ok(match val {
                     Some(v) => AkitaValue::DateTime(v),
                     None => AkitaValue::Null,
@@ -333,11 +329,12 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
             let val: Option<&str> = row.get(index);
             Ok(match val {
                 Some(v) => AkitaValue::DateTime(
-                    NaiveDateTime::parse_from_str(v, "%Y-%m-%d %H:%M:%S%.f")
-                        .unwrap_or_else(|_| {
-                            NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
-                                .and_hms_opt(0, 0, 0).unwrap()
-                        })
+                    NaiveDateTime::parse_from_str(v, "%Y-%m-%d %H:%M:%S%.f").unwrap_or_else(|_| {
+                        NaiveDate::from_ymd_opt(1970, 1, 1)
+                            .unwrap()
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap()
+                    }),
                 ),
                 None => AkitaValue::Null,
             })
@@ -362,7 +359,8 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
         }
 
         // Binary type
-        tiberius::ColumnType::BigVarBin | tiberius::ColumnType::BigBinary
+        tiberius::ColumnType::BigVarBin
+        | tiberius::ColumnType::BigBinary
         | tiberius::ColumnType::Image => {
             let val: Option<&[u8]> = row.get(index);
             Ok(match val {
@@ -399,7 +397,7 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
         // Variant type
         tiberius::ColumnType::SSVariant => {
             // SQL Variant type.Try every possible type
-            if let Ok(val) = row.try_get::<&str,_>(index) {
+            if let Ok(val) = row.try_get::<&str, _>(index) {
                 if let Some(v) = val {
                     return Ok(AkitaValue::Text(v.to_string()));
                 }
@@ -428,8 +426,6 @@ fn get_value_from_mssql_row(row: &tiberius::Row, index: usize) -> Result<AkitaVa
         }
 
         // Null Type or unknown type
-        tiberius::ColumnType::Null => {
-            Ok(AkitaValue::Null)
-        }
+        tiberius::ColumnType::Null => Ok(AkitaValue::Null),
     }
 }

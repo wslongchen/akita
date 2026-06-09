@@ -16,15 +16,15 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 
 use crate::driver::non_blocking::AsyncDbDriver;
-use crate::prelude::*;
-use async_trait::async_trait;
-use crate::{database_err, deadpool_err};
 use crate::driver::DriverType;
-use crate::pool::{PoolStatus};
+use crate::pool::PoolStatus;
+use crate::prelude::*;
+use crate::{database_err, deadpool_err};
+use async_trait::async_trait;
 
 cfg_if! {
     if #[cfg(feature = "mysql-async")] {
@@ -73,8 +73,6 @@ pub trait AsyncPool {
     async fn close(&self);
 }
 
-
-
 #[allow(unused)]
 #[derive(Clone)]
 pub struct AsyncDBPoolWrapper {
@@ -110,39 +108,43 @@ pub enum AsyncPooledConnection {
     PooledMssqlAsync(MssqlAsyncConnection),
 }
 
-
 #[async_trait]
 impl AsyncPool for AsyncDBPool {
     async fn acquire(&self) -> Result<AsyncPooledConnection> {
         match self {
             #[cfg(feature = "mysql-async")]
             AsyncDBPool::MysqlAsyncPool(ref pool) => {
-                let conn = pool.get().await
-                    .map_err(|e| database_err!(format!("Failed to get async MySQL connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    database_err!(format!("Failed to get async MySQL connection: {}", e))
+                })?;
                 Ok(AsyncPooledConnection::PooledMysqlAsync(conn))
             }
             #[cfg(feature = "postgres-async")]
             AsyncDBPool::PostgresAsyncPool(ref pool) => {
-                let conn = pool.get().await
-                    .map_err(|e| database_err!(format!("Failed to get async PostgreSQL connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    database_err!(format!("Failed to get async PostgreSQL connection: {}", e))
+                })?;
                 Ok(AsyncPooledConnection::PooledPostgresAsync(conn))
             }
             #[cfg(feature = "oracle-async")]
             AsyncDBPool::OracleAsyncPool(ref pool) => {
-                let conn = pool.get().await
-                    .map_err(|e| database_err!(format!("Failed to get async Oracle connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    database_err!(format!("Failed to get async Oracle connection: {}", e))
+                })?;
                 Ok(AsyncPooledConnection::PooledOracleAsync(conn))
             }
             #[cfg(feature = "sqlite-async")]
             AsyncDBPool::SqliteAsyncPool(ref pool) => {
-                let conn = pool.get().await
-                    .map_err(|e| database_err!(format!("Failed to get async SQLite connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    database_err!(format!("Failed to get async SQLite connection: {}", e))
+                })?;
                 Ok(AsyncPooledConnection::PooledSqliteAsync(conn))
             }
             #[cfg(feature = "mssql-async")]
             AsyncDBPool::MssqlAsyncPool(ref pool) => {
-                let conn = pool.get().await
-                    .map_err(|e| database_err!(format!("Failed to get async SQL Server connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    database_err!(format!("Failed to get async SQL Server connection: {}", e))
+                })?;
                 Ok(AsyncPooledConnection::PooledMssqlAsync(conn))
             }
         }
@@ -152,25 +154,25 @@ impl AsyncPool for AsyncDBPool {
         let conn = self.acquire().await?;
         match conn {
             #[cfg(feature = "mysql-async")]
-            AsyncPooledConnection::PooledMysqlAsync(conn) => {
-                Ok(AsyncDbDriver::MysqlAsyncDriver(Box::new(MySQLAsync::new(conn))))
-            }
+            AsyncPooledConnection::PooledMysqlAsync(conn) => Ok(AsyncDbDriver::MysqlAsyncDriver(
+                Box::new(MySQLAsync::new(conn)),
+            )),
             #[cfg(feature = "postgres-async")]
-            AsyncPooledConnection::PooledPostgresAsync(conn) => {
-                Ok(AsyncDbDriver::PostgresAsyncDriver(Box::new(PostgresAsync::new(conn))))
-            }
+            AsyncPooledConnection::PooledPostgresAsync(conn) => Ok(
+                AsyncDbDriver::PostgresAsyncDriver(Box::new(PostgresAsync::new(conn))),
+            ),
             #[cfg(feature = "oracle-async")]
-            AsyncPooledConnection::PooledOracleAsync(conn) => {
-                Ok(AsyncDbDriver::OracleAsyncDriver(Box::new(OracleAsync::new(conn))))
-            }
+            AsyncPooledConnection::PooledOracleAsync(conn) => Ok(AsyncDbDriver::OracleAsyncDriver(
+                Box::new(OracleAsync::new(conn)),
+            )),
             #[cfg(feature = "sqlite-async")]
-            AsyncPooledConnection::PooledSqliteAsync(conn) => {
-                Ok(AsyncDbDriver::SqliteAsyncDriver(Box::new(SqliteAsync::new(conn))))
-            }
+            AsyncPooledConnection::PooledSqliteAsync(conn) => Ok(AsyncDbDriver::SqliteAsyncDriver(
+                Box::new(SqliteAsync::new(conn)),
+            )),
             #[cfg(feature = "mssql-async")]
-            AsyncPooledConnection::PooledMssqlAsync(conn) => {
-                Ok(AsyncDbDriver::MssqlAsyncDriver(Box::new(MssqlAsync::new(conn))))
-            }
+            AsyncPooledConnection::PooledMssqlAsync(conn) => Ok(AsyncDbDriver::MssqlAsyncDriver(
+                Box::new(MssqlAsync::new(conn)),
+            )),
         }
     }
 
@@ -235,43 +237,48 @@ impl AsyncPool for AsyncDBPool {
     }
 }
 
-
-
 #[allow(unused)]
 impl AsyncDBPoolWrapper {
     #[track_caller]
-    pub async fn new(mut cfg: AkitaConfig) -> Result<Self>  {
+    pub async fn new(mut cfg: AkitaConfig) -> Result<Self> {
         let driver_type = cfg.get_platform()?;
         match driver_type {
             #[cfg(feature = "mysql-async")]
             DriverType::MySQL => {
                 let pool_mysql = init_mysql_async_pool(cfg).await?;
-                Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::MysqlAsyncPool(pool_mysql) })
+                Ok(AsyncDBPoolWrapper {
+                    _inner: AsyncDBPool::MysqlAsyncPool(pool_mysql),
+                })
             }
             #[cfg(feature = "sqlite-async")]
             DriverType::Sqlite => {
                 let pool_sqlite = init_sqlite_async_pool(cfg).await?;
-                Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::SqliteAsyncPool(pool_sqlite)})
+                Ok(AsyncDBPoolWrapper {
+                    _inner: AsyncDBPool::SqliteAsyncPool(pool_sqlite),
+                })
             }
             #[cfg(feature = "oracle-async")]
             DriverType::Oracle => {
                 let pool_oracle = init_oracle_async_pool(cfg).await?;
-                Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::OracleAsyncPool(pool_oracle) })
+                Ok(AsyncDBPoolWrapper {
+                    _inner: AsyncDBPool::OracleAsyncPool(pool_oracle),
+                })
             }
             #[cfg(feature = "postgres-async")]
             DriverType::Postgres => {
                 let pool_postgres = init_postgres_async_pool(cfg).await?;
-                Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::PostgresAsyncPool(pool_postgres) })
+                Ok(AsyncDBPoolWrapper {
+                    _inner: AsyncDBPool::PostgresAsyncPool(pool_postgres),
+                })
             }
             #[cfg(feature = "mssql-async")]
             DriverType::Mssql => {
                 let pool_mssql = init_mssql_async_pool(cfg).await?;
-                Ok(AsyncDBPoolWrapper { _inner: AsyncDBPool::MssqlAsyncPool(pool_mssql) })
+                Ok(AsyncDBPoolWrapper {
+                    _inner: AsyncDBPool::MssqlAsyncPool(pool_mssql),
+                })
             }
-            _ => {
-                Err(database_err!("Unknown".to_string()))
-            }
-
+            _ => Err(database_err!("Unknown".to_string())),
         }
     }
 
@@ -334,7 +341,6 @@ impl AsyncDBPoolWrapper {
                     Err(e) => Err(deadpool_err!(e.to_string())),
                 }
             }
-
         }
     }
 }

@@ -16,18 +16,21 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::collections::HashSet;
-use regex::Regex;
-use akita_core::{AkitaValue, Condition, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, SqlOperator, TableName, Wrapper};
 use crate::core::GLOBAL_GENERATOR;
 use crate::driver::DriverType;
 use crate::empty_data_err;
-use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
 use crate::key::IdentifierGenerator;
 use crate::mapper::PaginationOptions;
+use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
+use akita_core::{
+    AkitaValue, Condition, FieldName, FieldType, GetFields, GetTableName, IdentifierType,
+    IntoAkitaValue, Params, SqlOperator, TableName, Wrapper,
+};
+use regex::Regex;
+use std::collections::HashSet;
 
 pub struct PostgreSqlBuilder {
     pub version: Option<String>,
@@ -50,7 +53,7 @@ impl SqlBuilder for PostgreSqlBuilder {
 
     fn quote_identifier(&self, identifier: &str) -> String {
         let identifier = identifier.trim();
-        
+
         // When quotation marks are required
         let needs_quotes =
             // 1. Contains uppercase letters
@@ -88,7 +91,8 @@ impl SqlBuilder for PostgreSqlBuilder {
         // Split the dot, but consider the dot inside the quotation marks
         let parts = self.split_table_parts(table);
 
-        parts.iter()
+        parts
+            .iter()
             .map(|part| self.quote_identifier_part(part))
             .collect::<Vec<String>>()
             .join(".")
@@ -121,23 +125,29 @@ impl SqlBuilder for PostgreSqlBuilder {
         }
     }
 
-    fn build_insert_sql(&self, table: &TableName,columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
+    fn build_insert_sql(
+        &self,
+        table: &TableName,
+        columns: Vec<FieldName>,
+        datas: Vec<AkitaValue>,
+    ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if columns.is_empty() {
             return Err(empty_data_err!());
         }
 
         // Building column names
-        let column_names: Vec<(String, FieldName)> = columns.into_iter()
+        let column_names: Vec<(String, FieldName)> = columns
+            .into_iter()
             .filter(|c| c.exist)
             .filter(|c| {
-                !(c.is_auto_increment() && datas.iter().all(|data| {
-                    let col_name = c.alias.as_ref().unwrap_or(&c.name);
-                    data.get_obj_value(col_name)
-                        .map_or(true, |v| v.is_null() || v.is_zero())
-                }))
+                !(c.is_auto_increment()
+                    && datas.iter().all(|data| {
+                        let col_name = c.alias.as_ref().unwrap_or(&c.name);
+                        data.get_obj_value(col_name)
+                            .map_or(true, |v| v.is_null() || v.is_zero())
+                    }))
             })
             .map(|c| {
-                
                 let col_name = c.alias.as_ref().unwrap_or(&c.name);
                 (self.quote_identifier(col_name), c)
             })
@@ -151,7 +161,8 @@ impl SqlBuilder for PostgreSqlBuilder {
                 placeholders.push(format!("${}", i + 1));
 
                 let col_name = field.alias.as_ref().unwrap_or(&field.name);
-                let mut value = data.get_obj_value(col_name)
+                let mut value = data
+                    .get_obj_value(col_name)
                     .cloned()
                     .unwrap_or(AkitaValue::Null);
                 // Handling field padding
@@ -169,9 +180,12 @@ impl SqlBuilder for PostgreSqlBuilder {
                 params.push(value);
             }
         }
-        
+
         // Building INSERT SQL
-        let column_names = column_names.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let column_names = column_names
+            .iter()
+            .map(|(c, _)| c.to_string())
+            .collect::<Vec<_>>();
         let sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
             self.quote_table(&table.complete_name()),
@@ -185,23 +199,26 @@ impl SqlBuilder for PostgreSqlBuilder {
     /// PostgreSQL Bulk Insert - Supports multi-line VALUES syntax
     fn build_batch_insert_sql(
         &self,
-        data: &BatchInsertData
+        data: &BatchInsertData,
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
             return Err(empty_data_err!());
         }
 
-        let id_field_name = data.id_field.as_ref()
+        let id_field_name = data
+            .id_field
+            .as_ref()
             .map(|f| f.alias.as_ref().unwrap_or(&f.name).to_string());
-        
+
         // Building column names
-        let (column_names, column_indices): (Vec<String>, Vec<usize>) = data.columns.iter()
+        let (column_names, column_indices): (Vec<String>, Vec<usize>) = data
+            .columns
+            .iter()
             .enumerate()
             .filter(|(_, col)| {
                 let col_name = col.alias.as_ref().unwrap_or(&col.name);
                 // Excludes autoincrement fields and specified id fields
-                !col.is_auto_increment() &&
-                    id_field_name.as_ref().map_or(true, |id| col_name != id)
+                !col.is_auto_increment() && id_field_name.as_ref().map_or(true, |id| col_name != id)
             })
             .map(|(idx, col)| {
                 let col_name = col.alias.as_ref().unwrap_or(&col.name);
@@ -212,7 +229,7 @@ impl SqlBuilder for PostgreSqlBuilder {
         if column_names.is_empty() {
             return Err(empty_data_err!());
         }
-        
+
         // Build multiple rows of VALUES
         let mut all_placeholders = Vec::new();
         let mut all_params = Vec::new();
@@ -250,7 +267,21 @@ impl SqlBuilder for PostgreSqlBuilder {
     }
 
     fn build_update_sql(&self, table: &TableName, wrapper: &Wrapper) -> Option<String> {
-        let set_clause = wrapper.build_set_clause();
+        // Build SET clause with properly quoted column names
+        let set_clause = wrapper
+            .get_set_operations()
+            .iter()
+            .map(|op| match &op.value {
+                AkitaValue::RawSql(sql_expr) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), sql_expr)
+                }
+                AkitaValue::Column(col_name) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), col_name)
+                }
+                _ => format!("{} = ?", self.quote_identifier(&op.column)),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         let where_clause = wrapper.build_where_clause();
         let mut sql = format!("UPDATE {} SET {}", &table.complete_name(), set_clause);
         if !where_clause.is_empty() {
@@ -278,30 +309,33 @@ impl SqlBuilder for PostgreSqlBuilder {
 
         self.process_placeholders(&sql)
     }
-    
+
     // Unique to PostgreSQL, ILIKE is case insensitive
     fn build_where_clause(&self, where_clause: &str) -> String {
         // PostgreSQL supports TRUE/FALSE literals
         // Also replace LIKE with ILIKE (case insensitive)
-        where_clause.replace(" LIKE ", " ILIKE ")
+        where_clause
+            .replace(" LIKE ", " ILIKE ")
             .replace(" NOT LIKE ", " NOT ILIKE ")
     }
-    
+
     fn build_column_list(&self, columns: &str) -> String {
         if columns == "*" {
             return "*".to_string();
         }
 
-        columns.split(',')
+        columns
+            .split(',')
             .map(|col| col.trim())
             .filter(|col| !col.is_empty())
             .map(|col| {
                 if col.contains(" AS ") {
                     let parts: Vec<&str> = col.split(" AS ").collect();
                     if parts.len() == 2 {
-                        return format!("{} AS {}",
-                                       self.quote_identifier(parts[0].trim()),
-                                       self.quote_identifier(parts[1].trim())
+                        return format!(
+                            "{} AS {}",
+                            self.quote_identifier(parts[0].trim()),
+                            self.quote_identifier(parts[1].trim())
                         );
                     }
                 }
@@ -309,9 +343,10 @@ impl SqlBuilder for PostgreSqlBuilder {
                 if col.contains('.') {
                     let parts: Vec<&str> = col.split('.').collect();
                     if parts.len() == 2 {
-                        return format!("{}.{}",
-                                       self.quote_identifier(parts[0]),
-                                       self.quote_identifier(parts[1])
+                        return format!(
+                            "{}.{}",
+                            self.quote_identifier(parts[0]),
+                            self.quote_identifier(parts[1])
                         );
                     }
                 }
@@ -324,23 +359,103 @@ impl SqlBuilder for PostgreSqlBuilder {
 
     fn is_reserved_keyword(&self, identifier: &str) -> bool {
         let keywords = [
-            "ALL", "ANALYSE", "ANALYZE", "AND", "ANY", "ARRAY", "AS", "ASC",
-            "ASYMMETRIC", "AUTHORIZATION", "BINARY", "BOTH", "CASE", "CAST",
-            "CHECK", "COLLATE", "COLUMN", "CONCURRENTLY", "CONSTRAINT",
-            "CREATE", "CROSS", "CURRENT_CATALOG", "CURRENT_DATE",
-            "CURRENT_ROLE", "CURRENT_SCHEMA", "CURRENT_TIME",
-            "CURRENT_TIMESTAMP", "CURRENT_USER", "DEFAULT", "DEFERRABLE",
-            "DESC", "DISTINCT", "DO", "ELSE", "END", "EXCEPT", "FALSE",
-            "FETCH", "FOR", "FOREIGN", "FREEZE", "FROM", "FULL", "GRANT",
-            "GROUP", "HAVING", "ILIKE", "IN", "INITIALLY", "INNER",
-            "INTERSECT", "INTO", "IS", "ISNULL", "JOIN", "LEADING", "LEFT",
-            "LIKE", "LIMIT", "LOCALTIME", "LOCALTIMESTAMP", "NATURAL", "NOT",
-            "NOTNULL", "NULL", "OFFSET", "ON", "ONLY", "OR", "ORDER",
-            "OUTER", "OVERLAPS", "PLACING", "PRIMARY", "REFERENCES",
-            "RETURNING", "RIGHT", "SELECT", "SESSION_USER", "SIMILAR",
-            "SOME", "SYMMETRIC", "TABLE", "THEN", "TO", "TRAILING", "TRUE",
-            "UNION", "UNIQUE", "USER", "USING", "VARIADIC", "VERBOSE",
-            "WHEN", "WHERE", "WINDOW", "WITH"
+            "ALL",
+            "ANALYSE",
+            "ANALYZE",
+            "AND",
+            "ANY",
+            "ARRAY",
+            "AS",
+            "ASC",
+            "ASYMMETRIC",
+            "AUTHORIZATION",
+            "BINARY",
+            "BOTH",
+            "CASE",
+            "CAST",
+            "CHECK",
+            "COLLATE",
+            "COLUMN",
+            "CONCURRENTLY",
+            "CONSTRAINT",
+            "CREATE",
+            "CROSS",
+            "CURRENT_CATALOG",
+            "CURRENT_DATE",
+            "CURRENT_ROLE",
+            "CURRENT_SCHEMA",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "CURRENT_USER",
+            "DEFAULT",
+            "DEFERRABLE",
+            "DESC",
+            "DISTINCT",
+            "DO",
+            "ELSE",
+            "END",
+            "EXCEPT",
+            "FALSE",
+            "FETCH",
+            "FOR",
+            "FOREIGN",
+            "FREEZE",
+            "FROM",
+            "FULL",
+            "GRANT",
+            "GROUP",
+            "HAVING",
+            "ILIKE",
+            "IN",
+            "INITIALLY",
+            "INNER",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "ISNULL",
+            "JOIN",
+            "LEADING",
+            "LEFT",
+            "LIKE",
+            "LIMIT",
+            "LOCALTIME",
+            "LOCALTIMESTAMP",
+            "NATURAL",
+            "NOT",
+            "NOTNULL",
+            "NULL",
+            "OFFSET",
+            "ON",
+            "ONLY",
+            "OR",
+            "ORDER",
+            "OUTER",
+            "OVERLAPS",
+            "PLACING",
+            "PRIMARY",
+            "REFERENCES",
+            "RETURNING",
+            "RIGHT",
+            "SELECT",
+            "SESSION_USER",
+            "SIMILAR",
+            "SOME",
+            "SYMMETRIC",
+            "TABLE",
+            "THEN",
+            "TO",
+            "TRAILING",
+            "TRUE",
+            "UNION",
+            "UNIQUE",
+            "USER",
+            "USING",
+            "VARIADIC",
+            "VERBOSE",
+            "WHEN",
+            "WHERE",
+            "WINDOW",
+            "WITH",
         ];
 
         keywords.contains(&identifier.to_uppercase().as_str())
@@ -350,19 +465,17 @@ impl SqlBuilder for PostgreSqlBuilder {
 impl PostgreSqlBuilder {
     fn build_json_contains(&self, column: &str, json_path: &str, value: &str) -> String {
         // PostgreSQL JSON operators
-        format!("{} #>> '{}' = '{}'",
-                self.quote_identifier(column),
-                json_path,
-                value
+        format!(
+            "{} #>> '{}' = '{}'",
+            self.quote_identifier(column),
+            json_path,
+            value
         )
     }
 
     /// Unique to PostgreSQL, arrays contain queries
     fn build_array_contains(&self, column: &str, value: &str) -> String {
-        format!("{} @> ARRAY['{}']",
-                self.quote_identifier(column),
-                value
-        )
+        format!("{} @> ARRAY['{}']", self.quote_identifier(column), value)
     }
 
     /// Unique to PostgreSQL: Generate sequential values
@@ -400,12 +513,13 @@ impl PostgreSqlBuilder {
         function: &str,
         column: &str,
         partition_by: Option<&[&str]>,
-        order_by: Option<&[&str]>
+        order_by: Option<&[&str]>,
     ) -> String {
         let mut window_spec = String::new();
 
         if let Some(partitions) = partition_by {
-            let partition_clause = partitions.iter()
+            let partition_clause = partitions
+                .iter()
                 .map(|col| self.quote_identifier(col))
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -416,17 +530,19 @@ impl PostgreSqlBuilder {
             if !window_spec.is_empty() {
                 window_spec.push(' ');
             }
-            let order_clause = orders.iter()
+            let order_clause = orders
+                .iter()
                 .map(|col| self.quote_identifier(col))
                 .collect::<Vec<_>>()
                 .join(", ");
             window_spec.push_str(&format!("ORDER BY {}", order_clause));
         }
 
-        format!("{}({}) OVER ({})",
-                function,
-                self.quote_identifier(column),
-                window_spec
+        format!(
+            "{}({}) OVER ({})",
+            function,
+            self.quote_identifier(column),
+            window_spec
         )
     }
 
@@ -452,15 +568,15 @@ impl PostgreSqlBuilder {
                 '\\' => {
                     escape_next = true;
                     current.push(ch);
-                },
+                }
                 '"' => {
                     in_quotes = !in_quotes;
                     current.push(ch);
-                },
+                }
                 '.' if !in_quotes => {
                     parts.push(current);
                     current = String::new();
-                },
+                }
                 _ => {
                     current.push(ch);
                 }
@@ -480,7 +596,7 @@ impl PostgreSqlBuilder {
         // If you already have full double quotes, leave them as they are
         if part.starts_with('"') && part.ends_with('"') {
             // Check that the quotes are paired correctly
-            let inner = &part[1..part.len()-1];
+            let inner = &part[1..part.len() - 1];
             if !inner.contains('"') || inner.matches('"').count() % 2 == 0 {
                 return part.to_string();
             }
@@ -491,14 +607,12 @@ impl PostgreSqlBuilder {
 
     fn is_system_table(&self, table: &str) -> bool {
         let lower_table = table.to_lowercase();
-        lower_table.starts_with("pg_catalog.") ||
-            lower_table.starts_with("information_schema.") ||
-            lower_table.starts_with("pg_toast.") ||
-            lower_table.starts_with("pg_temp.")
+        lower_table.starts_with("pg_catalog.")
+            || lower_table.starts_with("information_schema.")
+            || lower_table.starts_with("pg_toast.")
+            || lower_table.starts_with("pg_temp.")
     }
-
 }
-
 
 #[test]
 #[cfg(feature = "postgres-sync")]
@@ -523,12 +637,24 @@ fn test_postgres_sqlbuilder() {
     ];
     let mut imap = indexmap::IndexMap::new();
     imap.insert("id".to_string(), AkitaValue::Int(1));
-    imap.insert("user_name".to_string(), AkitaValue::Text("John".to_string()));
-    imap.insert("email_address".to_string(), AkitaValue::Text("john@example.com".to_string()));
+    imap.insert(
+        "user_name".to_string(),
+        AkitaValue::Text("John".to_string()),
+    );
+    imap.insert(
+        "email_address".to_string(),
+        AkitaValue::Text("john@example.com".to_string()),
+    );
     let data = AkitaValue::Object(imap);
 
-    let (sql, params) = builder.build_insert_sql(&TableName::from("users"), columns, vec![data]).unwrap();
-    println!("build_insert_sql postgres :{} \nparams:{}", sql, Params::Positional(params));
+    let (sql, params) = builder
+        .build_insert_sql(&TableName::from("users"), columns, vec![data])
+        .unwrap();
+    println!(
+        "build_insert_sql postgres :{} \nparams:{}",
+        sql,
+        Params::Positional(params)
+    );
 
     // Example 2: Query
     let wrapper = Wrapper::new()
@@ -537,7 +663,11 @@ fn test_postgres_sqlbuilder() {
         .like("user_name", "%john%");
 
     let (query_sql, query_params) = builder.build_query_sql(&wrapper);
-    println!("build_query_sql postgres :{} \n params:{}", query_sql, Params::Positional(query_params));
+    println!(
+        "build_query_sql postgres :{} \n params:{}",
+        query_sql,
+        Params::Positional(query_params)
+    );
 
     // Example 3: Bulk insertion
     let columns = vec![field_id, FieldName::from("user_name")];
@@ -552,5 +682,9 @@ fn test_postgres_sqlbuilder() {
         id_field: None,
     };
     let (batch_sql, batch_params) = builder.build_batch_insert_sql(&batch_data).unwrap();
-    println!("batch_sql postgres :{} \n params:{}", batch_sql, Params::Positional(batch_params));
+    println!(
+        "batch_sql postgres :{} \n params:{}",
+        batch_sql,
+        Params::Positional(batch_params)
+    );
 }

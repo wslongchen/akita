@@ -16,19 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
 use crate::driver::blocking::DbDriver;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
+use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
 
 pub struct AkitaTransaction {
     pub(crate) conn: DbDriver,
     pub(crate) committed: bool,
     pub(crate) rolled_back: bool,
 }
-
 
 #[allow(unused)]
 impl AkitaTransaction {
@@ -45,11 +44,11 @@ impl AkitaTransaction {
         self.rolled_back = true;
         Ok(())
     }
-    
+
     pub fn last_insert_id(&self) -> u64 {
         self.conn.last_insert_id()
     }
-    
+
     pub fn affected_rows(&self) -> u64 {
         self.conn.affected_rows()
     }
@@ -64,24 +63,20 @@ impl<'a> Drop for AkitaTransaction {
     }
 }
 
-
 #[allow(unused)]
 impl AkitaMapper for AkitaTransaction {
-
     /// Get all the table of records
-    fn list<T>(&self, wrapper:Wrapper) -> crate::prelude::Result<Vec<T>>
+    fn list<T>(&self, wrapper: Wrapper) -> crate::prelude::Result<Vec<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.conn.list(wrapper)
     }
 
     /// Get one the table of records
-    fn select_one<T>(&self, wrapper:Wrapper) -> crate::prelude::Result<Option<T>>
+    fn select_one<T>(&self, wrapper: Wrapper) -> crate::prelude::Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.conn.select_one(wrapper)
     }
@@ -90,22 +85,21 @@ impl AkitaMapper for AkitaTransaction {
     fn select_by_id<T, I>(&self, id: I) -> crate::prelude::Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-        I: IntoAkitaValue
+        I: IntoAkitaValue,
     {
         self.conn.select_by_id(id)
     }
 
     /// Get table of records with page
-    fn page<T>(&self, page: u64, size: u64, wrapper:Wrapper) -> crate::prelude::Result<IPage<T>>
+    fn page<T>(&self, page: u64, size: u64, wrapper: Wrapper) -> crate::prelude::Result<IPage<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.conn.page(page, size, wrapper)
     }
 
     /// Get the total count of records
-    fn count<T>(&self, wrapper:Wrapper) -> crate::prelude::Result<u64>
+    fn count<T>(&self, wrapper: Wrapper) -> crate::prelude::Result<u64>
     where
         T: GetTableName + GetFields,
     {
@@ -113,7 +107,7 @@ impl AkitaMapper for AkitaTransaction {
     }
 
     /// Remove the records by wrapper.
-    fn remove<T>(&self, wrapper:Wrapper) -> crate::prelude::Result<u64>
+    fn remove<T>(&self, wrapper: Wrapper) -> crate::prelude::Result<u64>
     where
         T: GetTableName + GetFields,
     {
@@ -121,37 +115,41 @@ impl AkitaMapper for AkitaTransaction {
     }
 
     fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> crate::prelude::Result<u64>
-    where I: IntoAkitaValue, T: GetTableName + GetFields {
-        self.conn.remove_by_ids::<T,I>(ids)
+    where
+        I: IntoAkitaValue,
+        T: GetTableName + GetFields,
+    {
+        self.conn.remove_by_ids::<T, I>(ids)
     }
 
     /// Remove the records by id.
     fn remove_by_id<T, I>(&self, id: I) -> crate::prelude::Result<u64>
     where
         I: IntoAkitaValue,
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.conn.remove_by_id::<T, I>(id)
-
     }
 
     /// Update the records by wrapper.
     fn update<T>(&self, entity: &T, wrapper: Wrapper) -> crate::prelude::Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue {
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
     fn update_by_id<T>(&self, entity: &T) -> crate::prelude::Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue {
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.conn.update_by_id(entity)
-
     }
 
     fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> crate::prelude::Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue
+        T: GetTableName + GetFields + IntoAkitaValue,
     {
         self.conn.update_batch_by_id(entities)
     }
@@ -175,11 +173,18 @@ impl AkitaMapper for AkitaTransaction {
     }
 
     fn save_or_update<T, I>(&self, entity: &T) -> crate::prelude::Result<Option<I>>
-    where T: GetTableName + GetFields + IntoAkitaValue, I: FromAkitaValue {
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+        I: FromAkitaValue,
+    {
         self.conn.save_or_update(entity)
     }
 
-    fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> crate::prelude::Result<Rows> {
+    fn exec_iter<S: Into<String>, P: Into<Params>>(
+        &self,
+        sql: S,
+        params: P,
+    ) -> crate::prelude::Result<Rows> {
         self.conn.exec_iter(sql, params)
     }
 }

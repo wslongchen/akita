@@ -18,21 +18,21 @@
  *  *
  *
  */
-use std::fmt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::config::AkitaConfig;
+use crate::database_err;
+use crate::driver::non_blocking::get_tokio_context;
+use crate::driver::DriverType;
+use crate::errors::AkitaError;
 use async_trait::async_trait;
 use deadpool::managed::{Metrics, Object, Pool, RecycleError, RecycleResult};
 use deadpool::Runtime;
 use deadpool_sync::SyncWrapper;
 use rusqlite::{Connection, Error, OpenFlags};
+use std::fmt;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::runtime::Handle;
 use tokio::task;
-use crate::config::AkitaConfig;
-use crate::database_err;
-use crate::driver::DriverType;
-use crate::driver::non_blocking::get_tokio_context;
-use crate::errors::AkitaError;
 
 /// SQLite Asynchronous connection pool type
 pub type SqliteAsyncPool = Pool<SqliteAsyncConnectionManager>;
@@ -44,7 +44,8 @@ enum Source {
     File(PathBuf),
     Memory,
 }
-type InitFn = dyn Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static;
+type InitFn =
+    dyn Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static;
 
 /// SQLite Asynchronous connection manager
 pub struct SqliteAsyncConnectionManager {
@@ -110,8 +111,6 @@ impl SqliteAsyncConnectionManager {
     }
 }
 
-
-
 #[async_trait]
 impl deadpool::managed::Manager for SqliteAsyncConnectionManager {
     type Type = SyncWrapper<Connection>;
@@ -122,15 +121,19 @@ impl deadpool::managed::Manager for SqliteAsyncConnectionManager {
             Source::File(ref path) => Connection::open_with_flags(path, self.flags),
             Source::Memory => Connection::open_in_memory_with_flags(self.flags),
         }
-            .map_err(Into::into)
-            .and_then(|mut c| match self.init {
-                None => Ok(c),
-                Some(ref init) => init(&mut c).map(|_| c),
-            });
-        SyncWrapper::new(self.runtime, move|| conn).await
+        .map_err(Into::into)
+        .and_then(|mut c| match self.init {
+            None => Ok(c),
+            Some(ref init) => init(&mut c).map(|_| c),
+        });
+        SyncWrapper::new(self.runtime, move || conn).await
     }
 
-    async fn recycle(&self, conn: &mut Self::Type, _metrics: &Metrics) -> RecycleResult<Self::Error> {
+    async fn recycle(
+        &self,
+        conn: &mut Self::Type,
+        _metrics: &Metrics,
+    ) -> RecycleResult<Self::Error> {
         // Perform a simple query to check the connection
         if conn.is_mutex_poisoned() {
             return Err(RecycleError::Message(
@@ -150,9 +153,10 @@ impl deadpool::managed::Manager for SqliteAsyncConnectionManager {
     }
 }
 
-
 /// Initialize the SQLite asynchronous connection pool
-pub async fn init_sqlite_async_pool(config: crate::config::AkitaConfig) -> Result<SqliteAsyncPool, AkitaError> {
+pub async fn init_sqlite_async_pool(
+    config: crate::config::AkitaConfig,
+) -> Result<SqliteAsyncPool, AkitaError> {
     let manager = SqliteAsyncConnectionManager::new(&config)?;
     // Check the Tokio context
     let _handle = get_tokio_context()?;
@@ -166,16 +170,21 @@ pub async fn init_sqlite_async_pool(config: crate::config::AkitaConfig) -> Resul
         ..Default::default()
     };
 
-    let pool = Pool::builder(manager).runtime(Runtime::Tokio1).config(pool_config).build()?;
+    let pool = Pool::builder(manager)
+        .runtime(Runtime::Tokio1)
+        .config(pool_config)
+        .build()?;
 
     // Testing connections
-    let conn: SqliteAsyncConnection = pool.get().await
+    let conn: SqliteAsyncConnection = pool
+        .get()
+        .await
         .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
-    conn
-        .interact(|conn| {
-            conn.query_row("SELECT 1", [], |_| Ok(())).unwrap_or_default();
-        })
-        .await?;
+    conn.interact(|conn| {
+        conn.query_row("SELECT 1", [], |_| Ok(()))
+            .unwrap_or_default();
+    })
+    .await?;
 
     tracing::info!("SQLite async connection pool initialized successfully");
 

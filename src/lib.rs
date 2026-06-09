@@ -1,5 +1,4 @@
-#![feature(async_fn_track_caller)]
-#![allow(unused_imports,unreachable_patterns,dead_code,missing_docs, incomplete_features,unused_variables)]
+#![allow(dead_code, unused_variables)]
 /*
  *
  *  *
@@ -35,27 +34,27 @@
 //!
 //!
 //! Add this to your `Cargo.toml`:
-//! 
+//!
 //! ```toml
 //! [dependencies]
 //! akita = { version = "0.6", features = ["mysql-sync"] }
 //! chrono = "0.4"
 //! ```
-//! 
+//!
 //! For SQLite support:
 //! ```toml
 //! [dependencies]
 //! akita = { version = "0.4", features = ["sqlite-sync"] }
 //! ```
-//! 
+//!
 //! ## 🚀 Quick Start
 //! ### 1. Define Your Entity
-//! 
+//!
 //! ```rust
 //! use akita::prelude::*;
 //! use chrono::{NaiveDate, NaiveDateTime};
 //! use serde_json::Value;
-//! 
+//!
 //! #[derive(Entity, Clone, Default, Debug)]
 //! #[table(name = "users")]
 //! pub struct User {
@@ -84,9 +83,9 @@
 //!     pub full_name: String,
 //! }
 //! ```
-//! 
+//!
 //! ### 2. Initialize Akita
-//! 
+//!
 //! ```rust
 //! use akita::prelude::*;
 //! use std::time::Duration;
@@ -103,9 +102,9 @@
 //!     Ok(())
 //! }
 //! ```
-//! 
+//!
 //! ### 3. Basic Operations
-//! 
+//!
 //! ```rust
 //! // Create
 //! let user = User {
@@ -115,28 +114,28 @@
 //! level: 1,
 //! ..Default::default()
 //! };
-//! 
+//!
 //! let user_id: Option<i64> = akita.save(&user)?;
-//! 
+//!
 //! // Read
 //! let user: Option<User> = akita.select_by_id(user_id.unwrap())?;
-//! 
+//!
 //! // Update
 //! let mut user = user.unwrap();
 //! user.level = 2;
 //! akita.update_by_id(&user)?;
-//! 
+//!
 //! // Delete
 //! akita.remove_by_id::<User, _>(user_id.unwrap())?;
 //! ```
-//! 
+//!
 //! ## 📚 Detailed Usage
 //! ### Query Builder
-//! 
+//!
 //! Akita provides a powerful, type-safe query builder:
 //! ```rust
 //! use akita::prelude::*;
-//! 
+//!
 //! let wrapper = Wrapper::new()
 //!     // Select specific columns
 //!     .select(vec!["id", "username", "email"])
@@ -187,7 +186,7 @@
 //!     .limit(10)
 //!     .offset(20);
 //! ```
-//! 
+//!
 //! ### Complex Queries
 //! ```rust
 //! // Join queries
@@ -197,7 +196,7 @@
 //!         .inner_join("departments d","u.department_id = d.id")
 //!         .select(vec!["u.*", "d.name as department_name"])
 //! )?;
-//! 
+//!
 //! // Subqueries
 //! let active_users: Vec<User> = akita.list(
 //!     Wrapper::new()
@@ -209,7 +208,7 @@
 //!         })
 //! )?;
 //! ```
-//! 
+//!
 //! ### Raw SQL Queries
 //! ```rust
 //! // Parameterized queries
@@ -217,7 +216,7 @@
 //!     "SELECT * FROM users WHERE status = ? AND level > ?",
 //!     (1, 0)
 //! )?;
-//! 
+//!
 //! // Named parameters
 //! let user: Option<User> = akita.exec_first(
 //!     "SELECT * FROM users WHERE username = :name AND email = :email",
@@ -226,7 +225,7 @@
 //!         "email" => "john@example.com"
 //!     }
 //! )?;
-//! 
+//!
 //! // Executing DDL
 //! akita.exec_drop(
 //!     "CREATE TABLE IF NOT EXISTS users (
@@ -239,34 +238,32 @@
 //! ```
 //! Update At 2025.12.13 12:13
 //! By Mr.Pan
-//! 
-//! 
+//!
+//!
 //!
 
 // Common core module
-mod errors;
+mod comm;
 mod config;
 mod converter;
-mod key;
-mod xml;
-mod comm;
-mod ext;
-mod interceptor;
-mod mapper;
-mod transaction;
-mod driver;
 mod core;
-mod sql;
+mod driver;
+mod errors;
+mod ext;
+pub mod interceptor;
+mod key;
+mod mapper;
 mod pool;
-#[cfg(all(
-    any(
-        feature = "mysql-sync",
-        feature = "postgres-sync",
-        feature = "sqlite-sync",
-        feature = "oracle-sync",
-        feature = "mssql-sync"
-    )
-))]
+#[cfg(all(any(
+    feature = "mysql-sync",
+    feature = "postgres-sync",
+    feature = "sqlite-sync",
+    feature = "oracle-sync",
+    feature = "mssql-sync"
+)))]
 mod repository;
+mod sql;
+mod transaction;
+mod xml;
 
 pub mod prelude;

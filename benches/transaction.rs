@@ -19,9 +19,9 @@
  *
  */
 
+use akita::prelude::*;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
-use akita::prelude::*;
 
 mod common;
 use common::*;
@@ -35,11 +35,13 @@ pub fn bench_transaction_operations(c: &mut Criterion) {
     // Benchmark: Transaction operations
     group.bench_function("transaction_commit", |b| {
         b.iter(|| {
-            black_box(akita.start_transaction()).and_then(|mut tx| {
-                let user = create_test_user();
-                tx.save::<SysUser, i64>(black_box(&user))?;
-                tx.commit()
-            }).unwrap();
+            black_box(akita.start_transaction())
+                .and_then(|mut tx| {
+                    let user = create_test_user();
+                    tx.save::<SysUser, i64>(black_box(&user))?;
+                    tx.commit()
+                })
+                .unwrap();
         });
     });
 

@@ -24,6 +24,98 @@ use lazy_static::lazy_static;
 use proc_macro2::{Ident, Span};
 use proc_macro_crate::{crate_name, FoundCrate};
 use syn::{self, Expr, Type};
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
+use syn::token::Comma;
+
+/// Replacement for syn 1's `AttributeArgs` (which was `Vec<NestedMeta>`).
+/// In syn 2, bare string literals are not `Meta`, so we need a custom type
+/// that can hold either a `Meta` or a bare `Lit`.
+#[derive(Debug, Clone)]
+pub enum AttrArg {
+    Meta(syn::Meta),
+    Lit(syn::Lit),
+}
+
+impl AttrArg {
+    /// Try to get this as a syn::Meta
+    pub fn as_meta(&self) -> Option<&syn::Meta> {
+        match self {
+            AttrArg::Meta(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    /// Try to get this as a syn::Lit
+    pub fn as_lit(&self) -> Option<&syn::Lit> {
+        match self {
+            AttrArg::Lit(l) => Some(l),
+            _ => None,
+        }
+    }
+
+    /// Returns the span of this argument
+    pub fn span(&self) -> Span {
+        match self {
+            AttrArg::Meta(m) => m.span(),
+            AttrArg::Lit(l) => l.span(),
+        }
+    }
+}
+
+impl Parse for AttrArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        // Try to parse as Meta first (handles paths, name=value, list(...))
+        // If that fails, try as a literal
+        if input.peek(syn::LitStr) || input.peek(syn::LitInt) || input.peek(syn::LitFloat)
+            || input.peek(syn::LitBool) || input.peek(syn::LitChar) || input.peek(syn::LitByte)
+            || input.peek(syn::LitByteStr) || input.peek(syn::LitCStr)
+        {
+            let lit: syn::Lit = input.parse()?;
+            Ok(AttrArg::Lit(lit))
+        } else {
+            let meta: syn::Meta = input.parse()?;
+            Ok(AttrArg::Meta(meta))
+        }
+    }
+}
+
+/// The replacement for `AttributeArgs` = `Vec<NestedMeta>`.
+/// A punctuated list of `AttrArg` separated by commas.
+/// We use a newtype wrapper because `Punctuated<AttrArg, Comma>` itself
+/// doesn't satisfy the orphan rules for `Parse`.
+pub struct AttrArgs(pub Punctuated<AttrArg, Comma>);
+
+impl Parse for AttrArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(AttrArgs(Punctuated::<AttrArg, Comma>::parse_terminated(input)?))
+    }
+}
+
+impl std::ops::Deref for AttrArgs {
+    type Target = Punctuated<AttrArg, Comma>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a AttrArgs {
+    type Item = &'a AttrArg;
+    type IntoIter = syn::punctuated::Iter<'a, AttrArg>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl quote::ToTokens for AttrArg {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            AttrArg::Meta(m) => m.to_tokens(tokens),
+            AttrArg::Lit(l) => l.to_tokens(tokens),
+        }
+    }
+}
 
 
 lazy_static! {

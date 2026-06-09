@@ -30,20 +30,19 @@ pub fn bench_batch_operations(c: &mut Criterion) {
     let repository = akita.repository::<SysUser>();
 
     let mut group = c.benchmark_group("batch_operations");
-    group.sample_size(10); 
-    group.measurement_time(Duration::from_secs(20)); 
+    group.sample_size(10);
+    group.measurement_time(Duration::from_secs(20));
 
     // Reduce the batch size to avoid long testing times
-    for batch_size in [10, 50, 100, 200,1000].iter() {  // 从 [1, 10, 50, 100] 减少到 [1, 3, 5]
+    for batch_size in [10, 50, 100, 200, 1000].iter() {
+        // 从 [1, 10, 50, 100] 减少到 [1, 3, 5]
         group.throughput(Throughput::Elements(*batch_size as u64));
         group.bench_with_input(
             BenchmarkId::new("batch_insert", batch_size),
             batch_size,
             |b, &size| {
                 b.iter(|| {
-                    let users: Vec<SysUser> = (0..size)
-                        .map(|_| create_test_user())
-                        .collect();
+                    let users: Vec<SysUser> = (0..size).map(|_| create_test_user()).collect();
                     black_box(repository.save_batch::<_>(black_box(users))).unwrap();
                 });
             },
@@ -57,7 +56,7 @@ criterion_group!(
     name = benches;
     config = Criterion::default()
         .warm_up_time(Duration::from_secs(1))
-        .sample_size(10) 
+        .sample_size(10)
         .measurement_time(Duration::from_secs(20));
     targets = bench_batch_operations
 );

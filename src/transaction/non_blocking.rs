@@ -16,24 +16,40 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 use crate::driver::non_blocking::{AsyncDbDriver, AsyncDbExecutor};
-use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
-use std::pin::Pin;
 use crate::errors::Result;
-use crate::mapper::IPage;
 use crate::mapper::non_blocking::AsyncAkitaMapper;
+use crate::mapper::IPage;
+use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
 
+/// Asynchronous database transaction.
+///
+/// This struct represents an active database transaction. It automatically
+/// logs a warning if dropped without being explicitly committed or rolled back.
+///
+/// For automatic lifecycle management, use `AkitaAsync::transaction()` instead
+/// of manually calling `start_transaction()`.
 pub struct AsyncAkitaTransaction {
     pub(crate) conn: AsyncDbDriver,
     pub(crate) committed: bool,
     pub(crate) rolled_back: bool,
 }
 
+impl Drop for AsyncAkitaTransaction {
+    fn drop(&mut self) {
+        if !self.committed && !self.rolled_back {
+            tracing::warn!(
+                "AsyncAkitaTransaction dropped without commit or rollback. \
+                 Consider using AkitaAsync::transaction() for automatic lifecycle management."
+            );
+        }
+    }
+}
 
-#[allow(unused)]
 impl AsyncAkitaTransaction {
+    /// Commit the transaction.
     #[track_caller]
     pub async fn commit(&mut self) -> crate::prelude::Result<()> {
         self.conn.commit().await?;
@@ -41,31 +57,24 @@ impl AsyncAkitaTransaction {
         Ok(())
     }
 
+    /// Rollback the transaction.
     #[track_caller]
     pub async fn rollback(&mut self) -> crate::prelude::Result<()> {
         self.conn.rollback().await?;
         self.rolled_back = true;
         Ok(())
     }
-    
+
+    /// Get the last insert ID.
     pub async fn last_insert_id(&self) -> u64 {
         self.conn.last_insert_id().await
     }
-    
+
+    /// Get the number of affected rows.
     pub async fn affected_rows(&self) -> u64 {
         self.conn.affected_rows().await
     }
 }
-
-// impl AsyncDrop for AsyncAkitaTransaction {
-//     /// Will rollback transaction.
-//     async fn drop(self: Pin<&mut Self>) {
-//         if !self.committed && !self.rolled_back {
-//             self.conn.rollback().await.unwrap_or_default();
-//         }
-//     }
-// }
-
 
 #[async_trait::async_trait]
 impl AsyncAkitaMapper for AsyncAkitaTransaction {

@@ -20,9 +20,11 @@
  */
 use akita_core::cfg_if;
 
+pub mod shared;
+
 cfg_if! {if #[cfg(any(
     feature = "mysql-sync",
-    feature = "postgres-sync", 
+    feature = "postgres-sync",
     feature = "sqlite-sync",
     feature = "oracle-sync",
     feature = "mssql-sync"
@@ -32,7 +34,7 @@ cfg_if! {if #[cfg(any(
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-async",
-    feature = "postgres-async", 
+    feature = "postgres-async",
     feature = "sqlite-async",
     feature = "oracle-async",
     feature = "mssql-async"

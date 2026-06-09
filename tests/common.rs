@@ -18,13 +18,14 @@
  *  *
  *
  */
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use chrono::{NaiveDate, NaiveDateTime};
-use uuid::Uuid;
 use akita_core::{AkitaValue, InterceptorType, OperationType};
 use akita_derive::{sql, sql_xml, AkitaEnum, Entity};
+use chrono::{NaiveDate, NaiveDateTime};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use uuid::Uuid;
 
+use akita::interceptor::InterceptorBase;
 use akita::prelude::*;
 
 pub struct EncrptConverter;
@@ -79,7 +80,7 @@ pub struct User {
     /// 状态
     pub status: u8,
     /// 用户等级 0.普通会员 1.VIP会员
-    #[field(name="level")]
+    #[field(name = "level")]
     pub level: Priority,
     pub age: Option<u8>,
     /// 生日
@@ -101,7 +102,6 @@ pub enum Status {
     Pending,
 }
 
-
 #[derive(AkitaEnum, Debug, Clone, PartialEq)]
 #[akita_enum(storage = "int")]
 pub enum Priority {
@@ -120,7 +120,11 @@ impl Default for Priority {
 #[akita_enum(storage = "json")]
 enum Message {
     Text(String),
-    Image { width: i32, height: i32, url: String },
+    Image {
+        width: i32,
+        height: i32,
+        url: String,
+    },
     Error(String, i32),
 }
 
@@ -158,7 +162,7 @@ impl TrackableTenantInterceptor {
         feature = "oracle-async"
     ))
 ))]
-impl AkitaInterceptor for TrackableTenantInterceptor {
+impl InterceptorBase for TrackableTenantInterceptor {
     fn name(&self) -> &'static str {
         "trackable_tenant"
     }
@@ -172,16 +176,37 @@ impl AkitaInterceptor for TrackableTenantInterceptor {
     }
 
     fn supports_operation(&self, operation: &OperationType) -> bool {
-        matches!(operation,
-                OperationType::Select | OperationType::Insert(..) |
-                OperationType::Update | OperationType::Delete
-            )
+        matches!(
+            operation,
+            OperationType::Select
+                | OperationType::Insert(..)
+                | OperationType::Update
+                | OperationType::Delete
+        )
     }
 
     fn will_ignore_table(&self, _table_name: &str) -> bool {
         false
     }
+}
 
+#[cfg(all(
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync",
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    ),
+    not(any(
+        feature = "mysql-async",
+        feature = "postgres-async",
+        feature = "sqlite-async",
+        feature = "mssql-async",
+        feature = "oracle-async"
+    ))
+))]
+impl AkitaInterceptor for TrackableTenantInterceptor {
     fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<(), AkitaError> {
         *self.before_call_count.lock().unwrap() += 1;
 
@@ -196,12 +221,19 @@ impl AkitaInterceptor for TrackableTenantInterceptor {
         Ok(())
     }
 
-    fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult, AkitaError>) -> Result<(), AkitaError> {
+    fn after_execute(
+        &self,
+        ctx: &mut ExecuteContext,
+        result: &mut Result<ExecuteResult, AkitaError>,
+    ) -> Result<(), AkitaError> {
         *self.after_call_count.lock().unwrap() += 1;
 
         // 记录执行结果到元数据
         if let Ok(rows) = result {
-            ctx.metadata_mut().insert("rows_affected".to_string(), AkitaValue::Int(rows.len() as i32));
+            ctx.metadata_mut().insert(
+                "rows_affected".to_string(),
+                AkitaValue::Int(rows.len() as i32),
+            );
         }
 
         Ok(())
@@ -242,7 +274,7 @@ impl TrackablePerformanceInterceptor {
         feature = "oracle-async"
     ))
 ))]
-impl AkitaInterceptor for TrackablePerformanceInterceptor {
+impl InterceptorBase for TrackablePerformanceInterceptor {
     fn name(&self) -> &'static str {
         "trackable_performance"
     }
@@ -262,14 +294,36 @@ impl AkitaInterceptor for TrackablePerformanceInterceptor {
     fn will_ignore_table(&self, _table_name: &str) -> bool {
         false
     }
+}
 
+#[cfg(all(
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync",
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    ),
+    not(any(
+        feature = "mysql-async",
+        feature = "postgres-async",
+        feature = "sqlite-async",
+        feature = "mssql-async",
+        feature = "oracle-async"
+    ))
+))]
+impl AkitaInterceptor for TrackablePerformanceInterceptor {
     fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<(), AkitaError> {
         *self.before_call_count.lock().unwrap() += 1;
         ctx.set_metadata("performance_started", true);
         Ok(())
     }
 
-    fn after_execute(&self, ctx: &mut ExecuteContext, _result: &mut Result<ExecuteResult, AkitaError>) -> Result<(), AkitaError> {
+    fn after_execute(
+        &self,
+        ctx: &mut ExecuteContext,
+        _result: &mut Result<ExecuteResult, AkitaError>,
+    ) -> Result<(), AkitaError> {
         *self.after_call_count.lock().unwrap() += 1;
 
         let duration = ctx.start_time().elapsed();
@@ -316,7 +370,7 @@ impl TrackableLoggingInterceptor {
         feature = "oracle-async"
     ))
 ))]
-impl AkitaInterceptor for TrackableLoggingInterceptor {
+impl InterceptorBase for TrackableLoggingInterceptor {
     fn name(&self) -> &'static str {
         "trackable_logging"
     }
@@ -336,11 +390,33 @@ impl AkitaInterceptor for TrackableLoggingInterceptor {
     fn will_ignore_table(&self, _table_name: &str) -> bool {
         false
     }
+}
 
+#[cfg(all(
+    any(
+        feature = "mysql-sync",
+        feature = "postgres-sync",
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    ),
+    not(any(
+        feature = "mysql-async",
+        feature = "postgres-async",
+        feature = "sqlite-async",
+        feature = "mssql-async",
+        feature = "oracle-async"
+    ))
+))]
+impl AkitaInterceptor for TrackableLoggingInterceptor {
     fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<(), AkitaError> {
         *self.before_call_count.lock().unwrap() += 1;
 
-        let log_entry = format!("BEFORE: {:?} - {}", ctx.operation_type(), ctx.original_sql());
+        let log_entry = format!(
+            "BEFORE: {:?} - {}",
+            ctx.operation_type(),
+            ctx.original_sql()
+        );
         self.log_entries.lock().unwrap().push(log_entry);
 
         ctx.set_metadata("logged_before", true);
@@ -348,11 +424,20 @@ impl AkitaInterceptor for TrackableLoggingInterceptor {
         Ok(())
     }
 
-    fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult, AkitaError>) -> Result<(), AkitaError> {
+    fn after_execute(
+        &self,
+        ctx: &mut ExecuteContext,
+        result: &mut Result<ExecuteResult, AkitaError>,
+    ) -> Result<(), AkitaError> {
         *self.after_call_count.lock().unwrap() += 1;
 
         let status = if result.is_ok() { "SUCCESS" } else { "FAILED" };
-        let log_entry = format!("AFTER: {:?} - {} - {}", ctx.operation_type(), ctx.final_sql(), status);
+        let log_entry = format!(
+            "AFTER: {:?} - {} - {}",
+            ctx.operation_type(),
+            ctx.final_sql(),
+            status
+        );
         self.log_entries.lock().unwrap().push(log_entry);
 
         ctx.set_metadata("logged_after", true);
@@ -364,12 +449,12 @@ impl AkitaInterceptor for TrackableLoggingInterceptor {
 pub fn create_test_akita_cfg() -> AkitaConfig {
     let database = Database {
         ip: "127.0.0.1".to_string(),
-        username: "test".to_string(),
-        password: "password".to_string(),
+        username: "root".to_string(),
+        password: "MIMAlongchen520".to_string(),
         db_name: "test".to_string(),
         port: 3306,
     };
-    
+
     let cfg = AkitaConfig::default()
         .max_size(5)
         .connection_timeout(Duration::from_secs(5))
@@ -386,7 +471,7 @@ pub fn create_test_user() -> User {
         id: 0,
         pk: uuid::Uuid::new_v4().simple().to_string(),
         user_type: Some("super".to_string()),
-        name: Some(format!("NAME{}",uuid::Uuid::new_v4().simple().to_string())),
+        name: Some(format!("NAME{}", uuid::Uuid::new_v4().simple().to_string())),
         headline: Some(NaiveDateTime::from_timestamp_opt(0, 0).unwrap()),
         tenant_id: 0,
         status: 1,
@@ -395,7 +480,11 @@ pub fn create_test_user() -> User {
         birthday: Some(NaiveDate::from_ymd_opt(1990, 1, 1).unwrap()),
         gender: 1,
         is_org: false,
-        url_token: format!("{}{}", Local::now().naive_local().timestamp_subsec_nanos(), Uuid::new_v4().simple().to_string()),
+        url_token: format!(
+            "{}{}",
+            Local::now().naive_local().timestamp_subsec_nanos(),
+            Uuid::new_v4().simple().to_string()
+        ),
         // hashmap: Default::default(),
     }
 }

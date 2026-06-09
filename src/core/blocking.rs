@@ -28,22 +28,25 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use once_cell::sync::Lazy;
-use akita_core::{cfg_if, AkitaValue, AndOr, Condition, FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, JoinClause, JoinType, OrderByClause, OrderDirection, Params, Rows, SetOperation, SqlOperator, SqlSecurityConfig};
 use crate::config::XmlSqlLoaderConfig;
 use crate::driver::blocking::DbDriver;
 use crate::interceptor::blocking::{InterceptorBuilder, InterceptorChain};
-use crate::{database_err, interceptor_err};
-use crate::prelude::{AkitaError};
-use crate::prelude::{AkitaConfig, IdentifierGenerator, Wrapper};
 use crate::key::SnowflakeGenerator;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
 use crate::pool::blocking::{DBPoolWrapper, PooledConnection};
+use crate::prelude::AkitaError;
+use crate::prelude::{AkitaConfig, IdentifierGenerator, Wrapper};
+use crate::{database_err, interceptor_err};
+use akita_core::{
+    cfg_if, AkitaValue, AndOr, Condition, FromAkitaValue, GetFields, GetTableName, IntoAkitaValue,
+    JoinClause, JoinType, OrderByClause, OrderDirection, Params, Rows, SetOperation, SqlOperator,
+    SqlSecurityConfig,
+};
+use once_cell::sync::Lazy;
 
 use crate::transaction::blocking::AkitaTransaction;
 use crate::xml::XmlSqlLoader;
-
 
 cfg_if! {if #[cfg(all(
     any(
@@ -88,11 +91,14 @@ pub struct Akita {
 impl std::fmt::Debug for Akita {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Akita")
-            .field("pool", &"Pool { ... }") 
-            .field("interceptor_chain", &match &self.interceptor_chain {
-                Some(_) => "Some(InterceptorChain)",
-                None => "None",
-            })
+            .field("pool", &"Pool { ... }")
+            .field(
+                "interceptor_chain",
+                &match &self.interceptor_chain {
+                    Some(_) => "Some(InterceptorChain)",
+                    None => "None",
+                },
+            )
             .finish()
     }
 }
@@ -119,29 +125,30 @@ impl Akita {
         self
     }
 
-    pub fn with_interceptor_builder(mut self, builder: InterceptorBuilder) -> Result<Self, AkitaError> {
+    pub fn with_interceptor_builder(
+        mut self,
+        builder: InterceptorBuilder,
+    ) -> Result<Self, AkitaError> {
         let chain = builder.build()?;
         self.interceptor_chain = Some(Arc::new(chain));
         Ok(self)
     }
-    
+
     pub fn interceptor_chain(&self) -> Option<&Arc<InterceptorChain>> {
         self.interceptor_chain.as_ref()
     }
 
-    #[cfg(all(
-        any(
-            feature = "mysql-sync",
-            feature = "postgres-sync",
-            feature = "sqlite-sync",
-            feature = "oracle-sync",
-            feature = "mssql-sync"
-        )
-    ))]
+    #[cfg(all(any(
+        feature = "mysql-sync",
+        feature = "postgres-sync",
+        feature = "sqlite-sync",
+        feature = "oracle-sync",
+        feature = "mssql-sync"
+    )))]
     pub fn repository<T>(&self) -> EntityRepository<Akita, T> {
         EntityRepository::new(self.clone())
     }
-    
+
     /// get DataBase Connection used for the next step
     pub fn acquire(&self) -> Result<DbDriver, AkitaError> {
         let pool = self.get_pool()?;
@@ -151,7 +158,7 @@ impl Akita {
             #[cfg(feature = "mysql-sync")]
             PooledConnection::PooledMysql(pooled_mysql) => {
                 let mut db = MySQL::new(pooled_mysql).with_sql_security(sql_security_config);
-                
+
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
@@ -159,7 +166,7 @@ impl Akita {
                     db = db.with_database(database);
                 }
                 DbDriver::MysqlDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "sqlite-sync")]
             PooledConnection::PooledSqlite(pooled_sqlite) => {
                 let mut db = Sqlite::new(pooled_sqlite).with_sql_security(sql_security_config);
@@ -170,7 +177,7 @@ impl Akita {
                     db = db.with_database(database);
                 }
                 DbDriver::SqliteDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "postgres-sync")]
             PooledConnection::PooledPostgres(pooled_postgres) => {
                 let mut db = Postgres::new(pooled_postgres).with_sql_security(sql_security_config);
@@ -181,7 +188,7 @@ impl Akita {
                     db = db.with_database(database);
                 }
                 DbDriver::PostgresDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "oracle-sync")]
             PooledConnection::PooledOracle(pooled_oracle) => {
                 let mut db = Oracle::new(pooled_oracle).with_sql_security(sql_security_config);
@@ -192,7 +199,7 @@ impl Akita {
                     db = db.with_database(database);
                 }
                 DbDriver::OracleDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "mssql-sync")]
             PooledConnection::PooledMssql(pooled_mssql) => {
                 let mut db = Mssql::new(pooled_mssql).with_sql_security(sql_security_config);
@@ -203,13 +210,13 @@ impl Akita {
                     db = db.with_database(database);
                 }
                 DbDriver::MssqlDriver(Box::new(db))
-            },
-            _ => return Err(database_err!("database must be init."))
+            }
+            _ => return Err(database_err!("database must be init.")),
         };
 
         Ok(platform)
     }
-    
+
     pub fn start_transaction(&self) -> Result<AkitaTransaction, AkitaError> {
         let mut conn = self.acquire()?;
         conn.start()?;
@@ -232,7 +239,7 @@ impl Akita {
     pub fn wrapper(&self) -> Wrapper {
         Wrapper::new()
     }
-    
+
     pub fn database_name(&self) -> Option<String> {
         self.pool.config().get_database().unwrap_or_default()
     }
@@ -242,9 +249,8 @@ impl Akita {
 impl AkitaMapper for Akita {
     /// Get all the table of records
     fn list<T>(&self, wrapper: Wrapper) -> Result<Vec<T>, AkitaError>
-        where
-            T: GetTableName + GetFields + FromAkitaValue,
-
+    where
+        T: GetTableName + GetFields + FromAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.list(wrapper)
@@ -252,9 +258,8 @@ impl AkitaMapper for Akita {
 
     /// Get one the table of records
     fn select_one<T>(&self, wrapper: Wrapper) -> Result<Option<T>, AkitaError>
-        where
-            T: GetTableName + GetFields + FromAkitaValue,
-
+    where
+        T: GetTableName + GetFields + FromAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.select_one(wrapper)
@@ -262,9 +267,9 @@ impl AkitaMapper for Akita {
 
     /// Get one the table of records by id
     fn select_by_id<T, I>(&self, id: I) -> Result<Option<T>, AkitaError>
-        where
-            T: GetTableName + GetFields + FromAkitaValue,
-            I: IntoAkitaValue
+    where
+        T: GetTableName + GetFields + FromAkitaValue,
+        I: IntoAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.select_by_id(id)
@@ -272,9 +277,8 @@ impl AkitaMapper for Akita {
 
     /// Get table of records with page
     fn page<T>(&self, page: u64, size: u64, wrapper: Wrapper) -> Result<IPage<T>, AkitaError>
-        where
-            T: GetTableName + GetFields + FromAkitaValue,
-
+    where
+        T: GetTableName + GetFields + FromAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.page(page, size, wrapper)
@@ -282,8 +286,8 @@ impl AkitaMapper for Akita {
 
     /// Get the total count of records
     fn count<T>(&self, wrapper: Wrapper) -> Result<u64, AkitaError>
-        where
-            T: GetTableName + GetFields,
+    where
+        T: GetTableName + GetFields,
     {
         let mut conn = self.acquire()?;
         conn.count::<T>(wrapper)
@@ -291,46 +295,53 @@ impl AkitaMapper for Akita {
 
     /// Remove the records by wrapper.
     fn remove<T>(&self, wrapper: Wrapper) -> Result<u64, AkitaError>
-        where
-            T: GetTableName + GetFields,
+    where
+        T: GetTableName + GetFields,
     {
         let mut conn = self.acquire()?;
         conn.remove::<T>(wrapper)
     }
 
-    fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64, AkitaError> where I: IntoAkitaValue, T: GetTableName + GetFields {
+    fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64, AkitaError>
+    where
+        I: IntoAkitaValue,
+        T: GetTableName + GetFields,
+    {
         let mut conn = self.acquire()?;
         conn.remove_by_ids::<T, I>(ids)
     }
 
     /// Remove the records by id.
     fn remove_by_id<T, I>(&self, id: I) -> Result<u64, AkitaError>
-        where
-            I: IntoAkitaValue,
-            T: GetTableName + GetFields {
+    where
+        I: IntoAkitaValue,
+        T: GetTableName + GetFields,
+    {
         let mut conn = self.acquire()?;
         conn.remove_by_id::<T, I>(id)
     }
 
     /// Update the records by wrapper.
     fn update<T>(&self, entity: &T, wrapper: Wrapper) -> Result<u64, AkitaError>
-        where
-            T: GetTableName + GetFields + IntoAkitaValue {
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         let mut conn = self.acquire()?;
         conn.update(entity, wrapper)
     }
 
     /// Update the records by id.
     fn update_by_id<T>(&self, entity: &T) -> Result<u64, AkitaError>
-        where
-            T: GetTableName + GetFields + IntoAkitaValue {
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         let mut conn = self.acquire()?;
         conn.update_by_id(entity)
     }
 
     fn update_batch_by_id<T>(&self, entities: &Vec<T>) -> Result<u64, AkitaError>
     where
-        T: GetTableName + GetFields + IntoAkitaValue
+        T: GetTableName + GetFields + IntoAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.update_batch_by_id(entities)
@@ -348,42 +359,52 @@ impl AkitaMapper for Akita {
 
     /// called multiple times when using database platform that doesn;t support multiple value
     fn save<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError>
-        where
-            T: GetTableName + GetFields + IntoAkitaValue,
-            I: FromAkitaValue,
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+        I: FromAkitaValue,
     {
         let mut conn = self.acquire()?;
         conn.save(entity)
     }
 
-    fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError> where T: GetTableName + GetFields + IntoAkitaValue, I: FromAkitaValue {
+    fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>, AkitaError>
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+        I: FromAkitaValue,
+    {
         let mut conn = self.acquire()?;
         conn.save_or_update(entity)
     }
 
-    fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Rows, AkitaError> {
+    fn exec_iter<S: Into<String>, P: Into<Params>>(
+        &self,
+        sql: S,
+        params: P,
+    ) -> Result<Rows, AkitaError> {
         let mut conn = self.acquire()?;
         conn.exec_iter(sql, params)
     }
 }
 
-
 /// Chained calls
 #[allow(mismatched_lifetime_syntaxes)]
 impl Akita {
-
     /// Add a new chain query method
-    pub fn query_builder<T>(&self) -> QueryBuilder<T> where T: GetTableName  {
+    pub fn query_builder<T>(&self) -> QueryBuilder<T>
+    where
+        T: GetTableName,
+    {
         QueryBuilder::new(self).table(T::table_name().complete_name())
     }
 
     /// Or go straight back to the wrapper
-    pub fn update_builder<T>(&self) -> UpdateBuilder<T> where
-        T: GetTableName  {
+    pub fn update_builder<T>(&self) -> UpdateBuilder<T>
+    where
+        T: GetTableName,
+    {
         UpdateBuilder::new(self).table(T::table_name().complete_name())
     }
 }
-
 
 /// Added query builder
 pub struct QueryBuilder<'a, T> {
@@ -400,7 +421,7 @@ impl<'a, T> QueryBuilder<'a, T> {
             _phantom: std::marker::PhantomData,
         }
     }
-    
+
     pub fn limit(mut self, limit: u64) -> Self {
         self.wrapper = self.wrapper.limit(limit);
         self
@@ -444,7 +465,6 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-
     pub fn gt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
@@ -463,8 +483,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-
-    pub fn lt<S,V>(mut self, column: S, value: V) -> Self
+    pub fn lt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -473,7 +492,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn le<S,V>(mut self, column: S, value: V) -> Self
+    pub fn le<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -482,7 +501,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -491,7 +510,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn not_like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -510,7 +529,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn r#in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn r#in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -520,7 +539,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn not_in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -530,7 +549,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -539,7 +558,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn not_between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -572,8 +591,8 @@ impl<'a, T> QueryBuilder<'a, T> {
     }
 
     // ========== JOIN ==========
-    
-    pub fn inner_join<S,C>(mut self, table: S, condition: C) -> Self
+
+    pub fn inner_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -582,7 +601,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn left_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn left_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -591,7 +610,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn right_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn right_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -600,7 +619,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn full_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn full_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -616,7 +635,7 @@ impl<'a, T> QueryBuilder<'a, T> {
         self
     }
 
-    pub fn having<S,V>(mut self, column: S,operator: SqlOperator, value: V) -> Self
+    pub fn having<S, V>(mut self, column: S, operator: SqlOperator, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -660,7 +679,6 @@ impl<'a, T> QueryBuilder<'a, T> {
     pub fn list(self) -> Result<Vec<T>, AkitaError>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.akita.list::<T>(self.wrapper)
     }
@@ -669,7 +687,6 @@ impl<'a, T> QueryBuilder<'a, T> {
     pub fn select_one(self) -> Result<Option<T>, AkitaError>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.akita.select_one::<T>(self.wrapper)
     }
@@ -678,7 +695,7 @@ impl<'a, T> QueryBuilder<'a, T> {
     pub fn select_by_id<I>(self, id: I) -> Result<Option<T>, AkitaError>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-        I: IntoAkitaValue
+        I: IntoAkitaValue,
     {
         self.akita.select_by_id::<T, I>(id)
     }
@@ -687,7 +704,6 @@ impl<'a, T> QueryBuilder<'a, T> {
     pub fn page(self, page: u64, size: u64) -> Result<IPage<T>, AkitaError>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-
     {
         self.akita.page::<T>(page, size, self.wrapper)
     }
@@ -699,9 +715,7 @@ impl<'a, T> QueryBuilder<'a, T> {
     {
         self.akita.count::<T>(self.wrapper)
     }
-    
 }
-
 
 /// Added a modified builder
 pub struct UpdateBuilder<'a, T> {
@@ -757,7 +771,6 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-
     pub fn gt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
@@ -776,8 +789,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-
-    pub fn lt<S,V>(mut self, column: S, value: V) -> Self
+    pub fn lt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -786,7 +798,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn le<S,V>(mut self, column: S, value: V) -> Self
+    pub fn le<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -795,7 +807,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -804,7 +816,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn not_like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -823,7 +835,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn r#in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn r#in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -833,7 +845,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn not_in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -843,7 +855,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -852,7 +864,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn not_between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -886,7 +898,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
 
     // ========== JOIN ==========
 
-    pub fn inner_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn inner_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -895,7 +907,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn left_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn left_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -904,7 +916,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn right_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn right_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -913,7 +925,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn full_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn full_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -936,7 +948,7 @@ impl<'a, T> UpdateBuilder<'a, T> {
 
     // ========== SET (UPDATE) ==========
 
-    pub fn set<S,V>(mut self, column: S,value: V) -> Self
+    pub fn set<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -945,11 +957,11 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self
     }
 
-    pub fn set_multiple<S,V, I>(mut self, operations: I) -> Self
+    pub fn set_multiple<S, V, I>(mut self, operations: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
-        I: IntoIterator<Item = (S,V)>,
+        I: IntoIterator<Item = (S, V)>,
     {
         self.wrapper = self.wrapper.set_multiple(operations);
         self
@@ -983,7 +995,11 @@ impl<'a, T> UpdateBuilder<'a, T> {
         self.akita.remove::<T>(self.wrapper)
     }
 
-    pub fn remove_by_ids<I>(self, ids: Vec<I>) -> Result<u64, AkitaError> where I: IntoAkitaValue, T: GetTableName + GetFields {
+    pub fn remove_by_ids<I>(self, ids: Vec<I>) -> Result<u64, AkitaError>
+    where
+        I: IntoAkitaValue,
+        T: GetTableName + GetFields,
+    {
         self.akita.remove_by_ids::<T, I>(ids)
     }
 
@@ -991,13 +1007,16 @@ impl<'a, T> UpdateBuilder<'a, T> {
     pub fn remove_by_id<I>(self, id: I) -> Result<u64, AkitaError>
     where
         I: IntoAkitaValue,
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.akita.remove_by_id::<T, I>(id)
     }
 
     /// Update the records by wrapper.
-    pub fn update(self, entity: &T) -> Result<u64, AkitaError> where T: GetTableName + GetFields + IntoAkitaValue {
+    pub fn update(self, entity: &T) -> Result<u64, AkitaError>
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.akita.update(entity, self.wrapper)
     }
-
 }

@@ -18,15 +18,15 @@
  *  *
  *
  */
-use async_trait::async_trait;
-use deadpool::managed::{Pool, Object, Metrics, RecycleResult};
-use deadpool::Runtime;
-use mysql_async::{Conn, Opts};
-use mysql_async::prelude::Queryable;
-use tokio::runtime::Handle;
 use crate::database_err;
 use crate::driver::non_blocking::get_tokio_context;
 use crate::errors::AkitaError;
+use async_trait::async_trait;
+use deadpool::managed::{Metrics, Object, Pool, RecycleResult};
+use deadpool::Runtime;
+use mysql_async::prelude::Queryable;
+use mysql_async::{Conn, Opts};
+use tokio::runtime::Handle;
 
 /// MySQL Asynchronous connection pool type
 pub type MysqlAsyncPool = Pool<MysqlAsyncConnectionManager>;
@@ -64,11 +64,20 @@ impl deadpool::managed::Manager for MysqlAsyncConnectionManager {
         let mut conn = Conn::new(self.opts.clone()).await?;
 
         // Setting connection options
-        let _ = conn.query_drop(format!("SET SESSION max_execution_time = {}", self.config.get_connection_timeout().as_millis())).await;
+        let _ = conn
+            .query_drop(format!(
+                "SET SESSION max_execution_time = {}",
+                self.config.get_connection_timeout().as_millis()
+            ))
+            .await;
         Ok(conn)
     }
 
-    async fn recycle(&self, obj: &mut Self::Type, _metrics: &Metrics) -> RecycleResult<Self::Error> {
+    async fn recycle(
+        &self,
+        obj: &mut Self::Type,
+        _metrics: &Metrics,
+    ) -> RecycleResult<Self::Error> {
         // Ping Check that the connection is valid
         obj.ping().await?;
         Ok(())
@@ -76,7 +85,9 @@ impl deadpool::managed::Manager for MysqlAsyncConnectionManager {
 }
 
 /// Initialize MySQL asynchronous connection pool
-pub async fn init_mysql_async_pool(config: crate::config::AkitaConfig) -> Result<MysqlAsyncPool, AkitaError> {
+pub async fn init_mysql_async_pool(
+    config: crate::config::AkitaConfig,
+) -> Result<MysqlAsyncPool, AkitaError> {
     let manager = MysqlAsyncConnectionManager::new(&config)?;
     // Check the Tokio context
     let _handle = get_tokio_context()?;
@@ -90,12 +101,18 @@ pub async fn init_mysql_async_pool(config: crate::config::AkitaConfig) -> Result
         ..Default::default()
     };
 
-    let pool = Pool::builder(manager).runtime(Runtime::Tokio1).config(pool_config).build()?;
+    let pool = Pool::builder(manager)
+        .runtime(Runtime::Tokio1)
+        .config(pool_config)
+        .build()?;
 
     // Testing connections
-    let mut conn: MysqlAsyncConnection = pool.get().await
+    let mut conn: MysqlAsyncConnection = pool
+        .get()
+        .await
         .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
-    conn.query_drop("SELECT 1").await
+    conn.query_drop("SELECT 1")
+        .await
         .map_err(|e| database_err!(format!("MySQL async connection test failed: {}", e)))?;
 
     tracing::info!("MySQL async connection pool initialized successfully");

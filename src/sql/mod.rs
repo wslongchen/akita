@@ -18,14 +18,17 @@
  *  *
  *
  */
-use akita_core::{cfg_if, AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, QueryData, TableName, Wrapper};
 use crate::core::GLOBAL_GENERATOR;
 use crate::driver::DriverType;
 use crate::errors::{AkitaError, Result};
 use crate::key::IdentifierGenerator;
 use crate::mapper::PaginationOptions;
-use std::fmt;
 use crate::{empty_data_err, invalid_sql_err};
+use akita_core::{
+    cfg_if, AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType,
+    IntoAkitaValue, QueryData, TableName, Wrapper,
+};
+use std::fmt;
 
 cfg_if! {
     if #[cfg(any(feature = "mysql-async", feature = "mysql-sync"))] {
@@ -94,7 +97,10 @@ pub trait SqlBuilder: Send + Sync {
         sql_parts.push(self.build_select_clause(&data));
 
         // FROM part
-        sql_parts.push(format!("FROM {}", self.build_from_clause(data.from.as_ref().unwrap())));
+        sql_parts.push(format!(
+            "FROM {}",
+            self.build_from_clause(data.from.as_ref().unwrap())
+        ));
 
         // JOIN part
         let joins = self.build_join_clauses(&data.joins);
@@ -104,12 +110,18 @@ pub trait SqlBuilder: Send + Sync {
 
         // The WHERE section
         if !data.where_clause.is_empty() {
-            sql_parts.push(format!("WHERE {}", self.build_where_clause(&data.where_clause)));
+            sql_parts.push(format!(
+                "WHERE {}",
+                self.build_where_clause(&data.where_clause)
+            ));
         }
 
         // GROUP BY part
         if !data.group_by.is_empty() {
-            sql_parts.push(format!("GROUP BY {}", self.build_group_by_clause(&data.group_by)));
+            sql_parts.push(format!(
+                "GROUP BY {}",
+                self.build_group_by_clause(&data.group_by)
+            ));
         }
 
         // The HAVING part
@@ -119,7 +131,10 @@ pub trait SqlBuilder: Send + Sync {
 
         // ORDER BY part
         if !data.order_by.is_empty() {
-            sql_parts.push(format!("ORDER BY {}", self.build_order_by_clause(&data.order_by)));
+            sql_parts.push(format!(
+                "ORDER BY {}",
+                self.build_order_by_clause(&data.order_by)
+            ));
         }
 
         // Pagination section
@@ -144,10 +159,16 @@ pub trait SqlBuilder: Send + Sync {
             return "".to_string();
         }
 
-        let mut sql = format!("SELECT COUNT(*) FROM {}", self.build_from_clause(data.from.as_ref().unwrap()));
+        let mut sql = format!(
+            "SELECT COUNT(*) FROM {}",
+            self.build_from_clause(data.from.as_ref().unwrap())
+        );
 
         if !data.where_clause.is_empty() {
-            sql.push_str(&format!(" WHERE {}", self.build_where_clause(&data.where_clause)));
+            sql.push_str(&format!(
+                " WHERE {}",
+                self.build_where_clause(&data.where_clause)
+            ));
         }
 
         self.process_placeholders(&sql)
@@ -155,7 +176,12 @@ pub trait SqlBuilder: Send + Sync {
 
     /// Building INSERT SQL
     #[track_caller]
-    fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
+    fn build_insert_sql(
+        &self,
+        table: &TableName,
+        columns: Vec<FieldName>,
+        datas: Vec<AkitaValue>,
+    ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if datas.is_empty() {
             return Err(empty_data_err!());
         }
@@ -166,7 +192,8 @@ pub trait SqlBuilder: Send + Sync {
         }
 
         // Building column names
-        let column_names: Vec<(String, FieldName)> = columns.into_iter()
+        let column_names: Vec<(String, FieldName)> = columns
+            .into_iter()
             .filter(|c| c.exist)
             .map(|c| {
                 let col_name = c.alias.as_ref().unwrap_or(&c.name);
@@ -182,7 +209,8 @@ pub trait SqlBuilder: Send + Sync {
             let mut entity_placeholders = Vec::new();
             for (_col_name, field) in column_names.iter() {
                 let col_name = field.alias.as_ref().unwrap_or(&field.name);
-                let mut value = data.get_obj_value(col_name)
+                let mut value = data
+                    .get_obj_value(col_name)
                     .cloned()
                     .unwrap_or(AkitaValue::Null);
                 // Handling field padding
@@ -205,7 +233,10 @@ pub trait SqlBuilder: Send + Sync {
         }
 
         // Building a Complete SQL
-        let column_names = column_names.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let column_names = column_names
+            .iter()
+            .map(|(c, _)| c.to_string())
+            .collect::<Vec<_>>();
         let sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
             self.quote_table(&table.complete_name()),
@@ -234,7 +265,21 @@ pub trait SqlBuilder: Send + Sync {
     }
 
     fn build_update_sql(&self, table: &TableName, wrapper: &Wrapper) -> Option<String> {
-        let set_clause = wrapper.build_set_clause();
+        // Build SET clause with properly quoted column names
+        let set_clause = wrapper
+            .get_set_operations()
+            .iter()
+            .map(|op| match &op.value {
+                AkitaValue::RawSql(sql_expr) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), sql_expr)
+                }
+                AkitaValue::Column(col_name) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), col_name)
+                }
+                _ => format!("{} = ?", self.quote_identifier(&op.column)),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         let where_clause = wrapper.build_where_clause();
         let mut sql = format!("UPDATE {} SET {}", &table.complete_name(), set_clause);
         if !where_clause.is_empty() {
@@ -245,12 +290,16 @@ pub trait SqlBuilder: Send + Sync {
         }
         Some(sql)
     }
-    
+
     // ========== SQL fragment construction method (with default implementation) ==========
 
     /// Build the SELECT clause
     fn build_select_clause(&self, data: &QueryData) -> String {
-        let select_keyword = if data.distinct { "SELECT DISTINCT" } else { "SELECT" };
+        let select_keyword = if data.distinct {
+            "SELECT DISTINCT"
+        } else {
+            "SELECT"
+        };
 
         if data.select == "*" {
             format!("{} *", select_keyword)
@@ -265,18 +314,20 @@ pub trait SqlBuilder: Send + Sync {
         if from.contains(" AS ") {
             let parts: Vec<&str> = from.split(" AS ").collect();
             if parts.len() == 2 {
-                return format!("{} AS {}",
-                               self.quote_identifier(parts[0].trim()),
-                               self.quote_identifier(parts[1].trim())
+                return format!(
+                    "{} AS {}",
+                    self.quote_identifier(parts[0].trim()),
+                    self.quote_identifier(parts[1].trim())
                 );
             }
         } else if from.contains(' ') {
             let parts: Vec<&str> = from.split_whitespace().collect();
             if parts.len() == 2 {
                 // Implicit aliases: table alias
-                return format!("{} {}",
-                               self.quote_identifier(parts[0]),
-                               self.quote_identifier(parts[1])
+                return format!(
+                    "{} {}",
+                    self.quote_identifier(parts[0]),
+                    self.quote_identifier(parts[1])
                 );
             }
         }
@@ -286,7 +337,8 @@ pub trait SqlBuilder: Send + Sync {
 
     /// Construct the JOIN clause
     fn build_join_clauses(&self, joins: &[String]) -> String {
-        joins.iter()
+        joins
+            .iter()
             .map(|join| self.build_single_join_clause(join))
             .collect::<Vec<_>>()
             .join(" ")
@@ -345,7 +397,8 @@ pub trait SqlBuilder: Send + Sync {
             return String::new();
         }
 
-        group_by.split(',')
+        group_by
+            .split(',')
             .map(|col| col.trim())
             .filter(|col| !col.is_empty())
             .map(|col| self.quote_identifier(col))
@@ -364,7 +417,8 @@ pub trait SqlBuilder: Send + Sync {
             return String::new();
         }
 
-        order_by.split(',')
+        order_by
+            .split(',')
             .map(|item| item.trim())
             .filter(|item| !item.is_empty())
             .map(|item| {
@@ -402,7 +456,8 @@ pub trait SqlBuilder: Send + Sync {
             return "*".to_string();
         }
 
-        columns.split(',')
+        columns
+            .split(',')
             .map(|col| col.trim())
             .filter(|col| !col.is_empty())
             .map(|col| {
@@ -410,9 +465,10 @@ pub trait SqlBuilder: Send + Sync {
                 if col.contains(" AS ") {
                     let parts: Vec<&str> = col.split(" AS ").collect();
                     if parts.len() == 2 {
-                        return format!("{} AS {}",
-                                       self.quote_identifier(parts[0].trim()),
-                                       self.quote_identifier(parts[1].trim())
+                        return format!(
+                            "{} AS {}",
+                            self.quote_identifier(parts[0].trim()),
+                            self.quote_identifier(parts[1].trim())
                         );
                     }
                 }
@@ -421,9 +477,10 @@ pub trait SqlBuilder: Send + Sync {
                 if col.contains('.') {
                     let parts: Vec<&str> = col.split('.').collect();
                     if parts.len() == 2 {
-                        return format!("{}.{}",
-                                       self.quote_identifier(parts[0]),
-                                       self.quote_identifier(parts[1])
+                        return format!(
+                            "{}.{}",
+                            self.quote_identifier(parts[0]),
+                            self.quote_identifier(parts[1])
                         );
                     }
                 }
@@ -437,7 +494,11 @@ pub trait SqlBuilder: Send + Sync {
     // ========== Helper methods ==========
 
     /// Handle the ID generator
-    fn identifier_generator_value(&self, field_name: &FieldName, mut value: AkitaValue) -> AkitaValue {
+    fn identifier_generator_value(
+        &self,
+        field_name: &FieldName,
+        mut value: AkitaValue,
+    ) -> AkitaValue {
         if !field_name.is_table_id() {
             return value;
         }
@@ -464,9 +525,7 @@ pub trait SqlBuilder: Send + Sync {
                     let uuid = GLOBAL_GENERATOR.next_uuid();
                     value = AkitaValue::Text(uuid);
                 }
-                IdentifierType::Input => {
-                    
-                }
+                IdentifierType::Input => {}
             }
         }
         value
@@ -474,7 +533,8 @@ pub trait SqlBuilder: Send + Sync {
 
     /// Finding the ID field
     fn find_id_field(&self, fields: Vec<FieldName>) -> Option<FieldName> {
-        fields.into_iter()
+        fields
+            .into_iter()
             .find(|field| matches!(field.field_type, FieldType::TableId(_)))
     }
 
@@ -486,16 +546,18 @@ pub trait SqlBuilder: Send + Sync {
     /// Build bulk INSERT SQL
     fn build_batch_insert_sql(
         &self,
-        data: &BatchInsertData
+        data: &BatchInsertData,
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
             return Err(empty_data_err!());
         }
 
-        let column_names: Vec<String> = data.columns.iter()
+        let column_names: Vec<String> = data
+            .columns
+            .iter()
             .map(|col_name| {
                 let col_name = col_name.alias.as_ref().unwrap_or(&col_name.name).as_str();
-                self.quote_identifier(col_name) 
+                self.quote_identifier(col_name)
             })
             .collect();
 
@@ -503,9 +565,7 @@ pub trait SqlBuilder: Send + Sync {
         let mut params = Vec::new();
 
         for row in data.rows.iter() {
-            let row_placeholders: Vec<String> = row.iter()
-                .map(|_| "?".to_string())
-                .collect();
+            let row_placeholders: Vec<String> = row.iter().map(|_| "?".to_string()).collect();
 
             placeholders.push(format!("({})", row_placeholders.join(", ")));
             params.extend(row.clone());
@@ -520,7 +580,6 @@ pub trait SqlBuilder: Send + Sync {
         Ok((sql, params))
     }
 }
-
 
 pub struct SqlBuilderFactory;
 
@@ -569,7 +628,7 @@ impl SqlBuilderFactory {
             DatabaseDialect::SQLite => Box::new(SqliteBuilder {
                 version: Some(version.to_string()),
             }),
-            _=> {
+            _ => {
                 panic!("Unsupport Database")
             }
         }

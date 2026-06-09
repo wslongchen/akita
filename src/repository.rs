@@ -16,26 +16,28 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::sync::Arc;
-use crate::errors::Result;
-use crate::prelude::{AkitaError};
-use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
 use crate::data_err;
+use crate::errors::Result;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
+use crate::prelude::AkitaError;
+use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, Wrapper};
+use std::sync::Arc;
 
 /// Provide type safety for each entity type Repository
-pub struct EntityRepository<M, T>{
+pub struct EntityRepository<M, T> {
     mapper: Arc<M>,
     _phantom: std::marker::PhantomData<T>,
 }
 
-
 impl<M, T> EntityRepository<M, T> {
     pub fn new(mapper: M) -> Self {
-        Self { mapper: Arc::new(mapper) ,_phantom: std::marker::PhantomData, }
+        Self {
+            mapper: Arc::new(mapper),
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 
@@ -44,18 +46,19 @@ impl<M, T> EntityRepository<M, T>
 where
     M: AkitaMapper,
 {
-    
     /// Get all the table of records
     pub fn list(&self, wrapper: Wrapper) -> Result<Vec<T>>
     where
-        T: GetTableName + GetFields + FromAkitaValue {
+        T: GetTableName + GetFields + FromAkitaValue,
+    {
         self.mapper.list(wrapper)
     }
 
     /// Get one the table of records
     pub fn select_one(&self, wrapper: Wrapper) -> Result<Option<T>>
     where
-        T: GetTableName + GetFields + FromAkitaValue {
+        T: GetTableName + GetFields + FromAkitaValue,
+    {
         self.mapper.select_one(wrapper)
     }
 
@@ -63,28 +66,32 @@ where
     pub fn select_by_id<I>(&self, id: I) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue,
-        I: IntoAkitaValue {
+        I: IntoAkitaValue,
+    {
         self.mapper.select_by_id(id)
     }
 
     /// Get table of records with page
     pub fn page(&self, page: u64, size: u64, wrapper: Wrapper) -> Result<IPage<T>>
     where
-        T: GetTableName + GetFields + FromAkitaValue {
+        T: GetTableName + GetFields + FromAkitaValue,
+    {
         self.mapper.page(page, size, wrapper)
     }
 
     /// Get the total count of records
     pub fn count(&self, wrapper: Wrapper) -> Result<u64>
     where
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.mapper.count::<T>(wrapper)
     }
 
     /// Remove the records by wrapper.
     pub fn remove(&self, wrapper: Wrapper) -> Result<u64>
     where
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.mapper.remove::<T>(wrapper)
     }
 
@@ -92,7 +99,8 @@ where
     pub fn remove_by_ids<I>(&self, ids: Vec<I>) -> Result<u64>
     where
         I: IntoAkitaValue,
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.mapper.remove_by_ids::<T, I>(ids)
     }
 
@@ -100,29 +108,32 @@ where
     pub fn remove_by_id<I>(&self, id: I) -> Result<u64>
     where
         I: IntoAkitaValue,
-        T: GetTableName + GetFields {
+        T: GetTableName + GetFields,
+    {
         self.mapper.remove_by_id::<T, I>(id)
     }
-
 
     /// Update the records by wrapper.
     pub fn update(&self, entity: &T, wrapper: Wrapper) -> Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue {
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.mapper.update(entity, wrapper)
     }
 
     /// Update the records by id.
     pub fn update_by_id(&self, entity: &T) -> Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue {
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.mapper.update_by_id(entity)
     }
 
     #[allow(unused_variables)]
     pub fn update_batch_by_id(&self, entities: &Vec<T>) -> Result<u64>
     where
-        T: GetTableName + GetFields + IntoAkitaValue {
+        T: GetTableName + GetFields + IntoAkitaValue,
+    {
         self.mapper.update_batch_by_id(entities)
     }
 
@@ -130,7 +141,8 @@ where
     pub fn save_batch<E>(&self, entities: E) -> Result<()>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
-        E: IntoIterator<Item = T> {
+        E: IntoIterator<Item = T>,
+    {
         self.mapper.save_batch(entities)
     }
 
@@ -138,7 +150,8 @@ where
     pub fn save<I>(&self, entity: &T) -> Result<Option<I>>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
-        I: FromAkitaValue {
+        I: FromAkitaValue,
+    {
         self.mapper.save(entity)
     }
 
@@ -146,44 +159,32 @@ where
     pub fn save_or_update<I>(&self, entity: &T) -> Result<Option<I>>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
-        I: FromAkitaValue {
+        I: FromAkitaValue,
+    {
         self.mapper.save_or_update(entity)
     }
 
-    pub fn query_iter<S: Into<String>>(
-        &self,
-        sql: S,
-    ) -> Result<Rows>
-    {
+    pub fn query_iter<S: Into<String>>(&self, sql: S) -> Result<Rows> {
         self.exec_iter(sql, ())
     }
 
-    pub fn exec_iter<S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<Rows> {
+    pub fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Rows> {
         self.mapper.exec_iter(sql, params)
     }
 
     #[allow(clippy::redundant_closure)]
-    pub fn exec_raw<R, S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<Vec<R>>
+    pub fn exec_raw<R, S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Vec<R>>
     where
         R: FromAkitaValue,
     {
         let rows = self.exec_iter(&sql.into(), params.into())?;
-        Ok(rows.object_iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
+        Ok(rows
+            .object_iter()
+            .map(|data| R::from_value(&data))
+            .collect::<Vec<R>>())
     }
 
-    pub fn exec_first<R, S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<R>
+    pub fn exec_first<R, S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<R>
     where
         R: FromAkitaValue,
     {
@@ -199,12 +200,7 @@ where
         }
     }
 
-    pub fn exec_drop<S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<()>
-    {
+    pub fn exec_drop<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<()> {
         let sql: String = sql.into();
         let _result: Vec<()> = self.exec_raw(&sql, params)?;
         Ok(())

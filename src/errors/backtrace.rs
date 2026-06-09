@@ -19,8 +19,8 @@
  *
  */
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::fmt;
+use std::sync::atomic::{AtomicU8, Ordering};
 use tracing::level_filters::LevelFilter;
 
 #[inline]

@@ -16,21 +16,20 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-mod connection;
 mod adapter;
+mod connection;
 
-
-pub use connection::*;
 pub use adapter::*;
+pub use connection::*;
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use akita_core::{OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName};
 use crate::comm::{ExecuteContext, ExecuteResult};
 use crate::driver::non_blocking::AsyncDbExecutor;
 use crate::interceptor::non_blocking::AsyncInterceptorChain;
+use akita_core::{OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName};
+use async_trait::async_trait;
+use std::sync::Arc;
 
 /// SQLite asynchronous driver (uses blocking thread pool to wrap synchronous library)
 #[derive(Clone)]
@@ -57,7 +56,8 @@ impl SqliteAsync {
     /// Set up SQL security configuration
     pub fn with_sql_security(mut self, sql_security_config: Option<SqlSecurityConfig>) -> Self {
         if let Some(sql_security_config) = sql_security_config {
-            self.sql_injection_detector = Some(SqlInjectionDetector::with_config(sql_security_config));
+            self.sql_injection_detector =
+                Some(SqlInjectionDetector::with_config(sql_security_config));
         }
         self
     }
@@ -71,8 +71,6 @@ impl SqliteAsync {
         sql: &str,
         params: Params,
     ) -> crate::prelude::Result<ExecuteResult> {
-        
-
         let mut ctx = ExecuteContext::new(
             sql.to_string(),
             params,
@@ -92,17 +90,19 @@ impl SqliteAsync {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
-        let mut result = self.adapter
+        let mut result = self
+            .adapter
             .execute(ctx.final_sql(), ctx.final_params().clone())
             .await;
 
         if let Ok(_) = &result {
-            ctx.set_connection_id(0); // SQLite 没有连接ID
+            ctx.set_connection_id(0); // SQLite has no connection ID
             let rows_affected = self.adapter.affected_rows().await;
             ctx.record_execute_complete(rows_affected);
         }
@@ -120,8 +120,6 @@ impl SqliteAsync {
         sql: &str,
         params: Params,
     ) -> crate::prelude::Result<Rows> {
-        
-
         let mut ctx = ExecuteContext::new(
             sql.to_string(),
             params,
@@ -141,12 +139,14 @@ impl SqliteAsync {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
-        let mut result = self.adapter
+        let mut result = self
+            .adapter
             .query(ctx.final_sql(), ctx.final_params().clone())
             .await
             .map(ExecuteResult::Rows);

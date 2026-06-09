@@ -29,18 +29,20 @@ mod connection;
 pub use adapter::*;
 pub use connection::*;
 
-
-
-use akita_core::{cfg_if, AkitaValue, ColumnInfo, ColumnSpecification, FieldName, FromAkitaValue, IntoAkitaValue, OperationType, Params, Rows, SchemaContent, SqlInjectionDetector, SqlSecurityConfig, SqlType, TableInfo, TableName};
-use std::sync::Arc;
-use akita_core::comm::extract_datatype_with_capacity;
-use akita_derive::FromValue;
 use crate::comm::{ExecuteContext, ExecuteResult};
-use crate::{data_err, unsupported_err};
-use crate::driver::blocking::{DbExecutor};
+use crate::driver::blocking::DbExecutor;
 use crate::errors::AkitaError;
 use crate::interceptor::blocking::InterceptorChain;
 use crate::prelude::AkitaConfig;
+use crate::{data_err, unsupported_err};
+use akita_core::comm::extract_datatype_with_capacity;
+use akita_core::{
+    cfg_if, AkitaValue, ColumnInfo, ColumnSpecification, FieldName, FromAkitaValue, IntoAkitaValue,
+    OperationType, Params, Rows, SchemaContent, SqlInjectionDetector, SqlSecurityConfig, SqlType,
+    TableInfo, TableName,
+};
+use akita_derive::FromValue;
+use std::sync::Arc;
 
 cfg_if! {if #[cfg(feature = "auth")]{
     use crate::driver::blocking::{DbManager};
@@ -69,20 +71,21 @@ impl MySQL {
         self.interceptor_chain = Some(interceptor_chain);
         self
     }
-    
+
     /// Set up SQL security configuration
     pub fn with_sql_security(mut self, sql_security_config: Option<SqlSecurityConfig>) -> Self {
         if let Some(sql_security_config) = sql_security_config {
-            self.sql_injection_detector = Some(SqlInjectionDetector::with_config(sql_security_config));
+            self.sql_injection_detector =
+                Some(SqlInjectionDetector::with_config(sql_security_config));
         }
         self
     }
-    
+
     pub fn with_database(mut self, database: String) -> Self {
         self.database = Some(database);
         self
     }
-    
+
     pub fn database(&self) -> Option<&String> {
         self.database.as_ref()
     }
@@ -100,7 +103,12 @@ impl MySQL {
         params: Params,
     ) -> crate::prelude::Result<ExecuteResult> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -119,14 +127,17 @@ impl MySQL {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
-        
+
         // Execute the query
-        let mut result = self.adapter.execute(ctx.final_sql(), ctx.final_params().clone());
-        
+        let mut result = self
+            .adapter
+            .execute(ctx.final_sql(), ctx.final_params().clone());
+
         // Record the number of affected rows
         if let Ok(_rows) = &result {
             ctx.set_connection_id(self.adapter.connection_id());
@@ -144,19 +155,19 @@ impl MySQL {
 
         // Record query metrics
         ctx.record_query_metrics();
-        
+
         result
     }
 
-
     #[track_caller]
-    fn query_with_interceptors(
-        &self,
-        sql: &str,
-        params: Params,
-    ) -> crate::prelude::Result<Rows> {
+    fn query_with_interceptors(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -175,13 +186,17 @@ impl MySQL {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
         // Execute the query
-        let mut result = self.adapter.query(ctx.final_sql(), ctx.final_params().clone()).map(ExecuteResult::Rows);
+        let mut result = self
+            .adapter
+            .query(ctx.final_sql(), ctx.final_params().clone())
+            .map(ExecuteResult::Rows);
 
         // Record the number of affected rows
         if let Ok(_rows) = &result {
@@ -205,7 +220,6 @@ impl MySQL {
     }
 }
 
-
 impl DbExecutor for MySQL {
     fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         self.query_with_interceptors(sql, params)
@@ -226,7 +240,7 @@ impl DbExecutor for MySQL {
     fn rollback(&self) -> crate::prelude::Result<()> {
         self.adapter.rollback_transaction()
     }
-    
+
     fn affected_rows(&self) -> u64 {
         self.adapter.affected_rows()
     }
@@ -234,12 +248,10 @@ impl DbExecutor for MySQL {
     fn last_insert_id(&self) -> u64 {
         self.adapter.last_insert_id()
     }
-
 }
 
 #[cfg(feature = "auth")]
 impl DbManager for MySQL {
-
     fn get_table(&self, table_name: &TableName) -> crate::errors::Result<Option<TableInfo>> {
         #[derive(Debug, FromValue)]
         struct TableSpec {
@@ -286,7 +298,7 @@ impl DbManager for MySQL {
             comment: String,
             type_: String,
         }
-        let table_schema: AkitaValue =  table_spec.schema.clone().into();
+        let table_schema: AkitaValue = table_spec.schema.clone().into();
         let columns: Vec<ColumnInfo> = self
             .query_with_interceptors(
                 r#"
@@ -385,13 +397,14 @@ impl DbManager for MySQL {
 
     fn exist_table(&self, table_name: &TableName) -> crate::errors::Result<bool> {
         let sql = "SELECT count(1) as count FROM information_schema.tables WHERE TABLE_SCHEMA = ? and TABLE_NAME = ?";
-        self.query_with_interceptors(&sql, (&table_name.name, &table_name.schema).into()).map(|rows| {
-            rows.iter().next()
-                .map(|row| {
-                    row.get_by_column::<i32>("count")
-                        .expect("must not error")
-                }).unwrap_or_default() > 0
-        })
+        self.query_with_interceptors(&sql, (&table_name.name, &table_name.schema).into())
+            .map(|rows| {
+                rows.iter()
+                    .next()
+                    .map(|row| row.get_by_column::<i32>("count").expect("must not error"))
+                    .unwrap_or_default()
+                    > 0
+            })
     }
 
     fn get_grouped_tables(&self) -> crate::errors::Result<Vec<SchemaContent>> {
@@ -400,7 +413,10 @@ impl DbManager for MySQL {
         let mut schema_contents: Vec<SchemaContent> = Vec::new();
         for table in table_names.iter() {
             let schema = table.schema.to_owned().unwrap_or_default();
-            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+            if let Some(t) = schema_contents
+                .iter_mut()
+                .find(|data| data.to_owned().schema.to_owned().eq(&schema))
+            {
                 t.tablenames.push(table.to_owned());
             } else {
                 schema_contents.push(SchemaContent {
@@ -413,7 +429,10 @@ impl DbManager for MySQL {
 
         for table in view_names.iter() {
             let schema = table.schema.to_owned().unwrap_or_default();
-            if let Some(t) = schema_contents.iter_mut().find(|data| data.to_owned().schema.to_owned().eq(&schema)) {
+            if let Some(t) = schema_contents
+                .iter_mut()
+                .find(|data| data.to_owned().schema.to_owned().eq(&schema))
+            {
                 t.tablenames.push(table.to_owned());
             } else {
                 schema_contents.push(SchemaContent {
@@ -444,10 +463,12 @@ impl DbManager for MySQL {
             "SELECT TABLE_NAME as table_name FROM information_schema.tables WHERE TABLE_SCHEMA = ?";
 
         let result: Vec<TableNameSimple> = self
-            .query_with_interceptors(sql, (schema, ).into())?
+            .query_with_interceptors(sql, (schema,).into())?
             .iter()
             .map(|row| TableNameSimple {
-                table_name: row.get_by_column("table_name").expect("must have a table name"),
+                table_name: row
+                    .get_by_column("table_name")
+                    .expect("must have a table name"),
             })
             .collect();
         let tablenames = result
@@ -456,7 +477,6 @@ impl DbManager for MySQL {
             .collect();
         Ok(tablenames)
     }
-
 
     fn get_users(&self) -> crate::errors::Result<Vec<DataBaseUser>> {
         let sql = "SELECT USER as username FROM information_schema.user_attributes";
@@ -483,12 +503,20 @@ impl DbManager for MySQL {
 
     fn exist_user(&self, user: &UserInfo) -> crate::errors::Result<bool> {
         let sql = "SELECT count(1) as count FROM mysql.user where User = ? and Host = ?";
-        self.query_with_interceptors(&sql, (&user.username, user.host.as_ref().unwrap_or(&"localhost".to_owned())).into()).map(|rows| {
-            rows.iter().next()
-                .map(|row| {
-                    row.get_by_column::<i32>("count")
-                        .expect("must not error")
-                }).unwrap_or_default() > 0
+        self.query_with_interceptors(
+            &sql,
+            (
+                &user.username,
+                user.host.as_ref().unwrap_or(&"localhost".to_owned()),
+            )
+                .into(),
+        )
+        .map(|rows| {
+            rows.iter()
+                .next()
+                .map(|row| row.get_by_column::<i32>("count").expect("must not error"))
+                .unwrap_or_default()
+                > 0
         })
     }
 
@@ -501,7 +529,11 @@ impl DbManager for MySQL {
     }
 
     fn create_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
-        let mut sql = format!("create user '{}'@'{}'", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
+        let mut sql = format!(
+            "create user '{}'@'{}'",
+            &user.username,
+            &user.host.to_owned().unwrap_or("localhost".to_string())
+        );
         if let Some(password) = user.password.to_owned() {
             sql.push_str(&format!("identified by '{}'", password));
         }
@@ -512,107 +544,143 @@ impl DbManager for MySQL {
         }
         sql.push_str(";");
         // Creating a user
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn drop_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+            return Err(unsupported_err!("Some param is empty.",));
         }
-        let sql = format!("drop user '{}'@'{}';", &user.username, &user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "drop user '{}'@'{}';",
+            &user.username,
+            &user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn update_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+            return Err(unsupported_err!("Some param is empty.",));
         }
-        let sql = format!("alter user '{}'@'{}' identified by '{}'", user.username, user.host.to_owned().unwrap_or("localhost".to_string()), user.password.to_owned().unwrap_or_default());
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "alter user '{}'@'{}' identified by '{}'",
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string()),
+            user.password.to_owned().unwrap_or_default()
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn lock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+            return Err(unsupported_err!("Some param is empty.",));
         }
-        let sql = format!("alter user '{}'@'{}' account lock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "alter user '{}'@'{}' account lock;",
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn unlock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() {
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+            return Err(unsupported_err!("Some param is empty.",));
         }
-        let sql = format!("alter user '{}'@'{}' account unlock;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "alter user '{}'@'{}' account unlock;",
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn expire_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         if user.username.is_empty() || user.host.is_none() || user.password.is_none() {
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+            return Err(unsupported_err!("Some param is empty.",));
         }
-        let sql = format!("alter user '{}'@'{}' password expire;", user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "alter user '{}'@'{}' password expire;",
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn grant_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         // Assigning permissions
-        if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+        if user.schema.is_empty()
+            || user.table.is_empty()
+            || user.username.is_empty()
+            || user.host.is_none()
+        {
+            return Err(unsupported_err!("Some param is empty.",));
         }
         let privileges = if user.privileges.len() > 0 {
-            user.privileges.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",")
+            user.privileges
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
         } else {
             "all".to_string()
         };
         if user.schema.eq("*") {
             return Err(unsupported_err!(
                 "You are not allow this operation to use schema with *",
-            ))
+            ));
         }
-        let sql = format!("grant {} on {}.{} to '{}'@'{}';", privileges, user.schema, user.table, user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "grant {} on {}.{} to '{}'@'{}';",
+            privileges,
+            user.schema,
+            user.table,
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn revoke_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         // Reclaim permissions
-        if user.schema.is_empty() || user.table.is_empty() || user.username.is_empty() || user.host.is_none(){
-            return Err(unsupported_err!(
-                "Some param is empty.",
-            ))
+        if user.schema.is_empty()
+            || user.table.is_empty()
+            || user.username.is_empty()
+            || user.host.is_none()
+        {
+            return Err(unsupported_err!("Some param is empty.",));
         }
         let privileges = if user.privileges.len() > 0 {
-            user.privileges.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",")
+            user.privileges
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
         } else {
             "all".to_string()
         };
         if user.schema.eq("*") {
             return Err(unsupported_err!(
                 "You are not allow this operation to use schema with *",
-            ))
+            ));
         }
-        let sql = format!("revoke {} on {}.{} from '{}'@'{}';", privileges, user.schema, user.table, user.username, user.host.to_owned().unwrap_or("localhost".to_string()));
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        let sql = format!(
+            "revoke {} on {}.{} from '{}'@'{}';",
+            privileges,
+            user.schema,
+            user.table,
+            user.username,
+            user.host.to_owned().unwrap_or("localhost".to_string())
+        );
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 
     fn flush_privileges(&self) -> crate::errors::Result<()> {
         let sql = "flush privileges;";
-        self.execute_with_interceptors(&sql, ().into()).map(|_|())
+        self.execute_with_interceptors(&sql, ().into()).map(|_| ())
     }
 }
-
 
 #[cfg(feature = "auth")]
 #[allow(unused)]
@@ -627,8 +695,12 @@ fn get_table_names(db: &MySQL, kind: &str) -> crate::errors::Result<Vec<TableNam
         .query_with_interceptors(sql, (kind.into_value(),).into())?
         .iter()
         .map(|row| TableNameSimple {
-            table_name: row.get_by_column("table_name").expect("must have a table name"),
-            schema_name: row.get_by_column("schema_name").expect("must have a schema name"),
+            table_name: row
+                .get_by_column("table_name")
+                .expect("must have a table name"),
+            schema_name: row
+                .get_by_column("schema_name")
+                .expect("must have a schema name"),
         })
         .collect();
     let mut table_names = vec![];

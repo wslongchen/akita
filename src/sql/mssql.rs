@@ -16,15 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::collections::HashSet;
-use akita_core::{AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, QueryData, TableName, Wrapper};
-use crate::{database_err, empty_data_err};
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
 use crate::mapper::PaginationOptions;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
+use crate::{database_err, empty_data_err};
+use akita_core::{
+    AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue,
+    Params, QueryData, TableName, Wrapper,
+};
+use std::collections::HashSet;
 
 pub(crate) struct SqlServerBuilder {
     pub version: String, // "2008", "2012", "2016", "2019"
@@ -70,7 +73,8 @@ impl SqlBuilder for SqlServerBuilder {
             .map(|part| {
                 // If the part is already quoted, leave it as is
                 if (part.starts_with('[') && part.ends_with(']'))
-                    || (part.starts_with('"') && part.ends_with('"')) {
+                    || (part.starts_with('"') && part.ends_with('"'))
+                {
                     part.to_string()
                 } else {
                     self.quote_identifier(part)
@@ -100,15 +104,21 @@ impl SqlBuilder for SqlServerBuilder {
     }
 
     /// SQL Server specific INSERT SQL build - using column names as parameter names
-    fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
+    fn build_insert_sql(
+        &self,
+        table: &TableName,
+        columns: Vec<FieldName>,
+        datas: Vec<AkitaValue>,
+    ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if datas.is_empty() {
             return Err(empty_data_err!());
         }
 
         // Filter out autoincrement fields
-        let column_names: Vec<(String, FieldName)> = columns.into_iter()
+        let column_names: Vec<(String, FieldName)> = columns
+            .into_iter()
             .filter(|c| c.exist)
-            .filter(|c| !c.is_auto_increment())  // 排除自增字段
+            .filter(|c| !c.is_auto_increment()) // 排除自增字段
             .map(|c| {
                 let col_name = c.alias.as_ref().unwrap_or(&c.name);
                 (self.quote_identifier(col_name), c)
@@ -116,7 +126,9 @@ impl SqlBuilder for SqlServerBuilder {
             .collect();
 
         if column_names.is_empty() {
-            return Err(database_err!("No columns to insert after filtering auto-increment fields"));
+            return Err(database_err!(
+                "No columns to insert after filtering auto-increment fields"
+            ));
         }
 
         // Use Tiberius-style parameter names: @p1, @p2, @p3...
@@ -131,7 +143,8 @@ impl SqlBuilder for SqlServerBuilder {
                 let param_name = format!("@p{}", i + 1);
                 placeholders.push(param_name);
 
-                let mut value = data.get_obj_value(col_name)
+                let mut value = data
+                    .get_obj_value(col_name)
                     .cloned()
                     .unwrap_or(AkitaValue::Null);
 
@@ -152,7 +165,8 @@ impl SqlBuilder for SqlServerBuilder {
         }
 
         // Build the base INSERT SQL
-        let column_names_str = column_names.iter()
+        let column_names_str = column_names
+            .iter()
             .map(|(c, _)| c.to_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -170,7 +184,7 @@ impl SqlBuilder for SqlServerBuilder {
     /// Build bulk INSERT SQL - Generate unique parameter names for each row
     fn build_batch_insert_sql(
         &self,
-        data: &BatchInsertData
+        data: &BatchInsertData,
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
             return Err(empty_data_err!());
@@ -203,9 +217,7 @@ impl SqlBuilder for SqlServerBuilder {
 
             for &col_idx in &valid_column_indices {
                 // 获取该列的值
-                let value = row.get(col_idx)
-                    .cloned()
-                    .unwrap_or(AkitaValue::Null);
+                let value = row.get(col_idx).cloned().unwrap_or(AkitaValue::Null);
 
                 row_placeholders.push(format!("@p{}", param_num));
                 row_params.push(value);
@@ -227,7 +239,6 @@ impl SqlBuilder for SqlServerBuilder {
         Ok((sql, all_params))
     }
 
-    
     // SQL Server requires rewriting query construction (paging special)
     fn build_query_sql(&self, wrapper: &Wrapper) -> (String, Vec<AkitaValue>) {
         let data = wrapper.get_query_data();
@@ -239,26 +250,30 @@ impl SqlBuilder for SqlServerBuilder {
         let mut sql_parts = Vec::new();
 
         // SELECT part - SQL Server may use TOP
-        let select_clause = if self.version < "2012".to_string() && data.limit.is_some() && data.offset.is_none() {
-            //SQL Server 2008 uses TOP
-            let limit = data.limit.unwrap();
-            let columns = if data.select == "*" {
-                "*".to_string()
-            } else {
-                self.build_column_list(&data.select)
-            };
+        let select_clause =
+            if self.version < "2012".to_string() && data.limit.is_some() && data.offset.is_none() {
+                //SQL Server 2008 uses TOP
+                let limit = data.limit.unwrap();
+                let columns = if data.select == "*" {
+                    "*".to_string()
+                } else {
+                    self.build_column_list(&data.select)
+                };
 
-            if data.distinct {
-                format!("SELECT DISTINCT TOP {} {}", limit, columns)
+                if data.distinct {
+                    format!("SELECT DISTINCT TOP {} {}", limit, columns)
+                } else {
+                    format!("SELECT TOP {} {}", limit, columns)
+                }
             } else {
-                format!("SELECT TOP {} {}", limit, columns)
-            }
-        } else {
-            self.build_select_clause(&data)
-        };
+                self.build_select_clause(&data)
+            };
         sql_parts.push(select_clause);
 
-        sql_parts.push(format!("FROM {}", self.build_from_clause(data.from.as_ref().unwrap())));
+        sql_parts.push(format!(
+            "FROM {}",
+            self.build_from_clause(data.from.as_ref().unwrap())
+        ));
 
         let joins = self.build_join_clauses(&data.joins);
         if !joins.is_empty() {
@@ -266,11 +281,17 @@ impl SqlBuilder for SqlServerBuilder {
         }
 
         if !data.where_clause.is_empty() {
-            sql_parts.push(format!("WHERE {}", self.build_where_clause(&data.where_clause)));
+            sql_parts.push(format!(
+                "WHERE {}",
+                self.build_where_clause(&data.where_clause)
+            ));
         }
 
         if !data.group_by.is_empty() {
-            sql_parts.push(format!("GROUP BY {}", self.build_group_by_clause(&data.group_by)));
+            sql_parts.push(format!(
+                "GROUP BY {}",
+                self.build_group_by_clause(&data.group_by)
+            ));
         }
 
         if !data.having.is_empty() {
@@ -290,20 +311,41 @@ impl SqlBuilder for SqlServerBuilder {
     fn build_delete_sql(&self, table: &TableName, wrapper: &Wrapper) -> String {
         let where_clause = wrapper.build_where_clause();
         let mut sql = if let Some(limit_val) = wrapper.get_limit() {
-            let sql = format!("DELETE TOP({}) FROM {}", limit_val, self.quote_table(&table.complete_name()));
+            let sql = format!(
+                "DELETE TOP({}) FROM {}",
+                limit_val,
+                self.quote_table(&table.complete_name())
+            );
             sql
         } else {
             let sql = format!("DELETE FROM {}", self.quote_table(&table.complete_name()));
             sql
         };
         if !where_clause.trim().is_empty() {
-            sql.push_str(&format!(" WHERE {}", self.build_where_clause(&where_clause)));
+            sql.push_str(&format!(
+                " WHERE {}",
+                self.build_where_clause(&where_clause)
+            ));
         }
         self.process_placeholders(&sql)
     }
 
     fn build_update_sql(&self, table: &TableName, wrapper: &Wrapper) -> Option<String> {
-        let set_clause = wrapper.build_set_clause();
+        // Build SET clause with properly quoted column names
+        let set_clause = wrapper
+            .get_set_operations()
+            .iter()
+            .map(|op| match &op.value {
+                AkitaValue::RawSql(sql_expr) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), sql_expr)
+                }
+                AkitaValue::Column(col_name) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), col_name)
+                }
+                _ => format!("{} = ?", self.quote_identifier(&op.column)),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         let where_clause = wrapper.build_where_clause();
         let mut sql = format!("UPDATE {} SET {}", &table.complete_name(), set_clause);
         if !where_clause.is_empty() {
@@ -314,14 +356,15 @@ impl SqlBuilder for SqlServerBuilder {
         }
         Some(self.process_placeholders(&sql))
     }
-    
+
     // SQL Server special identifier handling
     fn build_column_list(&self, columns: &str) -> String {
         if columns == "*" {
             return "*".to_string();
         }
 
-        columns.split(',')
+        columns
+            .split(',')
             .map(|col| col.trim())
             .filter(|col| !col.is_empty())
             .map(|col| {
@@ -329,9 +372,10 @@ impl SqlBuilder for SqlServerBuilder {
                 if col.contains(" AS ") {
                     let parts: Vec<&str> = col.split(" AS ").collect();
                     if parts.len() == 2 {
-                        return format!("{} AS {}",
-                                       self.quote_identifier(parts[0].trim()),
-                                       self.quote_identifier(parts[1].trim())
+                        return format!(
+                            "{} AS {}",
+                            self.quote_identifier(parts[0].trim()),
+                            self.quote_identifier(parts[1].trim())
                         );
                     }
                 }
@@ -340,9 +384,10 @@ impl SqlBuilder for SqlServerBuilder {
                 if col.contains('.') {
                     let parts: Vec<&str> = col.split('.').collect();
                     if parts.len() == 2 {
-                        return format!("{}.{}",
-                                       self.quote_identifier(parts[0]),
-                                       self.quote_identifier(parts[1])
+                        return format!(
+                            "{}.{}",
+                            self.quote_identifier(parts[0]),
+                            self.quote_identifier(parts[1])
                         );
                     }
                 }
@@ -355,32 +400,191 @@ impl SqlBuilder for SqlServerBuilder {
 
     fn is_reserved_keyword(&self, identifier: &str) -> bool {
         let keywords = [
-            "ADD", "ALL", "ALTER", "AND", "ANY", "AS", "ASC", "AUTHORIZATION", "BACKUP",
-            "BEGIN", "BETWEEN", "BREAK", "BROWSE", "BULK", "BY", "CASCADE", "CASE", "CHECK",
-            "CHECKPOINT", "CLOSE", "CLUSTERED", "COALESCE", "COLLATE", "COLUMN", "COMMIT",
-            "COMPUTE", "CONSTRAINT", "CONTAINS", "CONTAINSTABLE", "CONTINUE", "CONVERT",
-            "CREATE", "CROSS", "CURRENT", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP",
-            "CURRENT_USER", "CURSOR", "DATABASE", "DBCC", "DEALLOCATE", "DECLARE", "DEFAULT",
-            "DELETE", "DENY", "DESC", "DISK", "DISTINCT", "DISTRIBUTED", "DOUBLE", "DROP",
-            "DUMP", "ELSE", "END", "ERRLVL", "ESCAPE", "EXCEPT", "EXEC", "EXECUTE", "EXISTS",
-            "EXIT", "EXTERNAL", "FETCH", "FILE", "FILLFACTOR", "FOR", "FOREIGN", "FREETEXT",
-            "FREETEXTTABLE", "FROM", "FULL", "FUNCTION", "GOTO", "GRANT", "GROUP", "HAVING",
-            "HOLDLOCK", "IDENTITY", "IDENTITY_INSERT", "IDENTITYCOL", "IF", "IN", "INDEX",
-            "INNER", "INSERT", "INTERSECT", "INTO", "IS", "JOIN", "KEY", "KILL", "LEFT",
-            "LIKE", "LINENO", "LOAD", "MERGE", "NATIONAL", "NOCHECK", "NONCLUSTERED",
-            "NOT", "NULL", "NULLIF", "OF", "OFF", "OFFSETS", "ON", "OPEN", "OPENDATASOURCE",
-            "OPENQUERY", "OPENROWSET", "OPENXML", "OPTION", "OR", "ORDER", "OUTER", "OVER",
-            "PERCENT", "PIVOT", "PLAN", "PRECISION", "PRIMARY", "PRINT", "PROC", "PROCEDURE",
-            "PUBLIC", "RAISERROR", "READ", "READTEXT", "RECONFIGURE", "REFERENCES",
-            "REPLICATION", "RESTORE", "RESTRICT", "RETURN", "REVERT", "REVOKE", "RIGHT",
-            "ROLLBACK", "ROWCOUNT", "ROWGUIDCOL", "RULE", "SAVE", "SCHEMA", "SECURITYAUDIT",
-            "SELECT", "SEMANTICKEYPHRASETABLE", "SEMANTICSIMILARITYDETAILSTABLE",
-            "SEMANTICSIMILARITYTABLE", "SESSION_USER", "SET", "SETUSER", "SHUTDOWN", "SOME",
-            "STATISTICS", "SYSTEM_USER", "TABLE", "TABLESAMPLE", "TEXTSIZE", "THEN", "TO",
-            "TOP", "TRAN", "TRANSACTION", "TRIGGER", "TRUNCATE", "TRY_CONVERT", "TSEQUAL",
-            "UNION", "UNIQUE", "UNPIVOT", "UPDATE", "UPDATETEXT", "USE", "USER", "VALUES",
-            "VARYING", "VIEW", "WAITFOR", "WHEN", "WHERE", "WHILE", "WITH", "WITHIN GROUP",
-            "WRITETEXT"
+            "ADD",
+            "ALL",
+            "ALTER",
+            "AND",
+            "ANY",
+            "AS",
+            "ASC",
+            "AUTHORIZATION",
+            "BACKUP",
+            "BEGIN",
+            "BETWEEN",
+            "BREAK",
+            "BROWSE",
+            "BULK",
+            "BY",
+            "CASCADE",
+            "CASE",
+            "CHECK",
+            "CHECKPOINT",
+            "CLOSE",
+            "CLUSTERED",
+            "COALESCE",
+            "COLLATE",
+            "COLUMN",
+            "COMMIT",
+            "COMPUTE",
+            "CONSTRAINT",
+            "CONTAINS",
+            "CONTAINSTABLE",
+            "CONTINUE",
+            "CONVERT",
+            "CREATE",
+            "CROSS",
+            "CURRENT",
+            "CURRENT_DATE",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "CURRENT_USER",
+            "CURSOR",
+            "DATABASE",
+            "DBCC",
+            "DEALLOCATE",
+            "DECLARE",
+            "DEFAULT",
+            "DELETE",
+            "DENY",
+            "DESC",
+            "DISK",
+            "DISTINCT",
+            "DISTRIBUTED",
+            "DOUBLE",
+            "DROP",
+            "DUMP",
+            "ELSE",
+            "END",
+            "ERRLVL",
+            "ESCAPE",
+            "EXCEPT",
+            "EXEC",
+            "EXECUTE",
+            "EXISTS",
+            "EXIT",
+            "EXTERNAL",
+            "FETCH",
+            "FILE",
+            "FILLFACTOR",
+            "FOR",
+            "FOREIGN",
+            "FREETEXT",
+            "FREETEXTTABLE",
+            "FROM",
+            "FULL",
+            "FUNCTION",
+            "GOTO",
+            "GRANT",
+            "GROUP",
+            "HAVING",
+            "HOLDLOCK",
+            "IDENTITY",
+            "IDENTITY_INSERT",
+            "IDENTITYCOL",
+            "IF",
+            "IN",
+            "INDEX",
+            "INNER",
+            "INSERT",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "JOIN",
+            "KEY",
+            "KILL",
+            "LEFT",
+            "LIKE",
+            "LINENO",
+            "LOAD",
+            "MERGE",
+            "NATIONAL",
+            "NOCHECK",
+            "NONCLUSTERED",
+            "NOT",
+            "NULL",
+            "NULLIF",
+            "OF",
+            "OFF",
+            "OFFSETS",
+            "ON",
+            "OPEN",
+            "OPENDATASOURCE",
+            "OPENQUERY",
+            "OPENROWSET",
+            "OPENXML",
+            "OPTION",
+            "OR",
+            "ORDER",
+            "OUTER",
+            "OVER",
+            "PERCENT",
+            "PIVOT",
+            "PLAN",
+            "PRECISION",
+            "PRIMARY",
+            "PRINT",
+            "PROC",
+            "PROCEDURE",
+            "PUBLIC",
+            "RAISERROR",
+            "READ",
+            "READTEXT",
+            "RECONFIGURE",
+            "REFERENCES",
+            "REPLICATION",
+            "RESTORE",
+            "RESTRICT",
+            "RETURN",
+            "REVERT",
+            "REVOKE",
+            "RIGHT",
+            "ROLLBACK",
+            "ROWCOUNT",
+            "ROWGUIDCOL",
+            "RULE",
+            "SAVE",
+            "SCHEMA",
+            "SECURITYAUDIT",
+            "SELECT",
+            "SEMANTICKEYPHRASETABLE",
+            "SEMANTICSIMILARITYDETAILSTABLE",
+            "SEMANTICSIMILARITYTABLE",
+            "SESSION_USER",
+            "SET",
+            "SETUSER",
+            "SHUTDOWN",
+            "SOME",
+            "STATISTICS",
+            "SYSTEM_USER",
+            "TABLE",
+            "TABLESAMPLE",
+            "TEXTSIZE",
+            "THEN",
+            "TO",
+            "TOP",
+            "TRAN",
+            "TRANSACTION",
+            "TRIGGER",
+            "TRUNCATE",
+            "TRY_CONVERT",
+            "TSEQUAL",
+            "UNION",
+            "UNIQUE",
+            "UNPIVOT",
+            "UPDATE",
+            "UPDATETEXT",
+            "USE",
+            "USER",
+            "VALUES",
+            "VARYING",
+            "VIEW",
+            "WAITFOR",
+            "WHEN",
+            "WHERE",
+            "WHILE",
+            "WITH",
+            "WITHIN GROUP",
+            "WRITETEXT",
         ];
 
         keywords.contains(&identifier.to_uppercase().as_str())
@@ -388,7 +592,6 @@ impl SqlBuilder for SqlServerBuilder {
 }
 
 impl SqlServerBuilder {
-
     /// Generate valid SQL Server parameter names
     fn make_param_name(&self, _column_name: &str, index: usize) -> String {
         // Basic rule: Prefixing column names with @ to handle special characters
@@ -417,19 +620,22 @@ impl SqlServerBuilder {
             result
         }
     }
-    
+
     /// Generate parameters based on column names for query construction
     fn process_query_placeholders(&self, sql: &str, _column_names: &[&str]) -> String {
         self.process_placeholders(sql)
     }
-    
+
     fn build_sqlserver_pagination(&self, sql_parts: &mut Vec<String>, data: &QueryData) {
         if self.version >= "2012".to_string() && (data.limit.is_some() || data.offset.is_some()) {
             // You must have an ORDER BY to use OFFSET
             if data.order_by.is_empty() {
                 sql_parts.push("ORDER BY (SELECT NULL)".to_string());
             } else {
-                sql_parts.push(format!("ORDER BY {}", self.build_order_by_clause(&data.order_by)));
+                sql_parts.push(format!(
+                    "ORDER BY {}",
+                    self.build_order_by_clause(&data.order_by)
+                ));
             }
 
             // Handling OFFSET
@@ -446,13 +652,19 @@ impl SqlServerBuilder {
             }
         } else if !data.order_by.is_empty() {
             // If it's not 2012+ or you don't need paging, add ORDER BY as normal
-            sql_parts.push(format!("ORDER BY {}", self.build_order_by_clause(&data.order_by)));
+            sql_parts.push(format!(
+                "ORDER BY {}",
+                self.build_order_by_clause(&data.order_by)
+            ));
         }
     }
 
     // SQL Server supports OUTPUT
     fn build_insert_returning(&self, _table: &str, id_column: &str) -> Option<String> {
-        Some(format!(" OUTPUT INSERTED.{}", self.quote_identifier(id_column)))
+        Some(format!(
+            " OUTPUT INSERTED.{}",
+            self.quote_identifier(id_column)
+        ))
     }
 }
 
@@ -478,12 +690,23 @@ fn test_mssql_sqlbuilder() {
     ];
     let mut imap = indexmap::IndexMap::new();
     imap.insert("id".to_string(), AkitaValue::Int(1));
-    imap.insert("user_name".to_string(), AkitaValue::Text("John".to_string()));
-    imap.insert("email_address".to_string(), AkitaValue::Text("john@example.com".to_string()));
+    imap.insert(
+        "user_name".to_string(),
+        AkitaValue::Text("John".to_string()),
+    );
+    imap.insert(
+        "email_address".to_string(),
+        AkitaValue::Text("john@example.com".to_string()),
+    );
     let data = AkitaValue::Object(imap);
-    let (sql, params) = builder.build_insert_sql(&TableName::from("users"), columns, vec![data]).unwrap();
-    println!("build_insert_sql mssql :{} \nparams:{}", sql, Params::Positional(params));
-    
+    let (sql, params) = builder
+        .build_insert_sql(&TableName::from("users"), columns, vec![data])
+        .unwrap();
+    println!(
+        "build_insert_sql mssql :{} \nparams:{}",
+        sql,
+        Params::Positional(params)
+    );
 
     // Example 2: Query
     let wrapper = Wrapper::new()
@@ -492,7 +715,11 @@ fn test_mssql_sqlbuilder() {
         .like("user_name", "%john%");
 
     let (query_sql, query_params) = builder.build_query_sql(&wrapper);
-    println!("build_query_sql mssql :{} \n params:{}", query_sql, Params::Positional(query_params));
+    println!(
+        "build_query_sql mssql :{} \n params:{}",
+        query_sql,
+        Params::Positional(query_params)
+    );
 
     // Example 3: Bulk insertion
     let columns = vec![field_id, FieldName::from("user_name")];
@@ -507,5 +734,9 @@ fn test_mssql_sqlbuilder() {
         id_field: None,
     };
     let (batch_sql, batch_params) = builder.build_batch_insert_sql(&batch_data).unwrap();
-    println!("batch_sql mssql :{} \n params:{}", batch_sql, Params::Positional(batch_params));
+    println!(
+        "batch_sql mssql :{} \n params:{}",
+        batch_sql,
+        Params::Positional(batch_params)
+    );
 }

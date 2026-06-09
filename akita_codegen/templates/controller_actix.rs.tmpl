@@ -1,0 +1,92 @@
+use actix_web::{web, HttpResponse, Responder};
+use akita::prelude::*;
+use serde::{Deserialize, Serialize};
+
+///
+/// {{ table.comment }} Controller
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+/// Query parameters for {{ entity }}
+#[derive(Debug, Deserialize)]
+pub struct {{ entity }}Query {
+    pub page: Option<u64>,
+    pub size: Option<u64>,
+    pub keyword: Option<String>,
+}
+
+/// Request body for creating/updating {{ entity }}
+#[derive(Debug, Deserialize)]
+pub struct {{ entity }}Request {
+    // Add fields here
+}
+
+/// Response body for {{ entity }}
+#[derive(Debug, Serialize)]
+pub struct {{ entity }}Response {
+    // Add fields here
+}
+
+/// Configure routes for {{ entity }}
+pub fn configure(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/{{ table.name }}")
+            .route("", web::get().to(list))
+            .route("", web::post().to(create))
+            .route("/{id}", web::get().to(get_by_id))
+            .route("/{id}", web::put().to(update))
+            .route("/{id}", web::delete().to(delete_by_id))
+            .route("/page", web::get().to(page))
+    );
+}
+
+/// List all {{ entity }}
+async fn list(
+    query: web::Query<{{ entity }}Query>,
+) -> impl Responder {
+    // TODO: Implement list
+    HttpResponse::Ok().json(Vec::<{{ entity }}Response>::new())
+}
+
+/// Get {{ entity }} by ID
+async fn get_by_id(
+    path: web::Path<i64>,
+) -> impl Responder {
+    // TODO: Implement get by id
+    HttpResponse::Ok().json(None::<{{ entity }}Response>)
+}
+
+/// Create new {{ entity }}
+async fn create(
+    body: web::Json<{{ entity }}Request>,
+) -> impl Responder {
+    // TODO: Implement create
+    HttpResponse::Ok().json(())
+}
+
+/// Update {{ entity }}
+async fn update(
+    path: web::Path<i64>,
+    body: web::Json<{{ entity }}Request>,
+) -> impl Responder {
+    // TODO: Implement update
+    HttpResponse::Ok().json(())
+}
+
+/// Delete {{ entity }} by ID
+async fn delete_by_id(
+    path: web::Path<i64>,
+) -> impl Responder {
+    // TODO: Implement delete
+    HttpResponse::Ok().json(())
+}
+
+/// Paginated list of {{ entity }}
+async fn page(
+    query: web::Query<{{ entity }}Query>,
+) -> impl Responder {
+    // TODO: Implement pagination
+    HttpResponse::Ok().json(IPage::<{{ entity }}Response>::new(1, 10, 0, vec![]))
+}

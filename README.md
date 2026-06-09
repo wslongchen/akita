@@ -1,7 +1,7 @@
 # Akita
 
 <p align="center">
-  <img src="http://img.snackcloud.cn/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
+  <img src="https://img.woofcloud.com/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
 </p>
 
 <p align="center">
@@ -34,16 +34,25 @@
 - **🚀 High Performance**: Pure Rust implementation, zero runtime overhead
 - **🎯 Easy to Use**: Intuitive API, quick to learn
 - **🔧 Flexible Query**: Powerful query builder with type safety
-- **📦 Multi-Database**: Native support for MySQL, PostgreSQL, SQLite, and any MySQL-compatible databases (TiDB, MariaDB, etc.)
+- **📦 Multi-Database**: Native support for MySQL, PostgreSQL, SQLite, Oracle, SQL Server, and any MySQL-compatible databases (TiDB, MariaDB, etc.)
 - **🔌 Dual Runtime**: Both synchronous and asynchronous operation modes
 - **🛡️ Type Safe**: Full Rust type system support with compile-time checking
 - **🔄 Transaction**: Complete ACID transaction management with savepoint support
-- **⚡ Connection Pool**: Built-in high-performance connection pooling
+- **⚡ Connection Pool**: Built-in high-performance connection pooling (r2d2 for sync, deadpool for async)
 - **🎨 Annotation Driven**: Simplify entity definition with derive macros
 - **🔌 Interceptors**: Extensible interceptor system for AOP (Aspect-Oriented Programming)
-- **📊 Pagination**: Built-in smart pagination with total count
+- **📊 Pagination**: Built-in smart pagination with total count, plus cursor-based pagination for large datasets
 - **🔍 Complex Query**: Support for joins, subqueries, and complex SQL operations
 - **🛠️ Raw SQL**: Direct SQL execution when needed
+- **🔒 SQL Injection Protection**: Built-in SQL injection detection and prevention
+- **📝 Logical Delete**: Automatic soft delete with interceptor support
+- **🔄 Optimistic Locking**: Version-based optimistic locking for concurrent updates
+- **🏢 Multi-Tenancy**: Built-in tenant isolation support
+- **⏰ Auto Fill**: Automatic field population (timestamps, UUIDs, etc.)
+- **💾 Caching**: Query result caching with pluggable cache providers
+- **📈 Performance Monitoring**: Slow query detection and performance metrics
+- **🔗 Lambda Wrapper**: Compile-time safe column references
+- **📋 SubQuery Builder**: Type-safe subquery construction
 
 ## 📦 Installation
 
@@ -238,7 +247,7 @@ fn main() {
 | PostgreSQL | `postgres-sync` | `postgres-async` | PostgreSQL | `tokio-postgres` (blocking) | `tokio-postgres` (async) | ✅ Production Ready | Both use tokio-postgres under the hood |
 | SQLite | `sqlite-sync` | `sqlite-async` | SQLite | `rusqlite` crate | `sqlx` with async runtime | ✅ Production Ready | Different implementation strategies |
 | Oracle | `oracle-sync` | `oracle-async` | Oracle | `oracle` crate (blocking) | `oracle` crate + async runtime | ✅ Production Ready | Oracle driver with async wrapper |
-| SQL Server | `sqlserver-sync` | `sqlserver-async` | TDS | `tiberius` (blocking) | `tiberius` (async) | ✅ Production Ready | Tiberius driver support |
+| SQL Server | `mssql-sync` | `mssql-async` | TDS | `tiberius` (blocking) | `tiberius` (async) | ✅ Production Ready | Tiberius driver support |
 | TiDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
 | MariaDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
 | OceanBase | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | MySQL compatible mode |
@@ -553,6 +562,173 @@ impl AkitaInterceptor for AuditInterceptor {
         Ok(())
     }
 }
+```
+
+### Built-in Interceptors
+
+Akita provides several built-in interceptors for common use cases:
+
+#### Field Fill Interceptor
+Automatically populates fields like `create_time`, `update_time`, `create_by`, etc.
+
+```rust
+use akita::interceptor::field_fill::{FieldFillInterceptor, TimestampFillHandler, UuidFillHandler};
+
+let interceptor = FieldFillInterceptor::new()
+    .with_handler("create_time", Box::new(TimestampFillHandler::new()))
+    .with_handler("update_time", Box::new(TimestampFillHandler::new()))
+    .with_handler("id", Box::new(UuidFillHandler::new()));
+```
+
+#### Soft Delete Interceptor
+Automatically rewrites DELETE statements to UPDATE with a deleted flag.
+
+```rust
+use akita::interceptor::soft_delete::{SoftDeleteInterceptor, SoftDeleteConfig};
+
+let config = SoftDeleteConfig::default()
+    .with_column("deleted")
+    .ignore_table("logs");
+
+let interceptor = SoftDeleteInterceptor::new(config);
+```
+
+#### Pagination Interceptor
+Automatically adds pagination to SELECT queries.
+
+```rust
+use akita::interceptor::pagination::{PaginationInterceptor, PaginationRequest};
+
+let interceptor = PaginationInterceptor::new()
+    .with_default_page_size(20)
+    .with_max_page_size(100);
+
+// In your code:
+ctx.set_metadata("pagination", PaginationRequest::new(1, 10));
+```
+
+#### Optimistic Lock Interceptor
+Automatically adds version checks to UPDATE statements.
+
+```rust
+use akita::interceptor::optimistic_lock::{OptimisticLockerInterceptor, OptimisticLockConfig};
+
+let config = OptimisticLockConfig::default()
+    .with_column("version")
+    .ignore_table("logs");
+
+let interceptor = OptimisticLockerInterceptor::new(config);
+```
+
+#### Tenant Line Interceptor
+Automatically injects tenant ID conditions for multi-tenancy.
+
+```rust
+use akita::interceptor::tenant::{TenantLineInterceptor, TenantConfig};
+use akita::prelude::AkitaValue;
+
+let config = TenantConfig::new("tenant_id", AkitaValue::Text("tenant_001".to_string()))
+    .ignore_table("sys_config")
+    .ignore_table("sys_user");
+
+let interceptor = TenantLineInterceptor::new(config);
+```
+
+#### Cache Interceptor
+Automatically caches query results for improved performance.
+
+```rust
+use akita::interceptor::cache::{CacheInterceptor, MemoryCacheProvider};
+use std::time::Duration;
+
+let interceptor = CacheInterceptor::new(Box::new(MemoryCacheProvider::new()))
+    .with_default_ttl(Duration::from_secs(300))
+    .with_cache_prefix("my_app:");
+```
+
+#### Performance Interceptor
+Monitors SQL query performance and detects slow queries.
+
+```rust
+use akita::interceptor::performance::{PerformanceInterceptor, PerformanceConfig};
+
+let interceptor = PerformanceInterceptor::new(PerformanceConfig {
+    slow_query_threshold_ms: 1000,
+    enable_metrics: true,
+});
+
+// Get metrics
+let metrics = interceptor.metrics();
+println!("Total queries: {}", metrics.total_queries);
+println!("Slow queries: {}", metrics.slow_queries);
+println!("Avg time: {:.2}ms", metrics.avg_execution_time_ms());
+```
+
+#### Cursor Pagination Interceptor
+Efficient pagination for large datasets using cursors instead of offsets.
+
+```rust
+use akita::interceptor::cursor_pagination::{CursorPaginationInterceptor, CursorPaginationRequest, CursorDirection};
+
+let interceptor = CursorPaginationInterceptor::new()
+    .with_default_limit(20)
+    .with_max_limit(100);
+
+// First page (no cursor)
+let request = CursorPaginationRequest::new(None, 10, CursorDirection::Forward);
+
+// Next page (with cursor from last result)
+let request = CursorPaginationRequest::new(Some("123".to_string()), 10, CursorDirection::Forward);
+```
+
+### Lambda Wrapper (Compile-time Safe Column References)
+
+Akita provides `LambdaWrapper<T>` for compile-time safe column references:
+
+```rust
+use akita::prelude::*;
+
+#[derive(Entity)]
+#[table(name = "users")]
+struct User {
+    #[id]
+    id: i64,
+    #[field(name = "user_name")]
+    name: String,
+    age: i32,
+}
+
+// Compile-time safe column references
+let wrapper = LambdaWrapper::<User>::new()
+    .eq(User::name, "Alice")
+    .gt(User::age, 18)
+    .order_by_asc(User::name);
+```
+
+### SubQuery Builder
+
+Akita provides `SubQuery` for building subqueries:
+
+```rust
+use akita::prelude::*;
+
+// IN subquery
+let sub = SubQuery::in_query("user_id")
+    .select(vec!["id"])
+    .from("users")
+    .where_eq("status", "active");
+
+let wrapper = Wrapper::new()
+    .in_subquery("id", sub);
+
+// EXISTS subquery
+let sub = SubQuery::exists()
+    .select(vec!["1"])
+    .from("orders")
+    .where_eq("orders.user_id", "users.id");
+
+let wrapper = Wrapper::new()
+    .exists_subquery(sub);
 ```
 
 ### Entity Methods with Database Portability

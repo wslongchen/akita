@@ -16,15 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::collections::HashSet;
-use akita_core::{AkitaValue, Condition, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, QueryData, TableName, Wrapper};
 use crate::driver::DriverType;
 use crate::empty_data_err;
-use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
 use crate::mapper::PaginationOptions;
+use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
+use akita_core::{
+    AkitaValue, Condition, FieldName, FieldType, GetFields, GetTableName, IdentifierType,
+    IntoAkitaValue, Params, QueryData, TableName, Wrapper,
+};
+use std::collections::HashSet;
 
 pub struct OracleSqlBuilder {
     pub version: Option<String>, // "11g", "12c", "19c"
@@ -116,9 +119,10 @@ impl SqlBuilder for OracleSqlBuilder {
         let sql = if let Some(limit_val) = wrapper.get_limit() {
             if where_clause.trim().is_empty() {
                 // If you don't have a WHERE condition, you need to add a ROWNUM
-                format!("DELETE FROM {} WHERE ROWNUM <= {}",
-                        self.quote_table(&table.complete_name()),
-                        limit_val
+                format!(
+                    "DELETE FROM {} WHERE ROWNUM <= {}",
+                    self.quote_table(&table.complete_name()),
+                    limit_val
                 )
             } else {
                 // When there is a WHERE condition, use a subquery
@@ -148,7 +152,11 @@ impl SqlBuilder for OracleSqlBuilder {
         let wrapper = self.quote_wrapper_identifier(wrapper.clone());
         let set_clause = wrapper.build_set_clause();
         let where_clause = wrapper.build_where_clause();
-        let mut sql = format!("UPDATE {} SET {}", self.quote_table(&table.complete_name()), set_clause);
+        let mut sql = format!(
+            "UPDATE {} SET {}",
+            self.quote_table(&table.complete_name()),
+            set_clause
+        );
         if !where_clause.is_empty() {
             sql.push_str(&format!(" WHERE {}", where_clause));
         }
@@ -157,20 +165,26 @@ impl SqlBuilder for OracleSqlBuilder {
         }
         Some(self.process_placeholders(&sql))
     }
-    
+
     // Oracle does not have a Boolean type
     fn build_where_clause(&self, where_clause: &str) -> String {
         where_clause.replace("TRUE", "1").replace("FALSE", "0")
     }
 
     // Oracle needs to handle double table inserts
-    fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
+    fn build_insert_sql(
+        &self,
+        table: &TableName,
+        columns: Vec<FieldName>,
+        datas: Vec<AkitaValue>,
+    ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if columns.is_empty() {
             return Err(empty_data_err!());
         }
 
         // Build column names (uppercase for Oracle)
-        let column_names: Vec<(String, FieldName)> = columns.into_iter()
+        let column_names: Vec<(String, FieldName)> = columns
+            .into_iter()
             .filter(|c| c.exist)
             .filter(|c| !c.is_auto_increment())
             .map(|c| {
@@ -187,7 +201,8 @@ impl SqlBuilder for OracleSqlBuilder {
                 placeholders.push(format!(":{}", i + 1));
 
                 let col_name = field.alias.as_ref().unwrap_or(&field.name);
-                let mut value = data.get_obj_value(col_name)
+                let mut value = data
+                    .get_obj_value(col_name)
                     .cloned()
                     .unwrap_or(AkitaValue::Null);
                 // Handling field padding
@@ -202,13 +217,16 @@ impl SqlBuilder for OracleSqlBuilder {
 
                 // Handle the ID generator
                 value = self.identifier_generator_value(field, value);
-                
+
                 params.push(value);
             }
         }
 
         // Build a single-row INSERT SQL
-        let column_names = column_names.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let column_names = column_names
+            .iter()
+            .map(|(c, _)| c.to_string())
+            .collect::<Vec<_>>();
         let sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
             self.quote_table(&table.complete_name()),
@@ -218,25 +236,27 @@ impl SqlBuilder for OracleSqlBuilder {
         Ok((sql, params))
     }
 
-
     /// Oracle Bulk INSERT - uses the INSERT ALL syntax
     fn build_batch_insert_sql(
         &self,
-        data: &BatchInsertData
+        data: &BatchInsertData,
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
             return Err(empty_data_err!());
         }
-        let id_field_name = data.id_field.as_ref()
+        let id_field_name = data
+            .id_field
+            .as_ref()
             .map(|f| f.alias.as_ref().unwrap_or(&f.name).to_string());
         // Building column names
-        let (column_names, column_indices): (Vec<String>, Vec<usize>) = data.columns.iter()
+        let (column_names, column_indices): (Vec<String>, Vec<usize>) = data
+            .columns
+            .iter()
             .enumerate()
             .filter(|(_, col)| {
                 let col_name = col.alias.as_ref().unwrap_or(&col.name);
                 // Excludes autoincrement fields and specified id fields
-                !col.is_auto_increment() &&
-                    id_field_name.as_ref().map_or(true, |id| col_name != id)
+                !col.is_auto_increment() && id_field_name.as_ref().map_or(true, |id| col_name != id)
             })
             .map(|(idx, col)| {
                 let col_name = col.alias.as_ref().unwrap_or(&col.name);
@@ -247,7 +267,7 @@ impl SqlBuilder for OracleSqlBuilder {
         if column_names.is_empty() {
             return Err(empty_data_err!());
         }
-        
+
         let mut sql_parts = Vec::new();
         let mut all_params = Vec::new();
         // Oracle uses the INSERT ALL syntax for bulk insertion
@@ -286,20 +306,115 @@ impl SqlBuilder for OracleSqlBuilder {
 
     fn is_reserved_keyword(&self, identifier: &str) -> bool {
         let keywords = [
-            "ACCESS", "ADD", "ALL", "ALTER", "AND", "ANY", "AS", "ASC", "AUDIT", "BETWEEN",
-            "BY", "CHAR", "CHECK", "CLUSTER", "COLUMN", "COMMENT", "COMPRESS", "CONNECT",
-            "CREATE", "CURRENT", "DATE", "DECIMAL", "DEFAULT", "DELETE", "DESC", "DISTINCT",
-            "DROP", "ELSE", "EXCLUSIVE", "EXISTS", "FILE", "FLOAT", "FOR", "FROM", "GRANT",
-            "GROUP", "HAVING", "IDENTIFIED", "IMMEDIATE", "IN", "INCREMENT", "INDEX",
-            "INITIAL", "INSERT", "INTEGER", "INTERSECT", "INTO", "IS", "LEVEL", "LIKE",
-            "LOCK", "LONG", "MAXEXTENTS", "MINUS", "MLSLABEL", "MODE", "MODIFY", "NOAUDIT",
-            "NOCOMPRESS", "NOT", "NOWAIT", "NULL", "NUMBER", "OF", "OFFLINE", "ON", "ONLINE",
-            "OPTION", "OR", "ORDER", "PCTFREE", "PRIOR", "PRIVILEGES", "PUBLIC", "RAW",
-            "RENAME", "RESOURCE", "REVOKE", "ROW", "ROWID", "ROWNUM", "ROWS", "SELECT",
-            "SESSION", "SET", "SHARE", "SIZE", "SMALLINT", "START", "SUCCESSFUL", "SYNONYM",
-            "SYSDATE", "TABLE", "THEN", "TO", "TRIGGER", "UID", "UNION", "UNIQUE", "UPDATE",
-            "USER", "VALIDATE", "VALUES", "VARCHAR", "VARCHAR2", "VIEW", "WHENEVER", "WHERE",
-            "WITH"
+            "ACCESS",
+            "ADD",
+            "ALL",
+            "ALTER",
+            "AND",
+            "ANY",
+            "AS",
+            "ASC",
+            "AUDIT",
+            "BETWEEN",
+            "BY",
+            "CHAR",
+            "CHECK",
+            "CLUSTER",
+            "COLUMN",
+            "COMMENT",
+            "COMPRESS",
+            "CONNECT",
+            "CREATE",
+            "CURRENT",
+            "DATE",
+            "DECIMAL",
+            "DEFAULT",
+            "DELETE",
+            "DESC",
+            "DISTINCT",
+            "DROP",
+            "ELSE",
+            "EXCLUSIVE",
+            "EXISTS",
+            "FILE",
+            "FLOAT",
+            "FOR",
+            "FROM",
+            "GRANT",
+            "GROUP",
+            "HAVING",
+            "IDENTIFIED",
+            "IMMEDIATE",
+            "IN",
+            "INCREMENT",
+            "INDEX",
+            "INITIAL",
+            "INSERT",
+            "INTEGER",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "LEVEL",
+            "LIKE",
+            "LOCK",
+            "LONG",
+            "MAXEXTENTS",
+            "MINUS",
+            "MLSLABEL",
+            "MODE",
+            "MODIFY",
+            "NOAUDIT",
+            "NOCOMPRESS",
+            "NOT",
+            "NOWAIT",
+            "NULL",
+            "NUMBER",
+            "OF",
+            "OFFLINE",
+            "ON",
+            "ONLINE",
+            "OPTION",
+            "OR",
+            "ORDER",
+            "PCTFREE",
+            "PRIOR",
+            "PRIVILEGES",
+            "PUBLIC",
+            "RAW",
+            "RENAME",
+            "RESOURCE",
+            "REVOKE",
+            "ROW",
+            "ROWID",
+            "ROWNUM",
+            "ROWS",
+            "SELECT",
+            "SESSION",
+            "SET",
+            "SHARE",
+            "SIZE",
+            "SMALLINT",
+            "START",
+            "SUCCESSFUL",
+            "SYNONYM",
+            "SYSDATE",
+            "TABLE",
+            "THEN",
+            "TO",
+            "TRIGGER",
+            "UID",
+            "UNION",
+            "UNIQUE",
+            "UPDATE",
+            "USER",
+            "VALIDATE",
+            "VALUES",
+            "VARCHAR",
+            "VARCHAR2",
+            "VIEW",
+            "WHENEVER",
+            "WHERE",
+            "WITH",
         ];
 
         keywords.contains(&identifier.to_uppercase().as_str())
@@ -307,7 +422,6 @@ impl SqlBuilder for OracleSqlBuilder {
 }
 
 impl OracleSqlBuilder {
-
     /// Optional: Support Oracle named parameters
     fn process_named_placeholders(&self, sql: &str, param_names: &[&str]) -> String {
         let mut result = String::new();
@@ -352,7 +466,7 @@ impl OracleSqlBuilder {
             result
         }
     }
-    
+
     fn quote_wrapper_identifier(&self, mut wrapper: Wrapper) -> Wrapper {
         // 1. Handle column names in the WHERE condition
         let quoted_where_conditions = wrapper
@@ -446,21 +560,23 @@ impl OracleSqlBuilder {
         }
 
         // 9. Handle column names in the APPLY condition (if present)
-        let quoted_apply_conditions: Vec<String> = wrapper.get_apply_conditions()
+        let quoted_apply_conditions: Vec<String> = wrapper
+            .get_apply_conditions()
             .iter()
-            .map(|cond| {
-                self.quote_identifier(cond)
-            })
+            .map(|cond| self.quote_identifier(cond))
             .collect();
         wrapper.apply_conditions(quoted_apply_conditions);
         wrapper
     }
-    
+
     fn build_inner_query_sql(&self, data: &QueryData) -> String {
         let mut sql_parts = Vec::new();
 
         sql_parts.push(self.build_select_clause(data));
-        sql_parts.push(format!("FROM {}", self.build_from_clause(data.from.as_ref().unwrap())));
+        sql_parts.push(format!(
+            "FROM {}",
+            self.build_from_clause(data.from.as_ref().unwrap())
+        ));
 
         let joins = self.build_join_clauses(&data.joins);
         if !joins.is_empty() {
@@ -468,11 +584,17 @@ impl OracleSqlBuilder {
         }
 
         if !data.where_clause.is_empty() {
-            sql_parts.push(format!("WHERE {}", self.build_where_clause(&data.where_clause)));
+            sql_parts.push(format!(
+                "WHERE {}",
+                self.build_where_clause(&data.where_clause)
+            ));
         }
 
         if !data.group_by.is_empty() {
-            sql_parts.push(format!("GROUP BY {}", self.build_group_by_clause(&data.group_by)));
+            sql_parts.push(format!(
+                "GROUP BY {}",
+                self.build_group_by_clause(&data.group_by)
+            ));
         }
 
         if !data.having.is_empty() {
@@ -498,7 +620,10 @@ impl OracleSqlBuilder {
 
                 // Add ORDER BY (if needed)
                 if !data.order_by.is_empty() && !base_sql.to_uppercase().contains("ORDER BY") {
-                    sql.push_str(&format!(" ORDER BY {}", self.build_order_by_clause(&data.order_by)));
+                    sql.push_str(&format!(
+                        " ORDER BY {}",
+                        self.build_order_by_clause(&data.order_by)
+                    ));
                 }
 
                 if offset > 0 {
@@ -520,13 +645,19 @@ impl OracleSqlBuilder {
         // Oracle 11g and below uses ROWNUM
         // Note: ORDER BY is required to have a definite paging order
         if !data.order_by.is_empty() && !base_sql.to_uppercase().contains("ORDER BY") {
-            let ordered_sql = format!("{} ORDER BY {}", base_sql, self.build_order_by_clause(&data.order_by));
+            let ordered_sql = format!(
+                "{} ORDER BY {}",
+                base_sql,
+                self.build_order_by_clause(&data.order_by)
+            );
             format!(
                 "SELECT * FROM (
                     SELECT t.*, ROWNUM r FROM ({}) t 
                     WHERE ROWNUM <= {}
                 ) WHERE r > {}",
-                ordered_sql, offset + limit, offset
+                ordered_sql,
+                offset + limit,
+                offset
             )
         } else {
             format!(
@@ -534,16 +665,19 @@ impl OracleSqlBuilder {
                     SELECT t.*, ROWNUM r FROM ({}) t 
                     WHERE ROWNUM <= {}
                 ) WHERE r > {}",
-                base_sql, offset + limit, offset
+                base_sql,
+                offset + limit,
+                offset
             )
         }
     }
 
     // Oracle supports RETURNING INTO
     fn build_insert_returning(&self, _table: &str, id_column: &str) -> Option<String> {
-        Some(format!(" RETURNING {} INTO :{}",
-                     self.quote_identifier(id_column),
-                     id_column.to_lowercase()
+        Some(format!(
+            " RETURNING {} INTO :{}",
+            self.quote_identifier(id_column),
+            id_column.to_lowercase()
         ))
     }
 
@@ -602,7 +736,6 @@ impl OracleSqlBuilder {
     }
 }
 
-
 #[test]
 #[cfg(feature = "oracle-sync")]
 fn test_oracle_sqlbuilder() {
@@ -626,11 +759,23 @@ fn test_oracle_sqlbuilder() {
     ];
     let mut imap = indexmap::IndexMap::new();
     imap.insert("id".to_string(), AkitaValue::Int(1));
-    imap.insert("user_name".to_string(), AkitaValue::Text("John".to_string()));
-    imap.insert("email_address".to_string(), AkitaValue::Text("john@example.com".to_string()));
+    imap.insert(
+        "user_name".to_string(),
+        AkitaValue::Text("John".to_string()),
+    );
+    imap.insert(
+        "email_address".to_string(),
+        AkitaValue::Text("john@example.com".to_string()),
+    );
     let data = AkitaValue::Object(imap);
-    let (sql, params) = builder.build_insert_sql(&TableName::from("users"), columns, vec![data]).unwrap();
-    println!("build_insert_sql oracle :{} \nparams:{}", sql, Params::Positional(params));
+    let (sql, params) = builder
+        .build_insert_sql(&TableName::from("users"), columns, vec![data])
+        .unwrap();
+    println!(
+        "build_insert_sql oracle :{} \nparams:{}",
+        sql,
+        Params::Positional(params)
+    );
 
     // Example 2: Query
     let wrapper = Wrapper::new()
@@ -639,7 +784,11 @@ fn test_oracle_sqlbuilder() {
         .like("user_name", "%john%");
 
     let (query_sql, query_params) = builder.build_query_sql(&wrapper);
-    println!("build_query_sql oracle :{} \n params:{}", query_sql, Params::Positional(query_params));
+    println!(
+        "build_query_sql oracle :{} \n params:{}",
+        query_sql,
+        Params::Positional(query_params)
+    );
 
     // Example 3: Bulk insertion
     let columns = vec![field_id, FieldName::from("user_name")];
@@ -654,5 +803,9 @@ fn test_oracle_sqlbuilder() {
         id_field: None,
     };
     let (batch_sql, batch_params) = builder.build_batch_insert_sql(&batch_data).unwrap();
-    println!("batch_sql oracle :{} \n params:{}", batch_sql, Params::Positional(batch_params));
+    println!(
+        "batch_sql oracle :{} \n params:{}",
+        batch_sql,
+        Params::Positional(batch_params)
+    );
 }

@@ -18,12 +18,15 @@
  *  *
  *
  */
-use std::collections::HashSet;
-use akita_core::{AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, TableName, Wrapper};
 use crate::driver::DriverType;
-use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
 use crate::mapper::PaginationOptions;
+use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
+use akita_core::{
+    AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType, IntoAkitaValue,
+    Params, TableName, Wrapper,
+};
+use std::collections::HashSet;
 
 pub struct MySqlBuilder {
     pub version: Option<String>,
@@ -31,9 +34,7 @@ pub struct MySqlBuilder {
 
 impl Default for MySqlBuilder {
     fn default() -> Self {
-        Self {
-            version: None,
-        }
+        Self { version: None }
     }
 }
 
@@ -48,7 +49,6 @@ impl MySqlBuilder {
         None
     }
 }
-
 
 impl SqlBuilder for MySqlBuilder {
     fn dialect(&self) -> DatabaseDialect {
@@ -66,7 +66,7 @@ impl SqlBuilder for MySqlBuilder {
         // If the reference is already in full form, it is returned
         if table.starts_with('`') && table.ends_with('`') {
             // Check whether there is a bit sign inside (indicating a split)
-            let inner = &table[1..table.len()-1];
+            let inner = &table[1..table.len() - 1];
             if !inner.contains('.') {
                 return table.to_string();
             }
@@ -112,7 +112,6 @@ impl SqlBuilder for MySqlBuilder {
     }
 }
 
-
 #[test]
 #[cfg(feature = "mysql-sync")]
 fn test_mysql_sqlbuilder() {
@@ -136,12 +135,24 @@ fn test_mysql_sqlbuilder() {
     ];
     let mut imap = indexmap::IndexMap::new();
     imap.insert("id".to_string(), AkitaValue::Int(1));
-    imap.insert("user_name".to_string(), AkitaValue::Text("John".to_string()));
-    imap.insert("email_address".to_string(), AkitaValue::Text("john@example.com".to_string()));
+    imap.insert(
+        "user_name".to_string(),
+        AkitaValue::Text("John".to_string()),
+    );
+    imap.insert(
+        "email_address".to_string(),
+        AkitaValue::Text("john@example.com".to_string()),
+    );
     let data = AkitaValue::Object(imap);
 
-    let (sql, params) = builder.build_insert_sql(&TableName::from("users"), columns, vec![data]).unwrap();
-    println!("build_insert_sql mysql :{} \nparams:{}", sql, Params::Positional(params));
+    let (sql, params) = builder
+        .build_insert_sql(&TableName::from("users"), columns, vec![data])
+        .unwrap();
+    println!(
+        "build_insert_sql mysql :{} \nparams:{}",
+        sql,
+        Params::Positional(params)
+    );
 
     // Example 2: Query
     let wrapper = Wrapper::new()
@@ -150,7 +161,11 @@ fn test_mysql_sqlbuilder() {
         .like("user_name", "%john%");
 
     let (query_sql, query_params) = builder.build_query_sql(&wrapper);
-    println!("build_query_sql mysql :{} \n params:{}", query_sql, Params::Positional(query_params));
+    println!(
+        "build_query_sql mysql :{} \n params:{}",
+        query_sql,
+        Params::Positional(query_params)
+    );
 
     // Example 3: Bulk insertion
     let columns = vec![field_id, FieldName::from("user_name")];
@@ -165,5 +180,9 @@ fn test_mysql_sqlbuilder() {
         id_field: None,
     };
     let (batch_sql, batch_params) = builder.build_batch_insert_sql(&batch_data).unwrap();
-    println!("batch_sql mysql :{} \n params:{}", batch_sql, Params::Positional(batch_params));
+    println!(
+        "batch_sql mysql :{} \n params:{}",
+        batch_sql,
+        Params::Positional(batch_params)
+    );
 }

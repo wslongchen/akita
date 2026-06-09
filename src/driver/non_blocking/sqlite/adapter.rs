@@ -19,16 +19,16 @@
  *
  */
 use crate::comm::ExecuteResult;
+use crate::driver::non_blocking::sqlite::SqliteAsyncConnection;
 use crate::errors::AkitaError;
 use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
-use rusqlite::types::{ToSqlOutput, Value};
-use std::sync::{Arc, RwLock};
 use bigdecimal::ToPrimitive;
 use chrono::{Datelike, Timelike};
+use rusqlite::types::{ToSqlOutput, Value};
 use rusqlite::{params_from_iter, ParamsFromIter, ToSql};
-use tokio::sync::{Mutex};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Mutex;
 use tokio::task;
-use crate::driver::non_blocking::sqlite::SqliteAsyncConnection;
 
 /// SQLite Asynchronous adapter
 pub struct SqliteAsyncAdapter {
@@ -37,33 +37,37 @@ pub struct SqliteAsyncAdapter {
 
 impl SqliteAsyncAdapter {
     pub fn new(conn: SqliteAsyncConnection) -> Self {
-        Self {
-            conn,
-        }
+        Self { conn }
     }
 
     #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn.interact(|conn| {
-            conn.execute("BEGIN TRANSACTION", [])?;
-            Ok(())
-        }).await?
+        self.conn
+            .interact(|conn| {
+                conn.execute("BEGIN TRANSACTION", [])?;
+                Ok(())
+            })
+            .await?
     }
 
     #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn.interact(|conn| {
-            conn.execute("COMMIT", [])?;
-            Ok(())
-        }).await?
+        self.conn
+            .interact(|conn| {
+                conn.execute("COMMIT", [])?;
+                Ok(())
+            })
+            .await?
     }
 
     #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
-        self.conn.interact(|conn| {
-            conn.execute("ROLLBACK", [])?;
-            Ok(())
-        }).await?
+        self.conn
+            .interact(|conn| {
+                conn.execute("ROLLBACK", [])?;
+                Ok(())
+            })
+            .await?
     }
 
     #[track_caller]
@@ -74,62 +78,79 @@ impl SqliteAsyncAdapter {
     }
 
     #[track_caller]
-    async fn inner_query(&self, sql: &str, sqlite_params: Vec<Box<dyn ToSql + Sync + Send>>) -> crate::prelude::Result<Rows> {
+    async fn inner_query(
+        &self,
+        sql: &str,
+        sqlite_params: Vec<Box<dyn ToSql + Sync + Send>>,
+    ) -> crate::prelude::Result<Rows> {
         let sql = sql.to_string();
-        self.conn.interact(move |conn| {
-            let mut stmt = conn.prepare(&sql)?;
+        self.conn
+            .interact(move |conn| {
+                let mut stmt = conn.prepare(&sql)?;
 
-            let column_names = stmt.column_names().iter().map(ToString::to_string).collect::<Vec<_>>();
-            let column_count = stmt.column_count();
-            let mut rows = stmt.query(params_from_iter(sqlite_params.into_iter()))?;
+                let column_names = stmt
+                    .column_names()
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
+                let column_count = stmt.column_count();
+                let mut rows = stmt.query(params_from_iter(sqlite_params.into_iter()))?;
 
-            let mut result_rows = Vec::new();
-            let mut columns = Vec::new();
+                let mut result_rows = Vec::new();
+                let mut columns = Vec::new();
 
-            // Getting column names
-            for i in 0..column_count {
-                columns.push(column_names.get(i).unwrap_or(&"".to_string()).to_string());
-            }
-
-            while let Some(row) = rows.next()? {
-                let mut values = Vec::new();
+                // Getting column names
                 for i in 0..column_count {
-                    let raw = row.get(i);
-                    if let Ok(raw) = raw {
-                        let v = convert_sqlite_value(raw)?;
-                        values.push(v);
-                    }
+                    columns.push(column_names.get(i).unwrap_or(&"".to_string()).to_string());
                 }
-                result_rows.push(Row {
-                    columns: columns.clone(),
-                    data: values,
-                });
-            }
 
-            Ok(Rows {
-                data: result_rows,
-                count: None,
+                while let Some(row) = rows.next()? {
+                    let mut values = Vec::new();
+                    for i in 0..column_count {
+                        let raw = row.get(i);
+                        if let Ok(raw) = raw {
+                            let v = convert_sqlite_value(raw)?;
+                            values.push(v);
+                        }
+                    }
+                    result_rows.push(Row {
+                        columns: columns.clone(),
+                        data: values,
+                    });
+                }
+
+                Ok(Rows {
+                    data: result_rows,
+                    count: None,
+                })
             })
-        }).await?
+            .await?
     }
 
     #[track_caller]
-    pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
+    pub async fn execute(
+        &self,
+        sql: &str,
+        params: Params,
+    ) -> crate::prelude::Result<ExecuteResult> {
         let sqlite_params = convert_to_sqlite_params(params);
         let stmt_type = OperationType::detect_operation_type(sql);
 
         match stmt_type {
-            OperationType::Select => {
-                self.inner_query(sql, sqlite_params).await.map(ExecuteResult::Rows)
-            }
+            OperationType::Select => self
+                .inner_query(sql, sqlite_params)
+                .await
+                .map(ExecuteResult::Rows),
             _ => {
                 let sql_clone = sql.to_string();
-                self.conn.interact(move |conn| {
-                    let mut stmt = conn.prepare(&sql_clone)?;
-                    let changes = stmt.execute(params_from_iter(sqlite_params.into_iter()))?;
+                self.conn
+                    .interact(move |conn| {
+                        let mut stmt = conn.prepare(&sql_clone)?;
+                        let changes = stmt.execute(params_from_iter(sqlite_params.into_iter()))?;
 
-                    Ok(ExecuteResult::AffectedRows(changes as u64))
-                }).await?
+                        Ok(ExecuteResult::AffectedRows(changes as u64))
+                    })
+                    .await?
             }
         }
     }
@@ -143,18 +164,21 @@ impl SqliteAsyncAdapter {
     }
 
     pub async fn last_insert_id(&self) -> u64 {
-        self.conn.interact(|conn| {
-            conn.last_insert_rowid() as u64
-        }).await.unwrap_or(0)
+        self.conn
+            .interact(|conn| conn.last_insert_rowid() as u64)
+            .await
+            .unwrap_or(0)
     }
 
     #[track_caller]
     pub async fn ping(&self) -> crate::prelude::Result<()> {
-        self.conn.interact(|conn| {
-            // SQLite does not have a ping command and performs simple queries
-            conn.query_row("SELECT 1", [], |_| Ok(()))?;
-            Ok(())
-        }).await?
+        self.conn
+            .interact(|conn| {
+                // SQLite does not have a ping command and performs simple queries
+                conn.query_row("SELECT 1", [], |_| Ok(()))?;
+                Ok(())
+            })
+            .await?
     }
 
     #[track_caller]
@@ -166,25 +190,21 @@ impl SqliteAsyncAdapter {
     }
 }
 
-
-
 fn convert_to_sqlite_params(params: Params) -> Vec<Box<dyn ToSql + Sync + Send>> {
     match params {
         Params::None => {
             vec![]
-        },
-        Params::Positional(param) => param.into_iter()
-            .map(|val| {
-                convert_value_to_to_sql(val)
-            })
+        }
+        Params::Positional(param) => param
+            .into_iter()
+            .map(|val| convert_value_to_to_sql(val))
             .collect(),
-        Params::Named(param) => {
-            param.values().cloned().into_iter()
-                .map(|val| {
-                    convert_value_to_to_sql(val)
-                })
-                .collect()
-        },
+        Params::Named(param) => param
+            .values()
+            .cloned()
+            .into_iter()
+            .map(|val| convert_value_to_to_sql(val))
+            .collect(),
     }
 }
 
@@ -193,12 +213,8 @@ fn convert_sqlite_value(value: rusqlite::types::Value) -> crate::prelude::Result
         rusqlite::types::Value::Null => Ok(AkitaValue::Null),
         rusqlite::types::Value::Integer(i) => Ok(AkitaValue::Bigint(i)),
         rusqlite::types::Value::Real(f) => Ok(AkitaValue::Double(f)),
-        rusqlite::types::Value::Text(text) => {
-            Ok(AkitaValue::Text(text))
-        }
-        rusqlite::types::Value::Blob(bytes) => {
-            Ok(AkitaValue::Blob(bytes.to_vec()))
-        }
+        rusqlite::types::Value::Text(text) => Ok(AkitaValue::Text(text)),
+        rusqlite::types::Value::Blob(bytes) => Ok(AkitaValue::Blob(bytes.to_vec())),
     }
 }
 
@@ -218,31 +234,27 @@ fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
         },
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(v.to_string()),
-        AkitaValue::Json(j) => {
-            match j {
-                serde_json::Value::Bool(v) => Box::new(v),
-                serde_json::Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        Box::new(n as i64)
-                    } else if let Some(n) = v.as_f64() {
-                        Box::new(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        Box::new(n)
-                    } else {
-                        Box::new(v.to_string())
-                    }
-
-
-                },
-                serde_json::Value::String(v) => Box::new(v),
-                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            serde_json::Value::Bool(v) => Box::new(v),
+            serde_json::Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    Box::new(n as i64)
+                } else if let Some(n) = v.as_f64() {
+                    Box::new(n)
+                } else if let Some(n) = v.as_i64() {
+                    Box::new(n)
+                } else {
+                    Box::new(v.to_string())
+                }
             }
+            serde_json::Value::String(v) => Box::new(v),
+            _ => Box::new(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(v) => Box::new(v.to_string()),
         AkitaValue::Date(v) => {
             let formatted = format!("{:04}-{:02}-{:02}", v.year(), v.month(), v.day());
             Box::new(formatted)
-        },
+        }
         AkitaValue::DateTime(v) => {
             let formatted = format!(
                 "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
@@ -254,14 +266,14 @@ fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
                 v.second()
             );
             Box::new(formatted)
-        },
+        }
         AkitaValue::Time(v) => {
             let formatted = format!("{:02}:{:02}:{:02}", v.hour(), v.minute(), v.second());
             Box::new(formatted)
-        },
+        }
         AkitaValue::Timestamp(v) => Box::new(v),
         AkitaValue::Null => Box::new(rusqlite::types::Null),
 
-        _ => Box::new(value.to_string())
+        _ => Box::new(value.to_string()),
     }
 }

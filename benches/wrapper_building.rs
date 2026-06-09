@@ -20,9 +20,9 @@
  */
 
 // benches/wrapper_building_bench.rs
+use akita::prelude::*;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
-use akita::prelude::*;
 
 pub fn bench_wrapper_building(c: &mut Criterion) {
     let mut group = c.benchmark_group("wrapper_building");
@@ -31,11 +31,7 @@ pub fn bench_wrapper_building(c: &mut Criterion) {
     // Benchmark: Simple Wrapper build
     group.bench_function("simple_wrapper", |b| {
         b.iter(|| {
-            black_box(
-                Wrapper::new()
-                    .eq("username", "test")
-                    .eq("status", 1)
-            );
+            black_box(Wrapper::new().eq("username", "test").eq("status", 1));
         });
     });
 
@@ -51,7 +47,7 @@ pub fn bench_wrapper_building(c: &mut Criterion) {
                     .lt("age", 65)
                     .like("name", "%john%")
                     .order_by_asc(vec!["created_at"])
-                    .limit(10)
+                    .limit(10),
             );
         });
     });

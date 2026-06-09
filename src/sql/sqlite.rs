@@ -16,12 +16,12 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use akita_core::{AkitaValue, FieldName, FieldType, IdentifierType, Params, TableName, Wrapper};
 use crate::empty_data_err;
-use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
 use crate::errors::AkitaError;
+use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder};
+use akita_core::{AkitaValue, FieldName, FieldType, IdentifierType, Params, TableName, Wrapper};
 
 pub struct SqliteBuilder {
     pub version: Option<String>,
@@ -29,9 +29,7 @@ pub struct SqliteBuilder {
 
 impl Default for SqliteBuilder {
     fn default() -> Self {
-        Self {
-            version: None,
-        }
+        Self { version: None }
     }
 }
 
@@ -65,10 +63,11 @@ impl SqlBuilder for SqliteBuilder {
 
                 let quoted_tbl = self.quote_identifier(tbl);
                 format!("{}.{}", quoted_db, quoted_tbl)
-            },
+            }
             _ => {
                 // FTS5 Virtual table: table.column
-                parts.iter()
+                parts
+                    .iter()
                     .map(|part| self.quote_identifier(part))
                     .collect::<Vec<String>>()
                     .join(".")
@@ -90,13 +89,19 @@ impl SqlBuilder for SqliteBuilder {
         }
     }
 
-    fn build_insert_sql(&self, table: &TableName, columns: Vec<FieldName>, datas: Vec<AkitaValue>) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
+    fn build_insert_sql(
+        &self,
+        table: &TableName,
+        columns: Vec<FieldName>,
+        datas: Vec<AkitaValue>,
+    ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if columns.is_empty() {
             return Err(empty_data_err!());
         }
-        
+
         // Building column names
-        let column_names: Vec<(String, FieldName)> = columns.into_iter()
+        let column_names: Vec<(String, FieldName)> = columns
+            .into_iter()
             .filter(|c| c.exist)
             .map(|c| {
                 let col_name = c.alias.as_ref().unwrap_or(&c.name);
@@ -111,7 +116,8 @@ impl SqlBuilder for SqliteBuilder {
             let mut entity_placeholders = Vec::new();
             for (_col_name, field) in column_names.iter() {
                 let col_name = field.alias.as_ref().unwrap_or(&field.name);
-                let mut value = data.get_obj_value(col_name)
+                let mut value = data
+                    .get_obj_value(col_name)
                     .cloned()
                     .unwrap_or(AkitaValue::Null);
                 // Handling field padding
@@ -134,7 +140,10 @@ impl SqlBuilder for SqliteBuilder {
         }
 
         // Building INSERT SQL
-        let column_names = column_names.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let column_names = column_names
+            .iter()
+            .map(|(c, _)| c.to_string())
+            .collect::<Vec<_>>();
         let sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
             self.quote_table(&table.complete_name()),
@@ -147,28 +156,28 @@ impl SqlBuilder for SqliteBuilder {
     /// SQLite bulk insert
     fn build_batch_insert_sql(
         &self,
-        data: &BatchInsertData
+        data: &BatchInsertData,
     ) -> crate::errors::Result<(String, Vec<AkitaValue>)> {
         if data.columns.is_empty() || data.rows.is_empty() {
             return Err(empty_data_err!());
         }
 
         // Building column names
-        let column_names: Vec<String> = data.columns.iter()
+        let column_names: Vec<String> = data
+            .columns
+            .iter()
             .map(|col_name| {
                 let col_name = col_name.alias.as_ref().unwrap_or(&col_name.name).as_str();
                 self.quote_identifier(col_name)
             })
             .collect();
-        
+
         // Build multiple rows of VALUES
         let mut all_placeholders = Vec::new();
         let mut all_params = Vec::new();
 
         for row in data.rows.iter() {
-            let row_placeholders: Vec<String> = row.iter()
-                .map(|_| "?".to_string())
-                .collect();
+            let row_placeholders: Vec<String> = row.iter().map(|_| "?".to_string()).collect();
 
             all_placeholders.push(format!("({})", row_placeholders.join(", ")));
             all_params.extend(row.clone());
@@ -189,7 +198,10 @@ impl SqlBuilder for SqliteBuilder {
         if let Some(limit_val) = wrapper.get_limit() {
             let mut sql = format!("DELETE FROM {}", self.quote_table(&table.complete_name()));
             if !where_clause.trim().is_empty() {
-                sql.push_str(&format!(" WHERE {}", self.build_where_clause(&where_clause)));
+                sql.push_str(&format!(
+                    " WHERE {}",
+                    self.build_where_clause(&where_clause)
+                ));
             }
             // SQLite's DELETE... LIMIT needs to be ordered BY
             // Here we default to ROWID sort
@@ -205,7 +217,7 @@ impl SqlBuilder for SqliteBuilder {
             sql
         }
     }
-    
+
     /// SQLite specific: COLLATE NOCASE support
     fn build_where_clause(&self, where_clause: &str) -> String {
         // SQLite is case sensitive by default, and the COLLATE NOCASE option can be added
@@ -235,25 +247,133 @@ impl SqlBuilder for SqliteBuilder {
             where_clause.to_string()
         }
     }
-    
 
     fn is_reserved_keyword(&self, identifier: &str) -> bool {
         let keywords = [
-            "ABORT", "ACTION", "ADD", "AFTER", "ALL", "ALTER", "ANALYZE", "AND", "AS", "ASC",
-            "ATTACH", "AUTOINCREMENT", "BEFORE", "BEGIN", "BETWEEN", "BY", "CASCADE", "CASE",
-            "CAST", "CHECK", "COLLATE", "COLUMN", "COMMIT", "CONFLICT", "CONSTRAINT", "CREATE",
-            "CROSS", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "DATABASE", "DEFAULT",
-            "DEFERRABLE", "DEFERRED", "DELETE", "DESC", "DETACH", "DISTINCT", "DROP", "EACH",
-            "ELSE", "END", "ESCAPE", "EXCEPT", "EXCLUSIVE", "EXISTS", "EXPLAIN", "FAIL", "FOR",
-            "FOREIGN", "FROM", "FULL", "GLOB", "GROUP", "HAVING", "IF", "IGNORE", "IMMEDIATE",
-            "IN", "INDEX", "INDEXED", "INITIALLY", "INNER", "INSERT", "INSTEAD", "INTERSECT",
-            "INTO", "IS", "ISNULL", "JOIN", "KEY", "LEFT", "LIKE", "LIMIT", "MATCH", "NATURAL",
-            "NO", "NOT", "NOTNULL", "NULL", "OF", "OFFSET", "ON", "OR", "ORDER", "OUTER",
-            "PLAN", "PRAGMA", "PRIMARY", "QUERY", "RAISE", "RECURSIVE", "REFERENCES", "REGEXP",
-            "REINDEX", "RELEASE", "RENAME", "REPLACE", "RESTRICT", "RIGHT", "ROLLBACK", "ROW",
-            "SAVEPOINT", "SELECT", "SET", "TABLE", "TEMP", "TEMPORARY", "THEN", "TO", "TRANSACTION",
-            "TRIGGER", "UNION", "UNIQUE", "UPDATE", "USING", "VACUUM", "VALUES", "VIEW", "VIRTUAL",
-            "WHEN", "WHERE", "WITH", "WITHOUT"
+            "ABORT",
+            "ACTION",
+            "ADD",
+            "AFTER",
+            "ALL",
+            "ALTER",
+            "ANALYZE",
+            "AND",
+            "AS",
+            "ASC",
+            "ATTACH",
+            "AUTOINCREMENT",
+            "BEFORE",
+            "BEGIN",
+            "BETWEEN",
+            "BY",
+            "CASCADE",
+            "CASE",
+            "CAST",
+            "CHECK",
+            "COLLATE",
+            "COLUMN",
+            "COMMIT",
+            "CONFLICT",
+            "CONSTRAINT",
+            "CREATE",
+            "CROSS",
+            "CURRENT_DATE",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "DATABASE",
+            "DEFAULT",
+            "DEFERRABLE",
+            "DEFERRED",
+            "DELETE",
+            "DESC",
+            "DETACH",
+            "DISTINCT",
+            "DROP",
+            "EACH",
+            "ELSE",
+            "END",
+            "ESCAPE",
+            "EXCEPT",
+            "EXCLUSIVE",
+            "EXISTS",
+            "EXPLAIN",
+            "FAIL",
+            "FOR",
+            "FOREIGN",
+            "FROM",
+            "FULL",
+            "GLOB",
+            "GROUP",
+            "HAVING",
+            "IF",
+            "IGNORE",
+            "IMMEDIATE",
+            "IN",
+            "INDEX",
+            "INDEXED",
+            "INITIALLY",
+            "INNER",
+            "INSERT",
+            "INSTEAD",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "ISNULL",
+            "JOIN",
+            "KEY",
+            "LEFT",
+            "LIKE",
+            "LIMIT",
+            "MATCH",
+            "NATURAL",
+            "NO",
+            "NOT",
+            "NOTNULL",
+            "NULL",
+            "OF",
+            "OFFSET",
+            "ON",
+            "OR",
+            "ORDER",
+            "OUTER",
+            "PLAN",
+            "PRAGMA",
+            "PRIMARY",
+            "QUERY",
+            "RAISE",
+            "RECURSIVE",
+            "REFERENCES",
+            "REGEXP",
+            "REINDEX",
+            "RELEASE",
+            "RENAME",
+            "REPLACE",
+            "RESTRICT",
+            "RIGHT",
+            "ROLLBACK",
+            "ROW",
+            "SAVEPOINT",
+            "SELECT",
+            "SET",
+            "TABLE",
+            "TEMP",
+            "TEMPORARY",
+            "THEN",
+            "TO",
+            "TRANSACTION",
+            "TRIGGER",
+            "UNION",
+            "UNIQUE",
+            "UPDATE",
+            "USING",
+            "VACUUM",
+            "VALUES",
+            "VIEW",
+            "VIRTUAL",
+            "WHEN",
+            "WHERE",
+            "WITH",
+            "WITHOUT",
         ];
 
         keywords.contains(&identifier.to_uppercase().as_str())
@@ -263,9 +383,10 @@ impl SqlBuilder for SqliteBuilder {
 impl SqliteBuilder {
     /// SQLite specific: JSON support (requires JSON1 extension enabled)
     fn build_json_extract(&self, column: &str, json_path: &str) -> String {
-        format!("json_extract({}, '{}')",
-                self.quote_identifier(column),
-                json_path
+        format!(
+            "json_extract({}, '{}')",
+            self.quote_identifier(column),
+            json_path
         )
     }
 
@@ -311,12 +432,16 @@ impl SqliteBuilder {
 
     /// SQLite specific: Build virtual table queries
     pub fn build_virtual_table_query(&self, module: &str, args: &[&str]) -> String {
-        let args_str = args.iter()
+        let args_str = args
+            .iter()
             .map(|arg| format!("'{}'", arg.replace("'", "''")))
             .collect::<Vec<_>>()
             .join(", ");
 
-        format!("CREATE VIRTUAL TABLE temp.vt USING {} ({})", module, args_str)
+        format!(
+            "CREATE VIRTUAL TABLE temp.vt USING {} ({})",
+            module, args_str
+        )
     }
 
     // SQLite 3.35+ supports RETURNING
@@ -328,9 +453,7 @@ impl SqliteBuilder {
         }
         None
     }
-
 }
-
 
 #[test]
 #[cfg(feature = "sqlite-sync")]
@@ -355,12 +478,24 @@ fn test_sqlite_sqlbuilder() {
     ];
     let mut imap = indexmap::IndexMap::new();
     imap.insert("id".to_string(), AkitaValue::Int(1));
-    imap.insert("user_name".to_string(), AkitaValue::Text("John".to_string()));
-    imap.insert("email_address".to_string(), AkitaValue::Text("john@example.com".to_string()));
+    imap.insert(
+        "user_name".to_string(),
+        AkitaValue::Text("John".to_string()),
+    );
+    imap.insert(
+        "email_address".to_string(),
+        AkitaValue::Text("john@example.com".to_string()),
+    );
     let data = AkitaValue::Object(imap);
 
-    let (sql, params) = builder.build_insert_sql(&TableName::from("users"), columns, vec![data]).unwrap();
-    println!("build_insert_sql sqlite :{} \nparams:{}", sql, Params::Positional(params));
+    let (sql, params) = builder
+        .build_insert_sql(&TableName::from("users"), columns, vec![data])
+        .unwrap();
+    println!(
+        "build_insert_sql sqlite :{} \nparams:{}",
+        sql,
+        Params::Positional(params)
+    );
 
     // Example 2: Query
     let wrapper = Wrapper::new()
@@ -369,7 +504,11 @@ fn test_sqlite_sqlbuilder() {
         .like("user_name", "%john%");
 
     let (query_sql, query_params) = builder.build_query_sql(&wrapper);
-    println!("build_query_sql sqlite :{} \n params:{}", query_sql, Params::Positional(query_params));
+    println!(
+        "build_query_sql sqlite :{} \n params:{}",
+        query_sql,
+        Params::Positional(query_params)
+    );
 
     // Example 3: Bulk insertion
     let columns = vec![field_id, FieldName::from("user_name")];
@@ -384,5 +523,9 @@ fn test_sqlite_sqlbuilder() {
         id_field: None,
     };
     let (batch_sql, batch_params) = builder.build_batch_insert_sql(&batch_data).unwrap();
-    println!("batch_sql sqlite :{} \n params:{}", batch_sql, Params::Positional(batch_params));
+    println!(
+        "batch_sql sqlite :{} \n params:{}",
+        batch_sql,
+        Params::Positional(batch_params)
+    );
 }
