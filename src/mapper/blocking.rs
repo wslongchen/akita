@@ -228,15 +228,27 @@ pub trait AkitaMapper {
         R: FromAkitaValue,
     {
         let sql: String = sql.into();
-        let result: Result<Vec<R>> = self.exec_raw(&sql, params);
-        match result {
-            Ok(mut result) => match result.len() {
-                0 => Err(data_err!("Empty record returned".to_string())),
-                1 => Ok(result.remove(0)),
-                _ => Err(data_err!("More than one record returned".to_string())),
-            },
-            Err(e) => Err(e),
+        let rows = self.exec_iter(&sql, params.into())?;
+        if rows.is_empty() {
+            return Err(data_err!("Empty record returned".to_string()));
         }
+        if rows.len() > 1 {
+            return Err(data_err!("More than one record returned".to_string()));
+        }
+        let data = rows
+            .first()
+            .map(|row| row.as_object())
+            .ok_or_else(|| data_err!("Empty record returned".to_string()))?;
+        // 使用 from_value_opt 代替 from_value：COUNT(*) 等聚合查询返回的
+        // Object({"COUNT(*)": Bigint(0)}) 无法被标量类型直接解析时，返回 Err 而不是 panic
+        R::from_value_opt(&data).map_err(|e| {
+            data_err!(
+                "exec_first: Cannot divide the value {:? } to type {}: {}",
+                data,
+                std::any::type_name::<R>(),
+                e
+            )
+        })
     }
 
     #[track_caller]

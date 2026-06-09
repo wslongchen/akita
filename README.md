@@ -34,16 +34,25 @@
 - **🚀 High Performance**: Pure Rust implementation, zero runtime overhead
 - **🎯 Easy to Use**: Intuitive API, quick to learn
 - **🔧 Flexible Query**: Powerful query builder with type safety
-- **📦 Multi-Database**: Native support for MySQL, PostgreSQL, SQLite, and any MySQL-compatible databases (TiDB, MariaDB, etc.)
+- **📦 Multi-Database**: Native support for MySQL, PostgreSQL, SQLite, Oracle, SQL Server, and any MySQL-compatible databases (TiDB, MariaDB, etc.)
 - **🔌 Dual Runtime**: Both synchronous and asynchronous operation modes
 - **🛡️ Type Safe**: Full Rust type system support with compile-time checking
 - **🔄 Transaction**: Complete ACID transaction management with savepoint support
-- **⚡ Connection Pool**: Built-in high-performance connection pooling
+- **⚡ Connection Pool**: Built-in high-performance connection pooling (r2d2 for sync, deadpool for async)
 - **🎨 Annotation Driven**: Simplify entity definition with derive macros
 - **🔌 Interceptors**: Extensible interceptor system for AOP (Aspect-Oriented Programming)
-- **📊 Pagination**: Built-in smart pagination with total count
+- **📊 Pagination**: Built-in smart pagination with total count, plus cursor-based pagination for large datasets
 - **🔍 Complex Query**: Support for joins, subqueries, and complex SQL operations
 - **🛠️ Raw SQL**: Direct SQL execution when needed
+- **🔒 SQL Injection Protection**: Built-in SQL injection detection and prevention
+- **📝 Logical Delete**: Automatic soft delete with interceptor support
+- **🔄 Optimistic Locking**: Version-based optimistic locking for concurrent updates
+- **🏢 Multi-Tenancy**: Built-in tenant isolation support
+- **⏰ Auto Fill**: Automatic field population (timestamps, UUIDs, etc.)
+- **💾 Caching**: Query result caching with pluggable cache providers
+- **📈 Performance Monitoring**: Slow query detection and performance metrics
+- **🔗 Lambda Wrapper**: Compile-time safe column references
+- **📋 SubQuery Builder**: Type-safe subquery construction
 
 ## 📦 Installation
 
@@ -238,7 +247,7 @@ fn main() {
 | PostgreSQL | `postgres-sync` | `postgres-async` | PostgreSQL | `tokio-postgres` (blocking) | `tokio-postgres` (async) | ✅ Production Ready | Both use tokio-postgres under the hood |
 | SQLite | `sqlite-sync` | `sqlite-async` | SQLite | `rusqlite` crate | `sqlx` with async runtime | ✅ Production Ready | Different implementation strategies |
 | Oracle | `oracle-sync` | `oracle-async` | Oracle | `oracle` crate (blocking) | `oracle` crate + async runtime | ✅ Production Ready | Oracle driver with async wrapper |
-| SQL Server | `sqlserver-sync` | `sqlserver-async` | TDS | `tiberius` (blocking) | `tiberius` (async) | ✅ Production Ready | Tiberius driver support |
+| SQL Server | `mssql-sync` | `mssql-async` | TDS | `tiberius` (blocking) | `tiberius` (async) | ✅ Production Ready | Tiberius driver support |
 | TiDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
 | MariaDB | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | 100% MySQL compatible |
 | OceanBase | `mysql-sync` | `mysql-async` | MySQL | Same as MySQL | Same as MySQL | ✅ Production Ready | MySQL compatible mode |
@@ -623,6 +632,53 @@ let config = TenantConfig::new("tenant_id", AkitaValue::Text("tenant_001".to_str
     .ignore_table("sys_user");
 
 let interceptor = TenantLineInterceptor::new(config);
+```
+
+#### Cache Interceptor
+Automatically caches query results for improved performance.
+
+```rust
+use akita::interceptor::cache::{CacheInterceptor, MemoryCacheProvider};
+use std::time::Duration;
+
+let interceptor = CacheInterceptor::new(Box::new(MemoryCacheProvider::new()))
+    .with_default_ttl(Duration::from_secs(300))
+    .with_cache_prefix("my_app:");
+```
+
+#### Performance Interceptor
+Monitors SQL query performance and detects slow queries.
+
+```rust
+use akita::interceptor::performance::{PerformanceInterceptor, PerformanceConfig};
+
+let interceptor = PerformanceInterceptor::new(PerformanceConfig {
+    slow_query_threshold_ms: 1000,
+    enable_metrics: true,
+});
+
+// Get metrics
+let metrics = interceptor.metrics();
+println!("Total queries: {}", metrics.total_queries);
+println!("Slow queries: {}", metrics.slow_queries);
+println!("Avg time: {:.2}ms", metrics.avg_execution_time_ms());
+```
+
+#### Cursor Pagination Interceptor
+Efficient pagination for large datasets using cursors instead of offsets.
+
+```rust
+use akita::interceptor::cursor_pagination::{CursorPaginationInterceptor, CursorPaginationRequest, CursorDirection};
+
+let interceptor = CursorPaginationInterceptor::new()
+    .with_default_limit(20)
+    .with_max_limit(100);
+
+// First page (no cursor)
+let request = CursorPaginationRequest::new(None, 10, CursorDirection::Forward);
+
+// Next page (with cursor from last result)
+let request = CursorPaginationRequest::new(Some("123".to_string()), 10, CursorDirection::Forward);
 ```
 
 ### Lambda Wrapper (Compile-time Safe Column References)

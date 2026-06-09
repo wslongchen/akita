@@ -267,7 +267,21 @@ impl SqlBuilder for PostgreSqlBuilder {
     }
 
     fn build_update_sql(&self, table: &TableName, wrapper: &Wrapper) -> Option<String> {
-        let set_clause = wrapper.build_set_clause();
+        // Build SET clause with properly quoted column names
+        let set_clause = wrapper
+            .get_set_operations()
+            .iter()
+            .map(|op| match &op.value {
+                AkitaValue::RawSql(sql_expr) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), sql_expr)
+                }
+                AkitaValue::Column(col_name) => {
+                    format!("{} = {}", self.quote_identifier(&op.column), col_name)
+                }
+                _ => format!("{} = ?", self.quote_identifier(&op.column)),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         let where_clause = wrapper.build_where_clause();
         let mut sql = format!("UPDATE {} SET {}", &table.complete_name(), set_clause);
         if !where_clause.is_empty() {

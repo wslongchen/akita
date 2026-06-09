@@ -23,10 +23,34 @@ use quote::{quote, ToTokens};
 use regex::Regex;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{AttributeArgs, FnArg, ItemFn, Pat, ReturnType};
-use crate::comm::crate_ident;
+use syn::{FnArg, ItemFn, Pat, ReturnType};
+use crate::comm::{crate_ident, AttrArg, AttrArgs};
 
-pub fn impl_sql(target_fn: &ItemFn, args: &AttributeArgs) -> TokenStream {
+/// Helper: extract a string literal from an AttrArg
+fn attr_arg_to_str(arg: &AttrArg) -> Option<String> {
+    match arg {
+        AttrArg::Lit(syn::Lit::Str(s)) => Some(s.value()),
+        AttrArg::Meta(syn::Meta::NameValue(nv)) => {
+            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = &nv.value {
+                Some(s.value())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Helper: extract a string literal value from a MetaNameValue (syn 2 uses .value instead of .lit)
+fn name_value_str(nv: &syn::MetaNameValue) -> Option<String> {
+    if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = &nv.value {
+        Some(s.value())
+    } else {
+        None
+    }
+}
+
+pub fn impl_sql(target_fn: &ItemFn, args: &AttrArgs) -> TokenStream {
     let func_name_ident = &target_fn.sig.ident;
 
     // Parsing macro parameters
@@ -38,7 +62,7 @@ pub fn impl_sql(target_fn: &ItemFn, args: &AttributeArgs) -> TokenStream {
 }
 
 /// Parse the SQL XML macro parameters
-pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
+pub fn parse_sql_xml_args(args: &AttrArgs) -> Result<SqlConfig, String> {
     if args.is_empty() || args.len() > 3 {
         return Err(format!("sql_xml macro requires 1-3 arguments, got {}", args.len()));
     }
@@ -49,7 +73,7 @@ pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
 
     for (i, arg) in args.iter().enumerate() {
         match arg {
-            syn::NestedMeta::Lit(syn::Lit::Str(lit_str)) => {
+            AttrArg::Lit(syn::Lit::Str(lit_str)) => {
                 if i == 0 {
                     xml_file = Some(lit_str.value());
                 } else if i == 1 {
@@ -58,16 +82,16 @@ pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
                     return Err("Too many string literal arguments".to_string());
                 }
             }
-            syn::NestedMeta::Meta(syn::Meta::NameValue(name_value)) => {
+            AttrArg::Meta(syn::Meta::NameValue(name_value)) => {
                 if name_value.path.is_ident("param_style") {
-                    if let syn::Lit::Str(lit_str) = &name_value.lit {
-                        param_style = match lit_str.value().as_str() {
+                    if let Some(s) = name_value_str(name_value) {
+                        param_style = match s.as_str() {
                             "positional" => Some(ParamStyle::Positional),
                             "named" => Some(ParamStyle::Named),
                             "numbered" => Some(ParamStyle::Numbered),
                             _ => return Err(format!(
                                 "Invalid param_style value: {}. Must be 'positional', 'named', or 'numbered'",
-                                lit_str.value()
+                                s
                             )),
                         };
                     } else {
@@ -80,8 +104,8 @@ pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
                     ));
                 }
             }
-            // Handle other types of literals (ignore or throw an error)
-            syn::NestedMeta::Lit(lit) => {
+            // Handle other types of literals
+            AttrArg::Lit(lit) => {
                 if i < 2 {
                     return Err(format!(
                         "Argument {} must be a string literal, got {:?}",
@@ -90,14 +114,14 @@ pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
                     ));
                 }
             }
-            // Handle other Meta types (ignore or throw errors)
-            syn::NestedMeta::Meta(syn::Meta::Path(path)) => {
+            // Handle other Meta types
+            AttrArg::Meta(syn::Meta::Path(path)) => {
                 return Err(format!(
                     "Unexpected path argument: {}. Use 'param_style = \"...\"' for named arguments",
                     path.to_token_stream()
                 ));
             }
-            syn::NestedMeta::Meta(syn::Meta::List(list)) => {
+            AttrArg::Meta(syn::Meta::List(list)) => {
                 return Err(format!(
                     "List arguments are not supported in sql_xml macro: {}",
                     list.path.to_token_stream()
@@ -115,12 +139,7 @@ pub fn parse_sql_xml_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
     })
 }
 
-pub fn parse_query_args(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
-    // Support for multiple syntaxes：
-    // 1. query("SELECT * FROM users") - Simple query Connection parameters are required
-    // 2. query(akita, "SELECT * FROM users") - Explicit akita parameters
-    // 3. query(file = "sql.xml", id = "getUser", param_style = "named") - Named parameter form
-
+pub fn parse_query_args(args: &AttrArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
     if args.is_empty() {
         return Err("query macro requires at least one argument".to_string());
     }
@@ -128,22 +147,20 @@ pub fn parse_query_args(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlC
     // Checks if it is in named argument form
     let mut has_named_args = false;
     for arg in args {
-        if let syn::NestedMeta::Meta(syn::Meta::NameValue(_)) = arg {
+        if let AttrArg::Meta(syn::Meta::NameValue(_)) = arg {
             has_named_args = true;
             break;
         }
     }
 
     if has_named_args {
-        // Named parameter form
         parse_named_query_args(args)
     } else {
-        // Positional parametric form
         parse_positional_query_args(args, target_fn)
     }
 }
 
-fn parse_named_query_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
+fn parse_named_query_args(args: &AttrArgs) -> Result<SqlConfig, String> {
     let mut file = None;
     let mut id = None;
     let mut sql = None;
@@ -152,42 +169,42 @@ fn parse_named_query_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
 
     for arg in args {
         match arg {
-            syn::NestedMeta::Meta(syn::Meta::NameValue(name_value)) => {
+            AttrArg::Meta(syn::Meta::NameValue(ref name_value)) => {
                 let arg_name = name_value.path.get_ident()
                     .ok_or_else(|| "Argument must have a valid identifier".to_string())?
                     .to_string();
 
                 match arg_name.as_str() {
                     "file" => {
-                        if let syn::Lit::Str(lit_str) = &name_value.lit {
-                            file = Some(lit_str.value());
+                        if let Some(s) = name_value_str(name_value) {
+                            file = Some(s);
                         } else {
                             return Err("file must be a string literal".to_string());
                         }
                     }
                     "id" => {
-                        if let syn::Lit::Str(lit_str) = &name_value.lit {
-                            id = Some(lit_str.value());
+                        if let Some(s) = name_value_str(name_value) {
+                            id = Some(s);
                         } else {
                             return Err("id must be a string literal".to_string());
                         }
                     }
                     "sql" => {
-                        if let syn::Lit::Str(lit_str) = &name_value.lit {
-                            sql = Some(lit_str.value());
+                        if let Some(s) = name_value_str(name_value) {
+                            sql = Some(s);
                         } else {
                             return Err("sql must be a string literal".to_string());
                         }
                     }
                     "param_style" => {
-                        if let syn::Lit::Str(lit_str) = &name_value.lit {
-                            param_style = match lit_str.value().as_str() {
+                        if let Some(s) = name_value_str(name_value) {
+                            param_style = match s.as_str() {
                                 "positional" => Some(ParamStyle::Positional),
                                 "named" => Some(ParamStyle::Named),
                                 "numbered" => Some(ParamStyle::Numbered),
                                 _ => return Err(format!(
                                     "Invalid param_style value: {}. Must be 'positional', 'named', or 'numbered'",
-                                    lit_str.value()
+                                    s
                                 )),
                             };
                         } else {
@@ -195,8 +212,8 @@ fn parse_named_query_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
                         }
                     }
                     "akita" => {
-                        if let syn::Lit::Str(lit_str) = &name_value.lit {
-                            akita_name = Some(lit_str.value());
+                        if let Some(s) = name_value_str(name_value) {
+                            akita_name = Some(s);
                         } else {
                             return Err("akita must be a string literal".to_string());
                         }
@@ -214,13 +231,11 @@ fn parse_named_query_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
 
     // Decision mode
     if let (Some(file), Some(id)) = (file, id) {
-        // XML
         Ok(SqlConfig {
             mode: SqlMode::Xml { file_path: file, sql_id: id },
             param_style,
         })
     } else if let Some(sql_str) = sql {
-        // An explicit SQL schema
         if let Some(akita) = akita_name {
             Ok(SqlConfig {
                 mode: SqlMode::Explicit{ conn: ConnectionInfo::new(&akita), sql: sql_str },
@@ -236,8 +251,7 @@ fn parse_named_query_args(args: &AttributeArgs) -> Result<SqlConfig, String> {
     }
 }
 
-pub fn parse_positional_query_args(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
-    // Delegate to standard sql macro parsing
+pub fn parse_positional_query_args(args: &AttrArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
     parse_sql_config(args, target_fn)
 }
 
@@ -290,12 +304,11 @@ pub enum ParamStyle {
     Numbered,    // $1, $2 Number parameters
 }
 
-fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
+fn parse_sql_config(args: &AttrArgs, target_fn: &ItemFn) -> Result<SqlConfig, String> {
     match args.len() {
         1 => {
             let arg = &args[0];
-            if let syn::NestedMeta::Lit(syn::Lit::Str(lit_str)) = arg {
-                let value = lit_str.value();
+            if let Some(value) = attr_arg_to_str(arg) {
                 let param_style = detect_param_style(&value);
 
                 // Check for the &self argument
@@ -304,10 +317,9 @@ fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfi
                 });
 
                 if has_self {
-                    // We have the &self argument → Explicit mode, and the default field name is "akita"
                     Ok(SqlConfig {
                         mode: SqlMode::Explicit {
-                            conn: ConnectionInfo::new("akita"),  // Default field name
+                            conn: ConnectionInfo::new("akita"),
                             sql: value,
                         },
                         param_style,
@@ -325,7 +337,6 @@ fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfi
                             })
                         }
                         None => {
-                            // No akita parameters
                             let func_name = &target_fn.sig.ident;
                             Err(format!(
                                 "Function '{}' requires a connection parameter (Akita, AkitaTransaction, or DbDriver). \
@@ -344,8 +355,7 @@ fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfi
             let arg2 = &args[1];
 
             let akita_ident = arg1.to_token_stream().to_string();
-            if let syn::NestedMeta::Lit(syn::Lit::Str(sql_lit)) = arg2 {
-                let value = sql_lit.value();
+            if let Some(value) = attr_arg_to_str(arg2) {
                 let param_style = detect_param_style(&value);
 
                 Ok(SqlConfig {
@@ -357,27 +367,21 @@ fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfi
             }
         }
         3 => {
-            // New: Support for specifying XML files
             let arg1 = &args[0];
             let arg2 = &args[1];
             let arg3 = &args[2];
 
-            if let (
-                syn::NestedMeta::Lit(syn::Lit::Str(file_path)),
-                syn::NestedMeta::Lit(syn::Lit::Str(sql_id)),
-            ) = (arg1, arg2) {
-                let param_style = if let syn::NestedMeta::Meta(meta) = arg3 {
-                    if let syn::Meta::NameValue(name_value) = meta {
-                        if name_value.path.is_ident("param_style") {
-                            if let syn::Lit::Str(lit_str) = &name_value.lit {
-                                match lit_str.value().as_str() {
-                                    "positional" => Some(ParamStyle::Positional),
-                                    "named" => Some(ParamStyle::Named),
-                                    "numbered" => Some(ParamStyle::Numbered),
-                                    _ => None,
-                                }
-                            } else {
-                                None
+            let fp = attr_arg_to_str(arg1);
+            let si = attr_arg_to_str(arg2);
+            if let (Some(file_path), Some(sql_id)) = (fp, si) {
+                let param_style = if let AttrArg::Meta(syn::Meta::NameValue(name_value)) = arg3 {
+                    if name_value.path.is_ident("param_style") {
+                        if let Some(s) = name_value_str(name_value) {
+                            match s.as_str() {
+                                "positional" => Some(ParamStyle::Positional),
+                                "named" => Some(ParamStyle::Named),
+                                "numbered" => Some(ParamStyle::Numbered),
+                                _ => None,
                             }
                         } else {
                             None
@@ -390,7 +394,7 @@ fn parse_sql_config(args: &AttributeArgs, target_fn: &ItemFn) -> Result<SqlConfi
                 };
 
                 Ok(SqlConfig {
-                    mode: SqlMode::Xml { file_path: file_path.value(), sql_id: sql_id.value() },
+                    mode: SqlMode::Xml { file_path, sql_id },
                     param_style,
                 })
             } else {
