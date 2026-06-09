@@ -448,11 +448,14 @@ impl AkitaInterceptor for TrackableLoggingInterceptor {
 
 pub fn create_test_akita_cfg() -> AkitaConfig {
     let database = Database {
-        ip: "127.0.0.1".to_string(),
-        username: "root".to_string(),
-        password: "MIMAlongchen520".to_string(),
-        db_name: "test".to_string(),
-        port: 3306,
+        ip: std::env::var("AKITA_TEST_DB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+        username: std::env::var("AKITA_TEST_DB_USER").unwrap_or_else(|_| "root".to_string()),
+        password: std::env::var("AKITA_TEST_DB_PASSWORD").unwrap_or_default(),
+        db_name: std::env::var("AKITA_TEST_DB_NAME").unwrap_or_else(|_| "test".to_string()),
+        port: std::env::var("AKITA_TEST_DB_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(3306),
     };
 
     let cfg = AkitaConfig::default()
