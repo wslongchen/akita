@@ -19,6 +19,7 @@
  *
  */
 
+use base64::Engine;
 use bigdecimal::{BigDecimal};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use indexmap::IndexMap;
@@ -175,7 +176,7 @@ impl Serialize for AkitaValue {
             AkitaValue::Blob(blob) => {
                 let mut state = serializer.serialize_struct("AkitaValue", 2)?;
                 state.serialize_field("type", &AkitaValueType::Blob)?;
-                state.serialize_field("value", &base64::encode(blob))?;
+                state.serialize_field("value", &base64::engine::general_purpose::STANDARD.encode(blob))?;
                 state.end()
             }
             AkitaValue::Char(c) => {
@@ -335,7 +336,7 @@ impl<'de> Deserialize<'de> for AkitaValue {
             AkitaValueType::Blob => {
                 let s = String::deserialize(helper.value)
                     .map_err(de::Error::custom)?;
-                let bytes = base64::decode(&s)
+                let bytes = base64::engine::general_purpose::STANDARD.decode(&s)
                     .map_err(de::Error::custom)?;
                 Ok(AkitaValue::Blob(bytes))
             }
