@@ -18,10 +18,10 @@
  *  *
  *
  */
-use std::collections::HashSet;
-use std::hash::{Hasher, Hash};
 use regex::Regex;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 
 use crate::{types::SqlType, AkitaValue};
@@ -42,10 +42,9 @@ pub trait Table {
     /// extract the table name from a struct
     fn table_name() -> TableName;
 
-     /// extract the columns from struct
-     fn fields() -> Vec<FieldName>;
+    /// extract the columns from struct
+    fn fields() -> Vec<FieldName>;
 }
-
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableName {
@@ -103,10 +102,11 @@ impl TableName {
         } else {
             TableName::default()
         }
-
     }
-    
-    pub fn name(&self) -> String { self.name.to_string() }
+
+    pub fn name(&self) -> String {
+        self.name.to_string()
+    }
 
     pub fn parse_from_sql(sql: &str) -> Vec<TableName> {
         let normalized_sql = Self::normalize_sql(sql);
@@ -184,7 +184,10 @@ impl TableName {
     }
 
     fn parse_select(sql: &str) -> Option<Vec<TableName>> {
-        let re_from = Regex::new(r"(?i)FROM\s+([^;]+?)(?:\s+(?:WHERE|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET))?(?:;|$)").unwrap();
+        let re_from = Regex::new(
+            r"(?i)FROM\s+([^;]+?)(?:\s+(?:WHERE|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET))?(?:;|$)",
+        )
+        .unwrap();
 
         if let Some(caps) = re_from.captures(sql) {
             let from_clause = &caps[1];
@@ -192,9 +195,12 @@ impl TableName {
             let tables = Self::split_table_list(from_clause);
 
             if !tables.is_empty() {
-                return Some(tables.into_iter()
-                    .map(|v| TableName::from(v.as_str()))
-                    .collect());
+                return Some(
+                    tables
+                        .into_iter()
+                        .map(|v| TableName::from(v.as_str()))
+                        .collect(),
+                );
             }
         }
 
@@ -264,16 +270,15 @@ impl TableName {
         let parts: Vec<&str> = s.split('.').collect();
 
         match parts.len() {
-            1 => (None, parts[0].to_string()),  // table
-            2 => (Some(parts[0].to_string()), parts[1].to_string()),  // schema.table
+            1 => (None, parts[0].to_string()),                       // table
+            2 => (Some(parts[0].to_string()), parts[1].to_string()), // schema.table
             _ => {
                 // For situations like db.schema.table, take the last two parts
                 let len = parts.len();
-                (Some(parts[len-2].to_string()), parts[len-1].to_string())
+                (Some(parts[len - 2].to_string()), parts[len - 1].to_string())
             }
         }
     }
-
 }
 
 /// Field
@@ -294,6 +299,108 @@ pub struct FieldName {
 pub struct Fill {
     pub mode: String,
     pub value: Option<AkitaValue>,
+    pub strategy: FillStrategy,
+}
+
+/// Fill strategy for automatic field population.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum FillStrategy {
+    /// Fixed value - use the value in `Fill.value`
+    Fixed,
+    /// Current timestamp (UTC)
+    Timestamp,
+    /// UUID v4
+    Uuid,
+    /// Snowflake ID
+    Snowflake,
+    /// Custom function name (resolved at runtime)
+    Custom(String),
+}
+
+impl Default for FillStrategy {
+    fn default() -> Self {
+        FillStrategy::Fixed
+    }
+}
+
+impl FillStrategy {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "timestamp" | "now" | "current_time" => FillStrategy::Timestamp,
+            "uuid" | "uuid_v4" => FillStrategy::Uuid,
+            "snowflake" | "snowflake_id" => FillStrategy::Snowflake,
+            "fixed" | "default" => FillStrategy::Fixed,
+            custom => FillStrategy::Custom(custom.to_string()),
+        }
+    }
+}
+
+impl Fill {
+    /// Create a new Fill with fixed value
+    pub fn fixed(mode: &str, value: AkitaValue) -> Self {
+        Self {
+            mode: mode.to_string(),
+            value: Some(value),
+            strategy: FillStrategy::Fixed,
+        }
+    }
+
+    /// Create a new Fill with timestamp strategy
+    pub fn timestamp(mode: &str) -> Self {
+        Self {
+            mode: mode.to_string(),
+            value: None,
+            strategy: FillStrategy::Timestamp,
+        }
+    }
+
+    /// Create a new Fill with UUID strategy
+    pub fn uuid(mode: &str) -> Self {
+        Self {
+            mode: mode.to_string(),
+            value: None,
+            strategy: FillStrategy::Uuid,
+        }
+    }
+
+    /// Create a new Fill with snowflake strategy
+    pub fn snowflake(mode: &str) -> Self {
+        Self {
+            mode: mode.to_string(),
+            value: None,
+            strategy: FillStrategy::Snowflake,
+        }
+    }
+
+    /// Check if this fill should be applied for the given operation
+    pub fn should_apply(&self, operation: &str) -> bool {
+        match self.mode.as_str() {
+            "default" => true,
+            "insert" => operation == "insert",
+            "update" => operation == "update",
+            "insert_update" => operation == "insert" || operation == "update",
+            _ => false,
+        }
+    }
+
+    /// Get the fill value, resolving strategy if needed
+    pub fn resolve_value(&self) -> Option<AkitaValue> {
+        match &self.strategy {
+            FillStrategy::Fixed => self.value.clone(),
+            FillStrategy::Timestamp => Some(AkitaValue::Timestamp(chrono::Utc::now())),
+            FillStrategy::Uuid => Some(AkitaValue::Text(uuid::Uuid::new_v4().to_string())),
+            FillStrategy::Snowflake => {
+                // Snowflake ID generation - use a simple timestamp-based ID
+                // In production, this should use a proper snowflake generator
+                let now = chrono::Utc::now().timestamp_millis();
+                Some(AkitaValue::Bigint(now))
+            }
+            FillStrategy::Custom(_name) => {
+                // Custom functions are resolved at runtime via interceptor
+                self.value.clone()
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -301,7 +408,7 @@ pub enum IdentifierType {
     Auto,
     Input,
     AssignId,
-    AssignUuid
+    AssignUuid,
 }
 
 impl IdentifierType {
@@ -312,16 +419,15 @@ impl IdentifierType {
             "input" => Self::Input,
             "assign_id" => Self::AssignId,
             "assign_uuid" => Self::AssignUuid,
-            _=> Self::Auto,
+            _ => Self::Auto,
         }
-
     }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum FieldType {
     TableId(IdentifierType),
-    TableField
+    TableField,
 }
 
 impl FieldName {
@@ -377,16 +483,12 @@ impl FieldName {
             FieldType::TableField => false,
         }
     }
-    
+
     pub fn is_auto_increment(&self) -> bool {
         match &self.field_type {
-            FieldType::TableId(id_type) => { 
-                match id_type {
-                    IdentifierType::Auto => {
-                        true
-                    }
-                    _ => false,
-                }
+            FieldType::TableId(id_type) => match id_type {
+                IdentifierType::Auto => true,
+                _ => false,
             },
             FieldType::TableField => false,
         }
@@ -400,10 +502,6 @@ impl FieldName {
         }
     }
 }
-
-
-
-
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TableInfo {
@@ -478,7 +576,6 @@ impl Capacity {
             Capacity::Range(_whole, _decimal) => format!("({}, {})", _whole, _decimal),
         }
     }
-
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -493,12 +590,11 @@ impl ColumnConstraint {
     pub fn sql_format(&self) -> String {
         match self {
             ColumnConstraint::NotNull => "not null".into(),
-            ColumnConstraint::DefaultValue(v) => v.sql_format(), 
+            ColumnConstraint::DefaultValue(v) => v.sql_format(),
             ColumnConstraint::AutoIncrement(_) => "auto_increment".into(),
         }
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Literal {
@@ -559,7 +655,6 @@ impl<'a> From<&'a str> for Literal {
     }
 }
 
-
 impl ColumnSpecification {
     pub fn get_limit(&self) -> Option<i32> {
         match self.capacity {
@@ -587,7 +682,6 @@ pub struct ForeignKey {
     pub referred_columns: Vec<FieldName>,
 }
 
-
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum TableKey {
     PrimaryKey(Key),
@@ -600,7 +694,7 @@ impl TableKey {
     pub fn is_pri(&self) -> bool {
         match self {
             TableKey::PrimaryKey(_) => true,
-            _ => false
+            _ => false,
         }
     }
 }

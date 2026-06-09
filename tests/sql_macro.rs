@@ -33,13 +33,13 @@ use std::io::Write;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 
-
 // Use the existing create_test_akita function
 pub fn init_test_db() -> Result<Akita, AkitaError> {
     let cfg = create_test_akita_cfg();
     let builder = InterceptorBuilder::new()
         .register(Arc::new(LoggingInterceptor::new()))
-        .enable("logging").unwrap();
+        .enable("logging")
+        .unwrap();
 
     let chain = builder.build().unwrap();
     Ok(Akita::new(cfg).unwrap().with_interceptor_chain(chain))
@@ -146,16 +146,28 @@ fn test_sql_macro_with_xml() -> Result<(), AkitaError> {
     // Preparing parameters
     let mut params = IndexMap::new();
     params.insert("pk".to_string(), test_user.pk.clone().into_value());
-    params.insert("user_type".to_string(), test_user.user_type.clone().into_value());
+    params.insert(
+        "user_type".to_string(),
+        test_user.user_type.clone().into_value(),
+    );
     params.insert("name".to_string(), test_user.name.clone().into_value());
-    params.insert("headline".to_string(), test_user.headline.unwrap().into_value());
+    params.insert(
+        "headline".to_string(),
+        test_user.headline.unwrap().into_value(),
+    );
     params.insert("tenant_id".to_string(), test_user.tenant_id.into_value());
     params.insert("status".to_string(), test_user.status.into_value());
     params.insert("level".to_string(), test_user.level.into_value());
     params.insert("age".to_string(), test_user.age.into_value());
-    params.insert("birthday".to_string(), test_user.birthday.unwrap().into_value());
+    params.insert(
+        "birthday".to_string(),
+        test_user.birthday.unwrap().into_value(),
+    );
     params.insert("gender".to_string(), test_user.gender.into_value());
-    params.insert("token".to_string(), test_user.url_token.clone().into_value());
+    params.insert(
+        "token".to_string(),
+        test_user.url_token.clone().into_value(),
+    );
 
     let result = akita.exec_drop(&sql, Params::Named(params));
     assert!(result.is_ok());
@@ -168,38 +180,38 @@ fn test_sql_macro_with_xml() -> Result<(), AkitaError> {
 fn test_various_sql_macros() -> Result<(), AkitaError> {
     let akita = init_test_db()?;
     struct Repository<'a> {
-        akita: &'a Akita
+        akita: &'a Akita,
     }
-    
-    impl <'a> Repository<'a> {
+
+    impl<'a> Repository<'a> {
         // Testing the insert macro
         #[insert("INSERT INTO t_system_user (pk, name, status, token) VALUES (?, ?, ?, ?)")]
-        fn insert_user_direct(&self, pk: &str, name: &str, status: u8, token: &str) -> Result<u64, AkitaError> {
+        fn insert_user_direct(
+            &self,
+            pk: &str,
+            name: &str,
+            status: u8,
+            token: &str,
+        ) -> Result<u64, AkitaError> {
         }
 
         // Test the select_one macro
         #[select_one("SELECT * FROM t_system_user WHERE id = ?")]
-        fn get_user_by_id(&self, id: i64) -> Result<Option<User>, AkitaError> {
-        }
+        fn get_user_by_id(&self, id: i64) -> Result<Option<User>, AkitaError> {}
 
         // Test the select_many macro
         #[list("SELECT * FROM t_system_user ORDER BY id limit 10")]
-        fn get_all_users(&self) -> Result<Vec<User>, AkitaError> {
-        }
+        fn get_all_users(&self) -> Result<Vec<User>, AkitaError> {}
 
         // Testing the update macro
         #[update("UPDATE t_system_user SET status = ? WHERE id = ?")]
-        fn update_user_status(&self, status: u8, id: i64) -> Result<u64, AkitaError> {
-        }
+        fn update_user_status(&self, status: u8, id: i64) -> Result<u64, AkitaError> {}
 
         // Testing the delete macro
         #[delete("DELETE FROM t_system_user WHERE id = ?")]
-        fn delete_user(&self, id: i64) -> Result<u64, AkitaError> {
-        }
+        fn delete_user(&self, id: i64) -> Result<u64, AkitaError> {}
     }
-    let repo = Repository {
-        akita: &akita
-    };
+    let repo = Repository { akita: &akita };
 
     // Executing tests
     let test_user = create_test_user();
@@ -207,7 +219,7 @@ fn test_various_sql_macros() -> Result<(), AkitaError> {
         &test_user.pk,
         &test_user.name.clone().unwrap_or_default(),
         test_user.status,
-        &test_user.url_token
+        &test_user.url_token,
     )?;
     assert!(user_id > 0);
 
@@ -239,19 +251,28 @@ fn test_various_sql_macros() -> Result<(), AkitaError> {
 fn test_named_parameters() -> Result<(), AkitaError> {
     let akita = init_test_db()?;
     struct Repository<'a> {
-        akita: &'a Akita
+        akita: &'a Akita,
     }
-    let repo = Repository {
-        akita: &akita
-    };
-    impl <'a> Repository<'a> {
+    let repo = Repository { akita: &akita };
+    impl<'a> Repository<'a> {
         // Macros with named parameters
         #[sql("INSERT INTO t_system_user (pk, name, status, token) VALUES (:pk, :name, :status, :token)")]
-        fn insert_user_named(&self,pk: &str, name: &str, status: u8,  token: &str) -> Result<u64, AkitaError> {
+        fn insert_user_named(
+            &self,
+            pk: &str,
+            name: &str,
+            status: u8,
+            token: &str,
+        ) -> Result<u64, AkitaError> {
         }
 
         #[sql("SELECT * FROM t_system_user WHERE name LIKE :name AND status = :status AND level = :level")]
-        fn find_users(&self, name: &str, status: u8, level: Priority) -> Result<Vec<User>, AkitaError> {
+        fn find_users(
+            &self,
+            name: &str,
+            status: u8,
+            level: Priority,
+        ) -> Result<Vec<User>, AkitaError> {
         }
     }
 
@@ -260,7 +281,7 @@ fn test_named_parameters() -> Result<(), AkitaError> {
         &test_user.pk,
         &test_user.name.clone().unwrap_or_default(),
         test_user.status,
-        &test_user.url_token
+        &test_user.url_token,
     )?;
     assert!(user_id > 0);
 
@@ -276,7 +297,12 @@ fn test_named_parameters() -> Result<(), AkitaError> {
 fn test_explicit_akita_parameter() -> Result<(), AkitaError> {
     let mut akita = init_test_db()?;
     #[sql(akita, "INSERT INTO t_system_user (pk, name, token) VALUES (?, ?, ?)")]
-    fn insert_with_akita(akita: &Akita, pk: &str, name: &str, token: &str) -> Result<u64, AkitaError> {
+    fn insert_with_akita(
+        akita: &Akita,
+        pk: &str,
+        name: &str,
+        token: &str,
+    ) -> Result<u64, AkitaError> {
         // Macro generation code
     }
 
@@ -285,7 +311,7 @@ fn test_explicit_akita_parameter() -> Result<(), AkitaError> {
         &mut akita,
         &test_user.pk,
         &test_user.name.clone().unwrap_or_default(),
-        &test_user.url_token
+        &test_user.url_token,
     )?;
     assert!(user_id > 0);
 
@@ -335,7 +361,8 @@ fn test_xml_sql_loader_cache() -> Result<(), AkitaError> {
 // Test 7: SQL formatting functionality
 #[test]
 fn test_sql_formatting() {
-    let unformatted_sql = "SELECT * FROM t_system_user WHERE id = ? AND status = ? ORDER BY created_at DESC";
+    let unformatted_sql =
+        "SELECT * FROM t_system_user WHERE id = ? AND status = ? ORDER BY created_at DESC";
 
     let config = XmlSqlLoaderConfig {
         sql_formatting: true,
@@ -369,7 +396,10 @@ fn test_parameter_replacement() -> Result<(), AkitaError> {
     params.insert("status", SqlParameter::Text("1".to_string()));
 
     let replaced = loader.replace_sql_parameters(sql, &params)?;
-    assert_eq!(replaced, "SELECT * FROM t_system_user WHERE id = 123 AND status = '1'");
+    assert_eq!(
+        replaced,
+        "SELECT * FROM t_system_user WHERE id = 123 AND status = '1'"
+    );
 
     // Testing for missing parameters
     let mut missing_params = HashMap::new();
@@ -419,21 +449,33 @@ fn test_error_handling() -> Result<(), AkitaError> {
 fn test_integration_crud() -> Result<(), AkitaError> {
     let akita = init_test_db()?;
     struct Repository<'a> {
-        akita: &'a Akita
+        akita: &'a Akita,
     }
-    let repo = Repository {
-        akita: &akita
-    };
-    impl <'a> Repository<'a> {
+    let repo = Repository { akita: &akita };
+    impl<'a> Repository<'a> {
         // Define CRUD operations
         #[insert("INSERT INTO t_system_user (pk, name, status, token) VALUES (?, ?, ?, ?)")]
-        fn create_user(&self, pk: &str, name: &str, status: u8, token: &str) -> Result<u64, AkitaError> {}
+        fn create_user(
+            &self,
+            pk: &str,
+            name: &str,
+            status: u8,
+            token: &str,
+        ) -> Result<u64, AkitaError> {
+        }
 
         #[select_one("SELECT * FROM t_system_user WHERE id = ?")]
         fn read_user(&self, id: i64) -> Result<Option<User>, AkitaError> {}
 
         #[update("UPDATE t_system_user SET name = ?, status = ?, level = ? WHERE id = ?")]
-        fn update_user(&self, name: &str, status: u8, level: Priority, id: i64) -> Result<u64, AkitaError> {}
+        fn update_user(
+            &self,
+            name: &str,
+            status: u8,
+            level: Priority,
+            id: i64,
+        ) -> Result<u64, AkitaError> {
+        }
 
         #[delete("DELETE FROM t_system_user WHERE id = ?")]
         fn delete_user(&self, id: i64) -> Result<u64, AkitaError> {}
@@ -450,14 +492,14 @@ fn test_integration_crud() -> Result<(), AkitaError> {
         &test_user1.pk,
         &test_user1.name.clone().unwrap_or_default(),
         test_user1.status,
-        &test_user1.url_token
+        &test_user1.url_token,
     )?;
 
     let id2 = repo.create_user(
         &test_user2.pk,
         &test_user2.name.clone().unwrap_or_default(),
         test_user2.status,
-        &test_user2.url_token
+        &test_user2.url_token,
     )?;
 
     // READING
@@ -482,7 +524,7 @@ fn test_integration_crud() -> Result<(), AkitaError> {
 
     let remaining_users = repo.list_users()?;
     assert_eq!(remaining_users.len(), 1);
-    
+
     Ok(())
 }
 
@@ -494,10 +536,21 @@ fn test_transaction_support() -> Result<(), AkitaError> {
     // Use macros in transactions
     let result = akita.start_transaction().and_then(|mut tx| {
         #[sql("INSERT INTO t_system_user (pk, name, token) VALUES (?, ?, ?)")]
-        fn insert_in_tx(tx: &mut AkitaTransaction, pk: &str, name: &str, token: &str) -> Result<u64, AkitaError> {}
+        fn insert_in_tx(
+            tx: &mut AkitaTransaction,
+            pk: &str,
+            name: &str,
+            token: &str,
+        ) -> Result<u64, AkitaError> {
+        }
 
         let test_user = create_test_user();
-        let id = insert_in_tx(&mut tx, &test_user.pk, &test_user.name.clone().unwrap_or_default(), &test_user.url_token)?;
+        let id = insert_in_tx(
+            &mut tx,
+            &test_user.pk,
+            &test_user.name.clone().unwrap_or_default(),
+            &test_user.url_token,
+        )?;
 
         #[sql("SELECT * FROM t_system_user WHERE id = ?")]
         fn select_in_tx(tx: &mut AkitaTransaction, id: i64) -> Result<Option<User>, AkitaError> {}
@@ -541,16 +594,28 @@ fn test_execute_xml_sql() -> Result<(), AkitaError> {
     let params = Params::Named({
         let mut map = IndexMap::new();
         map.insert("pk".to_string(), test_user.pk.clone().into_value());
-        map.insert("user_type".to_string(), test_user.user_type.clone().into_value());
+        map.insert(
+            "user_type".to_string(),
+            test_user.user_type.clone().into_value(),
+        );
         map.insert("name".to_string(), test_user.name.clone().into_value());
-        map.insert("headline".to_string(), test_user.headline.unwrap().into_value());
+        map.insert(
+            "headline".to_string(),
+            test_user.headline.unwrap().into_value(),
+        );
         map.insert("tenant_id".to_string(), test_user.tenant_id.into_value());
         map.insert("status".to_string(), test_user.status.into_value());
         map.insert("level".to_string(), test_user.level.into_value());
         map.insert("age".to_string(), test_user.age.into_value());
-        map.insert("birthday".to_string(), test_user.birthday.unwrap().into_value());
+        map.insert(
+            "birthday".to_string(),
+            test_user.birthday.unwrap().into_value(),
+        );
         map.insert("gender".to_string(), test_user.gender.into_value());
-        map.insert("token".to_string(), test_user.url_token.clone().into_value());
+        map.insert(
+            "token".to_string(),
+            test_user.url_token.clone().into_value(),
+        );
         map
     });
 

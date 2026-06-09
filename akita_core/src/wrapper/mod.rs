@@ -16,8 +16,12 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+pub mod lambda;
+pub mod subquery;
 mod wrapper;
 
+pub use lambda::LambdaWrapper;
+pub use subquery::SubQuery;
 pub use wrapper::*;

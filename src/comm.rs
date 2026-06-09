@@ -16,18 +16,21 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use akita_core::{
+    AkitaValue, DetectionResult, InterceptorType, IntoAkitaValue, OperationType, Params, Rows,
+    TableName, Wrapper,
+};
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
-use akita_core::{AkitaValue, DetectionResult, InterceptorType, IntoAkitaValue, OperationType, Params, Rows, TableName, Wrapper};
 
 /// Query result type
 pub enum ExecuteResult {
     Rows(Rows),
     AffectedRows(u64),
-    None
+    None,
 }
 
 impl ExecuteResult {
@@ -38,7 +41,7 @@ impl ExecuteResult {
             _ => 0,
         }
     }
-    
+
     pub fn affected_rows(&self) -> u64 {
         match self {
             ExecuteResult::Rows(rows) => rows.len() as u64,
@@ -46,22 +49,19 @@ impl ExecuteResult {
             _ => 0,
         }
     }
-    
-    
+
     pub fn rows(self) -> Rows {
         match self {
             ExecuteResult::Rows(rows) => rows,
             _ => Rows::new(),
         }
     }
-    
 }
 
 /// Execution context
 #[allow(unused)]
 pub struct ExecuteContext {
     // ===== BASIC INFORMATION SET AT THE START OF THE QUERY =====
-
     /// Raw SQL - Set by the caller at the start of the query
     original_sql: String,
 
@@ -87,12 +87,10 @@ pub struct ExecuteContext {
     wrapper: Wrapper,
 
     // ===== Execution information (set during execution) =====
-
     /// Start time - Set at the start of the query
     start_time: Instant,
 
     // ===== Control information (set during interceptor execution) =====
-
     /// Metadata - A container that passes data between interceptors
     metadata: HashMap<String, AkitaValue>,
 
@@ -108,7 +106,6 @@ pub struct ExecuteContext {
     connection_id: Option<u32>,
 
     // ===== Performance metrics (collected during execution) =====
-
     /// Performance metrics - Document the time spent at each stage of query execution
     metrics: QueryMetrics,
 
@@ -249,7 +246,6 @@ impl ExecuteContext {
     pub fn set_detection_result(&mut self, result: DetectionResult) {
         self.detection_result = Some(result);
     }
-
 
     pub fn set_final_sql(&mut self, final_sql: String) {
         self.final_sql = final_sql;

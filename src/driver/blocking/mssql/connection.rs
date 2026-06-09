@@ -16,7 +16,7 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 use crate::config::AkitaConfig;
 use crate::database_err;
@@ -26,8 +26,6 @@ use crate::errors::AkitaError;
 
 pub type MssqlConnection = r2d2::PooledConnection<MssqlConnectionManager>;
 pub type MssqlPool = r2d2::Pool<MssqlConnectionManager>;
-
-
 
 /// Mssql Connection Manager
 pub struct MssqlConnectionManager {
@@ -70,8 +68,6 @@ impl r2d2::ManageConnection for MssqlConnectionManager {
     }
 }
 
-
-
 /// Initialize the SQL Server connection pool
 pub fn init_mssql_pool(cfg: AkitaConfig) -> Result<MssqlPool, AkitaError> {
     let manager = MssqlConnectionManager::new(&cfg)?;
@@ -85,16 +81,18 @@ pub fn init_mssql_pool(cfg: AkitaConfig) -> Result<MssqlPool, AkitaError> {
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            database_err!(format!("Failed to create SQL Server connection pool: {}", e))
+            database_err!(format!(
+                "Failed to create SQL Server connection pool: {}",
+                e
+            ))
         })?;
 
-    let conn = pool.get().map_err(|e| {
-        database_err!(format!("Failed to get connection from pool: {}", e))
-    })?;
+    let conn = pool
+        .get()
+        .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
 
-    conn.query("SELECT 1", &[]).map_err(|e| {
-        database_err!(format!("SQL Server connection test failed: {}", e))
-    })?;
+    conn.query("SELECT 1", &[])
+        .map_err(|e| database_err!(format!("SQL Server connection test failed: {}", e)))?;
 
     Ok(pool)
 }

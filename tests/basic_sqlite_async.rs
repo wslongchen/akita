@@ -20,34 +20,39 @@
  */
 #![cfg(feature = "sqlite-async")]
 
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task;
 mod common;
-use common::*;
 use akita::prelude::*;
-use akita::prelude::{Akita, AkitaConfig, AkitaError, Wrapper, SqlExpr};
-const SQLITE_PATH: &str = "/Users/mrpan/Documents/working/akita/examples/akita.sqlite3";
-
+use akita::prelude::{Akita, AkitaConfig, AkitaError, SqlExpr, Wrapper};
+use common::*;
+const SQLITE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/akita.sqlite3");
 
 #[cfg(all(feature = "sqlite-async"))]
 async fn create_akita() -> Result<Akita, AkitaError> {
     let builder = AsyncInterceptorBuilder::new()
         .register(Arc::new(LoggingInterceptor::new()))
-        .enable("logging").unwrap();
+        .enable("logging")
+        .unwrap();
 
     let chain = builder.build().unwrap();
-    let cfg = AkitaConfig::new().url(SQLITE_PATH).username("sa").password("password");
+    let cfg = AkitaConfig::new()
+        .url(SQLITE_PATH)
+        .username("sa")
+        .password("password");
     Ok(Akita::new(cfg).await.unwrap().with_interceptor_chain(chain))
 }
-
 
 #[tokio::test]
 #[cfg(feature = "sqlite-async")]
 async fn test_connection_creation() {
     let result = create_akita().await;
-    assert!(result.is_ok(), "The database connection creation should be successful {}", result.err().unwrap());
+    assert!(
+        result.is_ok(),
+        "The database connection creation should be successful {}",
+        result.err().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -57,10 +62,17 @@ async fn test_single_insert() {
     let user = create_test_user();
 
     let result = akita.save(&user).await;
-    assert!(result.is_ok(), "The single insertion should succeed:{}",result.err().unwrap());
+    assert!(
+        result.is_ok(),
+        "The single insertion should succeed:{}",
+        result.err().unwrap()
+    );
 
     let insert_id: Option<i32> = result.unwrap();
-    assert!(insert_id.is_some(), "The insertion should return the generated ID");
+    assert!(
+        insert_id.is_some(),
+        "The insertion should return the generated ID"
+    );
 }
 
 #[tokio::test]
@@ -68,11 +80,29 @@ async fn test_single_insert() {
 async fn test_chain() {
     let akita = create_akita().await.unwrap();
     let user = create_test_user();
-    let query = akita.query_builder::<User>().eq("name", "Jack").limit(1).list().await;
-    assert!(query.is_ok(), "The query should succeed.:{}",query.err().unwrap());
+    let query = akita
+        .query_builder::<User>()
+        .eq("name", "Jack")
+        .limit(1)
+        .list()
+        .await;
+    assert!(
+        query.is_ok(),
+        "The query should succeed.:{}",
+        query.err().unwrap()
+    );
 
-    let update = akita.update_builder::<User>().eq("name", "Jack").set("tenant_id", 1111).update(&user).await;
-    assert!(update.is_ok(), "The single change should succeed:{}",update.err().unwrap());
+    let update = akita
+        .update_builder::<User>()
+        .eq("name", "Jack")
+        .set("tenant_id", 1111)
+        .update(&user)
+        .await;
+    assert!(
+        update.is_ok(),
+        "The single change should succeed:{}",
+        update.err().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -84,7 +114,11 @@ async fn test_batch_insert() {
         users.push(create_test_user());
     }
     let result = akita.save_batch::<_, _>(&users).await;
-    assert!(result.is_ok(), "The bulk insert should succeed{}", result.err().unwrap());
+    assert!(
+        result.is_ok(),
+        "The bulk insert should succeed{}",
+        result.err().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -111,8 +145,20 @@ async fn test_update_by_wrapper() {
     let akita = create_akita().await.unwrap();
     let user = create_test_user();
 
-    let result = akita.update(&user, Wrapper::new().set("headline", SqlExpr("date()".to_string())).set("age", SqlExpr("age+100".to_string())).eq("id", 537283)).await;
-    assert!(result.is_ok(), "Updating via Wrapper should succeed{}", result.err().unwrap());
+    let result = akita
+        .update(
+            &user,
+            Wrapper::new()
+                .set("headline", SqlExpr("date()".to_string()))
+                .set("age", SqlExpr("age+100".to_string()))
+                .eq("id", 537283),
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "Updating via Wrapper should succeed{}",
+        result.err().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -126,12 +172,14 @@ async fn test_convert() {
 
     let mut handles = Vec::new();
 
-    for _ in 0..5 {  // Five asynchronous tasks were created for testing
+    for _ in 0..5 {
+        // Five asynchronous tasks were created for testing
         let result_clone = Arc::clone(&result);
         let ak_clone = Arc::clone(&ak);
 
         let handle = task::spawn(async move {
-            for i in 0..3 {  // Each task is performed three times
+            for i in 0..3 {
+                // Each task is performed three times
                 let user = create_test_user();
 
                 match ak_clone.save::<User, i32>(&user).await {
@@ -163,7 +211,10 @@ async fn test_convert() {
     println!("Saved IDs: {:?}", final_result);
 
     // Validation results
-    assert!(!final_result.is_empty(), "Should have saved at least one user");
+    assert!(
+        !final_result.is_empty(),
+        "Should have saved at least one user"
+    );
 }
 
 #[tokio::test]
@@ -173,7 +224,11 @@ async fn test_update_by_id() {
     let user = create_test_user();
 
     let result = akita.update_by_id(&user).await;
-    assert!(result.is_ok(), "Updating by ID should succeed{}", result.err().unwrap());
+    assert!(
+        result.is_ok(),
+        "Updating by ID should succeed{}",
+        result.err().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -190,10 +245,17 @@ async fn test_query_list() {
         .r#in("user_type", vec!["admin", "super"]);
 
     let result = akita.list::<User>(wrapper).await;
-    assert!(result.is_ok(), "Querying the list should succeed{:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Querying the list should succeed{:?}",
+        result.err()
+    );
 
     let users: Vec<User> = result.unwrap();
-    assert!(users.len() >= 0, "The length of the returned user list should be greater than or equal to 0");
+    assert!(
+        users.len() >= 0,
+        "The length of the returned user list should be greater than or equal to 0"
+    );
 }
 
 #[tokio::test]
@@ -209,8 +271,14 @@ async fn test_query_pagination() {
     assert!(result.is_ok(), "The pagination query should succeed");
 
     let page = result.unwrap();
-    assert!(page.total >= 0, "The total number of records should be greater than zero");
-    assert!(page.records.len() <= page_size as usize, "The number of returned records should not exceed the page size");
+    assert!(
+        page.total >= 0,
+        "The total number of records should be greater than zero"
+    );
+    assert!(
+        page.records.len() <= page_size as usize,
+        "The number of returned records should not exceed the page size"
+    );
 }
 
 #[tokio::test]
@@ -231,21 +299,32 @@ async fn test_raw_sql_query() {
     let akita = create_akita().await.unwrap();
 
     // Testing parameterized queries
-    let result = akita.exec_first::<User, _, _>(
-        "select * from t_system_user where name = ? and id = ?",
-        ("Jack", 7)
-    ).await;
-    assert!(result.is_ok(), "The original SQL query should succeed{}", result.err().unwrap());
+    let result = akita
+        .exec_first::<User, _, _>(
+            "select * from t_system_user where name = ? and id = ?",
+            ("Jack", 7),
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "The original SQL query should succeed{}",
+        result.err().unwrap()
+    );
 
     // Testing named parameter queries
-    let result = akita.exec_first::<User, _, _>(
-        "select * from t_system_user where name = :name and id = :id",
-        params! {
-            "name" => "Jack",
-            "id" => 7
-        }
-    ).await;
-    assert!(result.is_ok(), "The named parameter SQL query should succeed");
+    let result = akita
+        .exec_first::<User, _, _>(
+            "select * from t_system_user where name = :name and id = :id",
+            params! {
+                "name" => "Jack",
+                "id" => 7
+            },
+        )
+        .await;
+    assert!(
+        result.is_ok(),
+        "The named parameter SQL query should succeed"
+    );
 }
 
 #[tokio::test]
@@ -253,19 +332,19 @@ async fn test_raw_sql_query() {
 async fn test_entity_methods() {
     let akita = create_akita().await.unwrap();
     let mut user = create_test_user();
-    
+
     // Testing entity updates
     let result = user.update_by_id::<_>(&akita).await;
     assert!(result.is_ok(), "The entity update method should succeed");
-    
+
     // Testing entity deletion
-    let result = user.remove_by_id::<_,i32>(&akita, 1).await;
+    let result = user.remove_by_id::<_, i32>(&akita, 1).await;
     assert!(result.is_ok(), "The entity deletion method should succeed");
-    
+
     // Test the entity list query
     let result = User::list(&akita, Wrapper::new().eq("name", "Jack")).await;
     assert!(result.is_ok(), "The entity list query should succeed");
-    
+
     // Testing entity paging queries
     let result = User::page::<_>(&akita, 1, 1, Wrapper::new().eq("name", "Jack")).await;
     assert!(result.is_ok(), "The entity paging query should succeed");
@@ -278,8 +357,11 @@ async fn test_transaction() {
 
     let mut transaction = akita.start_transaction().await.unwrap();
     // Perform actions within a transaction
-    transaction.save::<User, i64>(&create_test_user()).await.unwrap();
+    transaction
+        .save::<User, i64>(&create_test_user())
+        .await
+        .unwrap();
     let result = transaction.commit().await;
-    
+
     assert!(result.is_ok(), "The transaction should succeed");
 }

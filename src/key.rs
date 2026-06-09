@@ -18,9 +18,9 @@
  *  *
  *
  */
+use akita_core::Snowflake;
 use std::fmt::Debug;
 use uuid::Uuid;
-use akita_core::Snowflake;
 
 /// ID generator
 pub trait IdentifierGenerator: Send + Sync + Debug {
@@ -34,13 +34,13 @@ pub trait IdentifierGenerator: Send + Sync + Debug {
 
 #[derive(Debug)]
 pub struct SnowflakeGenerator {
-    snowflake: Snowflake
+    snowflake: Snowflake,
 }
 
 impl SnowflakeGenerator {
     pub fn new() -> Self {
         Self {
-            snowflake: Snowflake::default()
+            snowflake: Snowflake::default(),
         }
     }
 
@@ -54,7 +54,6 @@ impl IdentifierGenerator for SnowflakeGenerator {
         self.generate_id()
     }
 }
-
 
 #[test]
 fn test_key() {

@@ -16,19 +16,19 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use crate::config::AkitaConfig;
+use crate::database_err;
+use crate::driver::non_blocking::get_tokio_context;
+use crate::driver::DriverType;
+use crate::errors::AkitaError;
 use async_trait::async_trait;
 use deadpool::managed::{Metrics, Object, Pool, RecycleResult};
 use deadpool::Runtime;
 use tiberius::error::Error;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 use tracing::log::trace;
-use crate::config::AkitaConfig;
-use crate::database_err;
-use crate::driver::DriverType;
-use crate::driver::non_blocking::{get_tokio_context};
-use crate::errors::AkitaError;
 
 /// SQL Server Asynchronous connection pool type
 pub type MssqlAsyncPool = Pool<MssqlAsyncConnectionManager>;
@@ -65,19 +65,21 @@ impl deadpool::managed::Manager for MssqlAsyncConnectionManager {
 
     async fn create(&self) -> Result<Self::Type, Self::Error> {
         // Establishing a TCP connection
-        let tcp = tokio::net::TcpStream::connect(self.config.get_addr())
-            .await?;
+        let tcp = tokio::net::TcpStream::connect(self.config.get_addr()).await?;
 
         tcp.set_nodelay(true)?;
 
         // Convert tokio::net::TcpStream to a futures-compatible type
         let compat_tcp = tcp.compat();
 
-        tiberius::Client::connect(self.config.clone(), compat_tcp)
-            .await
+        tiberius::Client::connect(self.config.clone(), compat_tcp).await
     }
 
-    async fn recycle(&self, conn: &mut Self::Type, _metrics: &Metrics) -> RecycleResult<Self::Error> {
+    async fn recycle(
+        &self,
+        conn: &mut Self::Type,
+        _metrics: &Metrics,
+    ) -> RecycleResult<Self::Error> {
         // Perform a simple query to check the connection
         conn.simple_query("SELECT 1").await?;
         Ok(())
@@ -85,7 +87,9 @@ impl deadpool::managed::Manager for MssqlAsyncConnectionManager {
 }
 
 /// Initialize the SQL Server asynchronous connection pool
-pub async fn init_mssql_async_pool(config: crate::config::AkitaConfig) -> Result<MssqlAsyncPool, AkitaError> {
+pub async fn init_mssql_async_pool(
+    config: crate::config::AkitaConfig,
+) -> Result<MssqlAsyncPool, AkitaError> {
     use tokio::runtime::Handle;
 
     // Check the Tokio context
@@ -102,13 +106,20 @@ pub async fn init_mssql_async_pool(config: crate::config::AkitaConfig) -> Result
         ..Default::default()
     };
 
-    let pool = Pool::builder(manager).runtime(Runtime::Tokio1).config(pool_config).build()?;
+    let pool = Pool::builder(manager)
+        .runtime(Runtime::Tokio1)
+        .config(pool_config)
+        .build()?;
 
     // Testing connections
-    let mut client: MssqlAsyncConnection = pool.get().await
+    let mut client: MssqlAsyncConnection = pool
+        .get()
+        .await
         .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
 
-    client.simple_query("SELECT 1").await
+    client
+        .simple_query("SELECT 1")
+        .await
         .map_err(|e| database_err!(format!("SQL Server async connection test failed: {}", e)))?;
 
     tracing::info!("SQL Server async connection pool initialized successfully");

@@ -16,13 +16,13 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use oracle::Connector;
 use crate::config::AkitaConfig;
 use crate::database_err;
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
+use oracle::Connector;
 
 pub type OracleConnection = r2d2::PooledConnection<OracleConnectionManager>;
 pub type OraclePool = r2d2::Pool<OracleConnectionManager>;
@@ -35,25 +35,19 @@ pub struct OracleConnectionManager {
 impl OracleConnectionManager {
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         let connector = cfg.try_into()?;
-        Ok(Self {
-            connector
-        })
+        Ok(Self { connector })
     }
 
     /// Create a connection using the TNS name
     pub fn with_tns(username: &str, password: &str, tns_name: &str) -> Self {
         let connector = Connector::new(username, password, tns_name);
-        Self {
-            connector,
-        }
+        Self { connector }
     }
 
     /// Create a connection using the Easy Connect string
     pub fn with_easy_connect(username: &str, password: &str, easy_connect: &str) -> Self {
         let connector = Connector::new(username, password, easy_connect);
-        Self {
-            connector,
-        }
+        Self { connector }
     }
 }
 
@@ -86,9 +80,7 @@ pub fn init_oracle_pool(cfg: AkitaConfig) -> Result<OraclePool, AkitaError> {
         .max_lifetime(Some(cfg.get_max_lifetime()))
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
-        .map_err(|e| {
-            database_err!(format!("Failed to create Oracle connection pool: {}", e))
-        })?;
+        .map_err(|e| database_err!(format!("Failed to create Oracle connection pool: {}", e)))?;
 
     let conn = pool.get()?;
 
@@ -96,7 +88,6 @@ pub fn init_oracle_pool(cfg: AkitaConfig) -> Result<OraclePool, AkitaError> {
 
     Ok(pool)
 }
-
 
 impl TryFrom<AkitaConfig> for Connector {
     type Error = AkitaError;
@@ -117,13 +108,13 @@ impl TryFrom<&AkitaConfig> for Connector {
         }
 
         // Use smart acquisition methods
-        let username = cfg.get_username()?.ok_or_else(|| {
-            database_err!("Oracle username is required".to_string())
-        })?;
+        let username = cfg
+            .get_username()?
+            .ok_or_else(|| database_err!("Oracle username is required".to_string()))?;
 
-        let password = cfg.get_password()?.ok_or_else(|| {
-            database_err!("Oracle password is required".to_string())
-        })?;
+        let password = cfg
+            .get_password()?
+            .ok_or_else(|| database_err!("Oracle password is required".to_string()))?;
 
         // Building connection strings
         let mut connect_string = String::new();
@@ -152,9 +143,7 @@ impl TryFrom<&AkitaConfig> for Connector {
                 ));
             }
         }
-        
-        
+
         Ok(Connector::new(username, password, connect_string))
     }
 }
-

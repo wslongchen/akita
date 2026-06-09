@@ -16,17 +16,17 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::sync::Arc;
-use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Wrapper};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use crate::core::blocking::Akita;
 use crate::ext::Request;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
-use crate::prelude::{AkitaError};
+use crate::prelude::AkitaError;
+use akita_core::{FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Wrapper};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::sync::Arc;
 
 pub trait Mapper<Entity, Dto, Params>: Sync + Send
 where
@@ -80,7 +80,7 @@ where
     fn count(&self, arg: &Params) -> Result<u64, AkitaError> {
         let ak = self.get_akita()?;
         let wrapper = arg.get_wrapper();
-        //执行查询
+        // Execute query
         let count = ak.count::<Entity>(wrapper)?;
         Ok(count)
     }
@@ -91,9 +91,9 @@ where
     #[track_caller]
     fn list(&self, arg: &Params) -> Result<Vec<Dto>, AkitaError> {
         let ak = self.get_akita()?;
-        //构建查询条件
+        // Build query conditions
         let wrapper = arg.get_wrapper();
-        //执行查询
+        // Execute query
         let list: Vec<Entity> = ak.list(wrapper)?;
         let result = list
             .into_iter()
@@ -138,7 +138,6 @@ where
         let vo = detail.map(Dto::from);
         return Ok(vo);
     }
-
 
     ///
     /// Save the entity
@@ -185,8 +184,8 @@ pub trait IService<Entity, Dto, Params, M: Mapper<Entity, Dto, Params> + 'static
 where
     Entity: GetTableName + GetFields + FromAkitaValue + IntoAkitaValue + DeserializeOwned + Clone,
     Dto: From<Entity> + Send + Sync + Serialize,
-    Params: Request {
-
+    Params: Request,
+{
     // 获取Mapper的引用
     fn get_mapper(&self) -> &M;
 
@@ -240,7 +239,6 @@ where
     fn select_one(&self, arg: &Params) -> Result<Option<Dto>, AkitaError> {
         self.get_mapper().select_one(arg)
     }
-
 
     ///
     /// Save the entity

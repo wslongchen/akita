@@ -22,7 +22,7 @@
 //!
 //! Generate Wrapper.
 //! ```ignore
-//! 
+//!
 //! let mut wrapper = Wrapper::new();
 //! wrapper.like(true, "column1", "ffff");
 //! wrapper.eq(true, "column2", 12);
@@ -89,7 +89,7 @@ pub struct Wrapper {
 #[derive(Debug, Clone, PartialEq)]
 enum OptionState {
     Normal,
-    ExpectingValue, 
+    ExpectingValue,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,11 +147,20 @@ pub struct SetOperation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SqlOperator {
-    Eq, Ne, Gt, Ge, Lt, Le,
-    Like, NotLike,
-    IsNull, IsNotNull,
-    In, NotIn,
-    Between, NotBetween,
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+    Like,
+    NotLike,
+    IsNull,
+    IsNotNull,
+    In,
+    NotIn,
+    Between,
+    NotBetween,
 }
 
 impl SqlOperator {
@@ -211,8 +220,7 @@ impl Display for OrderDirection {
     }
 }
 
-impl Wrapper{
-
+impl Wrapper {
     // Foundation construction method
     pub fn new() -> Self {
         Self {
@@ -269,7 +277,7 @@ impl Wrapper{
     pub fn apply_conditions(&mut self, apply_conditions: Vec<String>) {
         self.apply_conditions = apply_conditions;
     }
-    
+
     pub fn having_conditions(&mut self, having_conditions: Vec<Condition>) {
         self.having_conditions = having_conditions;
     }
@@ -337,11 +345,11 @@ impl Wrapper{
         let sql_template = sql.into();
 
         // 1. SQL Inject safety checks
-        let params_vec: Option<Vec<AkitaValue>> = params.map(|iter| {
-            iter.into_iter().map(|v| v.into()).collect()
-        });
+        let params_vec: Option<Vec<AkitaValue>> =
+            params.map(|iter| iter.into_iter().map(|v| v.into()).collect());
         if let Some(ref params_vec) = params_vec {
-            let param_list: Vec<(String, String)> = params_vec.iter()
+            let param_list: Vec<(String, String)> = params_vec
+                .iter()
                 .enumerate()
                 .filter_map(|(i, param)| {
                     if let Some(str_val) = param.as_str() {
@@ -352,25 +360,36 @@ impl Wrapper{
                 })
                 .collect();
 
-            let security_result = self.sql_injection_detector.detect_sql_security(
-                &sql_template,
-                Some(&param_list)
-            );
+            let security_result = self
+                .sql_injection_detector
+                .detect_sql_security(&sql_template, Some(&param_list));
 
             self.handle_security_result(&sql_template, &security_result);
 
             // If the severity is Critical, it is returned directly without adding any conditions
-            if security_result.is_dangerous && matches!(security_result.severity, DetectionSeverity::Critical) {
-                tracing::error!("Serious security threats, skip condition additions: {}", sql_template);
+            if security_result.is_dangerous
+                && matches!(security_result.severity, DetectionSeverity::Critical)
+            {
+                tracing::error!(
+                    "Serious security threats, skip condition additions: {}",
+                    sql_template
+                );
                 return self;
             }
         } else {
             // There are no parameters
-            let security_result = self.sql_injection_detector.detect_sql_security(&sql_template, None);
+            let security_result = self
+                .sql_injection_detector
+                .detect_sql_security(&sql_template, None);
             self.handle_security_result(&sql_template, &security_result);
 
-            if security_result.is_dangerous && matches!(security_result.severity, DetectionSeverity::Critical) {
-                tracing::error!("Serious security threats, skip condition addition: {}", sql_template);
+            if security_result.is_dangerous
+                && matches!(security_result.severity, DetectionSeverity::Critical)
+            {
+                tracing::error!(
+                    "Serious security threats, skip condition addition: {}",
+                    sql_template
+                );
                 return self;
             }
         }
@@ -390,7 +409,10 @@ impl Wrapper{
                 }
             }
         } else if placeholder_count > 0 {
-            tracing::warn!("SQL template contains {} placeholders but no parameters provided",placeholder_count);
+            tracing::warn!(
+                "SQL template contains {} placeholders but no parameters provided",
+                placeholder_count
+            );
         }
 
         // 3.Add a SQL template to the apply condition
@@ -407,33 +429,33 @@ impl Wrapper{
         match result.severity {
             DetectionSeverity::Critical => {
                 tracing::error!(
-                "Critical Security Threat - SQL: {}, Cause: {}, Pattern: {:?}",
-                sql,
-                result.reason,
-                result.patterns
-            );
+                    "Critical Security Threat - SQL: {}, Cause: {}, Pattern: {:?}",
+                    sql,
+                    result.reason,
+                    result.patterns
+                );
             }
             DetectionSeverity::High => {
                 tracing::warn!(
-                "High Risk SQL Pattern - SQL: {}, Reason: {}, Recommendation: {:?}",
-                sql,
-                result.reason,
-                result.suggestions
-            );
+                    "High Risk SQL Pattern - SQL: {}, Reason: {}, Recommendation: {:?}",
+                    sql,
+                    result.reason,
+                    result.suggestions
+                );
             }
             DetectionSeverity::Medium => {
                 tracing::info!(
-                "Medium Risk SQL Pattern - SQL: {}, Reason: {}",
-                sql,
-                result.reason
-            );
+                    "Medium Risk SQL Pattern - SQL: {}, Reason: {}",
+                    sql,
+                    result.reason
+                );
             }
             DetectionSeverity::Low => {
                 trace!(
-                "Low Risk SQL Warning - SQL: {}, Reason: {}",
-                sql,
-                result.reason
-            );
+                    "Low Risk SQL Warning - SQL: {}, Reason: {}",
+                    sql,
+                    result.reason
+                );
             }
         }
     }
@@ -486,7 +508,7 @@ impl Wrapper{
                 and_or: AndOr::And,
             });
         }
-        
+
         self
     }
 
@@ -506,7 +528,6 @@ impl Wrapper{
         self.add_condition(column, SqlOperator::Ne, value)
     }
 
-
     pub fn gt<T, V>(self, column: T, value: V) -> Self
     where
         T: Into<String>,
@@ -522,7 +543,6 @@ impl Wrapper{
     {
         self.add_condition(column, SqlOperator::Ge, value)
     }
-
 
     pub fn lt<T, V>(self, column: T, value: V) -> Self
     where
@@ -589,7 +609,11 @@ impl Wrapper{
         T: Into<String>,
         V: Into<AkitaValue>,
     {
-        self.add_condition(column, SqlOperator::Between, AkitaValue::List(vec![start.into(), end.into()]))
+        self.add_condition(
+            column,
+            SqlOperator::Between,
+            AkitaValue::List(vec![start.into(), end.into()]),
+        )
     }
 
     pub fn not_between<T, V>(self, column: T, start: V, end: V) -> Self
@@ -597,7 +621,11 @@ impl Wrapper{
         T: Into<String>,
         V: Into<AkitaValue>,
     {
-        self.add_condition(column, SqlOperator::NotBetween, AkitaValue::List(vec![start.into(), end.into()]))
+        self.add_condition(
+            column,
+            SqlOperator::NotBetween,
+            AkitaValue::List(vec![start.into(), end.into()]),
+        )
     }
 
     // ========== Logical operations ==========
@@ -705,7 +733,7 @@ impl Wrapper{
                 and_or: AndOr::And,
             });
         }
-        
+
         self
     }
 
@@ -720,7 +748,7 @@ impl Wrapper{
                 });
             }
         }
-        
+
         self
     }
 
@@ -746,7 +774,7 @@ impl Wrapper{
                 value,
             });
         }
-        
+
         self
     }
 
@@ -764,7 +792,7 @@ impl Wrapper{
                 });
             }
         }
-        
+
         self
     }
 
@@ -809,7 +837,6 @@ impl Wrapper{
 
     /// Internal method: Check if a condition should be added
     fn should_add_condition(&mut self) -> bool {
-        
         if self.skip_mode {
             self.skip_mode = false;
             return false;
@@ -870,14 +897,17 @@ impl Wrapper{
 
     /// Generate the JOIN clause fragment
     pub fn build_join_clauses(&self) -> Vec<String> {
-        self.join_clauses.iter().map(|join| {
-            let mut clause = format!("{} {}", join.join_type, join.table);
-            if let Some(alias) = &join.alias {
-                clause.push_str(&format!(" AS {}", alias));
-            }
-            clause.push_str(&format!(" ON {}", join.condition.column));
-            clause
-        }).collect()
+        self.join_clauses
+            .iter()
+            .map(|join| {
+                let mut clause = format!("{} {}", join.join_type, join.table);
+                if let Some(alias) = &join.alias {
+                    clause.push_str(&format!(" AS {}", alias));
+                }
+                clause.push_str(&format!(" ON {}", join.condition.column));
+                clause
+            })
+            .collect()
     }
 
     /// Generate a WHERE condition fragment (without the WHERE keyword)
@@ -891,12 +921,17 @@ impl Wrapper{
     }
 
     /// A generic conditional build method
-    fn build_conditions_clause(&self, conditions: &[Condition], apply_conditions: &[String]) -> String {
+    fn build_conditions_clause(
+        &self,
+        conditions: &[Condition],
+        apply_conditions: &[String],
+    ) -> String {
         let mut parts = Vec::new();
 
         // Building the original condition
         if !conditions.is_empty() {
-            let condition_parts: Vec<String> = conditions.iter()
+            let condition_parts: Vec<String> = conditions
+                .iter()
                 .map(|cond| self.format_condition_fragment(cond))
                 .collect();
             parts.push(self.join_condition_fragments(condition_parts));
@@ -918,45 +953,43 @@ impl Wrapper{
             SqlOperator::IsNull | SqlOperator::IsNotNull => {
                 format!("{} {}", condition.column, condition.operator)
             }
-            SqlOperator::In | SqlOperator::NotIn => {
-                match &condition.value {
-                    AkitaValue::List(values) => {
-                        let placeholders: Vec<String> = values.iter()
-                            .map(|_| "?".to_string())
-                            .collect();
-                        format!("{} {} ({})", condition.column, condition.operator, placeholders.join(", "))
-                    }
-                    AkitaValue::RawSql(sql) => {
-                        format!("{} {} ({})", condition.column, condition.operator, sql)
-                    }
-                    _ => {
-                        format!("{} {} (?)", condition.column, condition.operator)
-                    }
+            SqlOperator::In | SqlOperator::NotIn => match &condition.value {
+                AkitaValue::List(values) => {
+                    let placeholders: Vec<String> =
+                        values.iter().map(|_| "?".to_string()).collect();
+                    format!(
+                        "{} {} ({})",
+                        condition.column,
+                        condition.operator,
+                        placeholders.join(", ")
+                    )
                 }
-            }
-            SqlOperator::Between | SqlOperator::NotBetween => {
-                match &condition.value {
-                    AkitaValue::List(values) if values.len() == 2 => {
-                        format!("{} {} ? AND ?", condition.column, condition.operator)
-                    }
-                    _ => {
-                        format!("{} {} ? AND ?", condition.column, condition.operator)
-                    }
+                AkitaValue::RawSql(sql) => {
+                    format!("{} {} ({})", condition.column, condition.operator, sql)
                 }
-            }
-            _ => {
-                match &condition.value {
-                    AkitaValue::RawSql(sql) => {
-                        format!("{} {} {}", condition.column, condition.operator, sql)
-                    }
-                    AkitaValue::Column(col) => {
-                        format!("{} {} {}", condition.column, condition.operator, col)
-                    }
-                    _ => {
-                        format!("{} {} ?", condition.column, condition.operator)
-                    }
+                _ => {
+                    format!("{} {} (?)", condition.column, condition.operator)
                 }
-            }
+            },
+            SqlOperator::Between | SqlOperator::NotBetween => match &condition.value {
+                AkitaValue::List(values) if values.len() == 2 => {
+                    format!("{} {} ? AND ?", condition.column, condition.operator)
+                }
+                _ => {
+                    format!("{} {} ? AND ?", condition.column, condition.operator)
+                }
+            },
+            _ => match &condition.value {
+                AkitaValue::RawSql(sql) => {
+                    format!("{} {} {}", condition.column, condition.operator, sql)
+                }
+                AkitaValue::Column(col) => {
+                    format!("{} {} {}", condition.column, condition.operator, col)
+                }
+                _ => {
+                    format!("{} {} ?", condition.column, condition.operator)
+                }
+            },
         }
     }
 
@@ -997,7 +1030,9 @@ impl Wrapper{
         if self.order_by_clauses.is_empty() {
             String::new()
         } else {
-            let orders: Vec<String> = self.order_by_clauses.iter()
+            let orders: Vec<String> = self
+                .order_by_clauses
+                .iter()
                 .map(|order| format!("{} {}", order.column, order.direction))
                 .collect();
             orders.join(", ")
@@ -1006,7 +1041,8 @@ impl Wrapper{
 
     /// Generate SET clause fragment (for UPDATE)
     pub fn build_set_clause(&self) -> String {
-        self.set_operations.iter()
+        self.set_operations
+            .iter()
             .map(|op| match &op.value {
                 AkitaValue::RawSql(sql_expr) => format!("{} = {}", op.column, sql_expr),
                 AkitaValue::Column(col_name) => format!("{} = {}", op.column, col_name),
@@ -1035,7 +1071,7 @@ impl Wrapper{
     pub fn get_last_sql(&self) -> Option<&String> {
         self.last_sql.as_ref()
     }
-    
+
     // ========== Methods that are deprecated or marked private ==========
 
     #[deprecated(since = "0.6.0", note = "Use SqlBuilder.build_query_sql instead")]
@@ -1112,7 +1148,6 @@ impl Wrapper{
         Some(sql)
     }
 
-
     // ========== New: A method for providing data to SqlBuilder ==========
 
     /// Get all condition data for use by SqlBuilder
@@ -1160,7 +1195,8 @@ impl Wrapper{
 
         // The original conditional part
         if !conditions.is_empty() {
-            let condition_parts: Vec<String> = conditions.iter()
+            let condition_parts: Vec<String> = conditions
+                .iter()
                 .map(|cond| self.format_condition(cond))
                 .collect();
             let joined = self.join_conditions(condition_parts);
@@ -1189,7 +1225,8 @@ impl Wrapper{
                 match &condition.value {
                     AkitaValue::List(values) => {
                         // Processes each value in the list
-                        let placeholders: Vec<String> = values.iter()
+                        let placeholders: Vec<String> = values
+                            .iter()
                             .map(|v| match v {
                                 AkitaValue::RawSql(sql) => sql.clone(),
                                 AkitaValue::Column(col) => col.clone(),
@@ -1197,7 +1234,12 @@ impl Wrapper{
                             })
                             .collect();
 
-                        format!("{} {} ({})", condition.column, condition.operator, placeholders.join(", "))
+                        format!(
+                            "{} {} ({})",
+                            condition.column,
+                            condition.operator,
+                            placeholders.join(", ")
+                        )
                     }
                     AkitaValue::RawSql(sql) => {
                         format!("{} {} ({})", condition.column, condition.operator, sql)
@@ -1207,41 +1249,40 @@ impl Wrapper{
                     }
                 }
             }
-            SqlOperator::Between | SqlOperator::NotBetween => {
-                match &condition.value {
-                    AkitaValue::List(values) if values.len() == 2 => {
-                        let start = match &values[0] {
-                            AkitaValue::RawSql(sql) => sql.clone(),
-                            AkitaValue::Column(col) => col.clone(),
-                            _ => "?".to_string(),
-                        };
+            SqlOperator::Between | SqlOperator::NotBetween => match &condition.value {
+                AkitaValue::List(values) if values.len() == 2 => {
+                    let start = match &values[0] {
+                        AkitaValue::RawSql(sql) => sql.clone(),
+                        AkitaValue::Column(col) => col.clone(),
+                        _ => "?".to_string(),
+                    };
 
-                        let end = match &values[1] {
-                            AkitaValue::RawSql(sql) => sql.clone(),
-                            AkitaValue::Column(col) => col.clone(),
-                            _ => "?".to_string(),
-                        };
+                    let end = match &values[1] {
+                        AkitaValue::RawSql(sql) => sql.clone(),
+                        AkitaValue::Column(col) => col.clone(),
+                        _ => "?".to_string(),
+                    };
 
-                        format!("{} {} {} AND {}", condition.column, condition.operator, start, end)
-                    }
-                    _ => {
-                        format!("{} {} ? AND ?", condition.column, condition.operator)
-                    }
+                    format!(
+                        "{} {} {} AND {}",
+                        condition.column, condition.operator, start, end
+                    )
                 }
-            }
-            _ => {
-                match &condition.value {
-                    AkitaValue::RawSql(sql) => {
-                        format!("{} {} {}", condition.column, condition.operator, sql)
-                    }
-                    AkitaValue::Column(col) => {
-                        format!("{} {} {}", condition.column, condition.operator, col)
-                    }
-                    _ => {
-                        format!("{} {} ?", condition.column, condition.operator)
-                    }
+                _ => {
+                    format!("{} {} ? AND ?", condition.column, condition.operator)
                 }
-            }
+            },
+            _ => match &condition.value {
+                AkitaValue::RawSql(sql) => {
+                    format!("{} {} {}", condition.column, condition.operator, sql)
+                }
+                AkitaValue::Column(col) => {
+                    format!("{} {} {}", condition.column, condition.operator, col)
+                }
+                _ => {
+                    format!("{} {} ?", condition.column, condition.operator)
+                }
+            },
         }
     }
 
@@ -1327,28 +1368,32 @@ impl Wrapper{
         if self.where_conditions.is_empty() {
             return String::new();
         }
-        self.build_conditions("", &self.where_conditions).trim().to_string()
+        self.build_conditions("", &self.where_conditions)
+            .trim()
+            .to_string()
     }
 
     pub fn get_order_by(&self) -> Vec<String> {
-        let orders: Vec<String> = self.order_by_clauses.iter()
+        let orders: Vec<String> = self
+            .order_by_clauses
+            .iter()
             .map(|order| format!("{} {}", order.column, order.direction))
             .collect();
         orders
     }
-    
+
     pub fn get_group_by(&self) -> &Vec<String> {
         &self.group_by_columns
     }
-    
+
     pub fn get_order_by_clauses(&self) -> &Vec<OrderByClause> {
         &self.order_by_clauses
     }
-    
+
     pub fn get_apply_conditions(&self) -> &Vec<String> {
         &self.apply_conditions
     }
-    
+
     pub fn get_select_sql(&self) -> String {
         if self.select_columns.is_empty() {
             "*".to_string()
@@ -1357,7 +1402,6 @@ impl Wrapper{
         }
     }
 }
-
 
 // ========== 数据结构，供SqlBuilder使用 ==========
 
@@ -1389,12 +1433,401 @@ pub struct DeleteData {
     pub where_clause: String,
 }
 
-#[test]
-#[allow(unused)]
-fn basic_test() {
-    let s : Option<String> = Some("ffffa".to_string());
-    let d: Option<i32> = None;
-    let mut wrapper = Wrapper::new().eq("a", "bn");// .last("limit 1");
-        //.not_in("vecs", vec!["a","f","g"]);
-    println!("{}", wrapper.build_select_sql());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========== Basic Condition Tests ==========
+
+    #[test]
+    fn test_eq_condition() {
+        let wrapper = Wrapper::new().eq("name", "Alice");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("name ="),
+            "Expected eq condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_ne_condition() {
+        let wrapper = Wrapper::new().ne("status", "inactive");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("status !="),
+            "Expected ne condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_gt_condition() {
+        let wrapper = Wrapper::new().gt("age", 18);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("age >"),
+            "Expected gt condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_ge_condition() {
+        let wrapper = Wrapper::new().ge("score", 100);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("score >="),
+            "Expected ge condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_lt_condition() {
+        let wrapper = Wrapper::new().lt("price", 50.0);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("price <"),
+            "Expected lt condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_le_condition() {
+        let wrapper = Wrapper::new().le("quantity", 10);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("quantity <="),
+            "Expected le condition in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== LIKE Tests ==========
+
+    #[test]
+    fn test_like_condition() {
+        let wrapper = Wrapper::new().like("name", "%test%");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("name LIKE"),
+            "Expected LIKE condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_not_like_condition() {
+        let wrapper = Wrapper::new().not_like("name", "%test%");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("name NOT LIKE"),
+            "Expected NOT LIKE condition in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== NULL Tests ==========
+
+    #[test]
+    fn test_is_null_condition() {
+        let wrapper = Wrapper::new().is_null("deleted_at");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("deleted_at IS NULL"),
+            "Expected IS NULL in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_is_not_null_condition() {
+        let wrapper = Wrapper::new().is_not_null("email");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("email IS NOT NULL"),
+            "Expected IS NOT NULL in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== IN/NOT IN Tests ==========
+
+    #[test]
+    fn test_in_condition() {
+        let wrapper = Wrapper::new().r#in("status", vec!["active", "pending"]);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("status IN"),
+            "Expected IN condition in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_not_in_condition() {
+        let wrapper = Wrapper::new().not_in("id", vec![1, 2, 3]);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("id NOT IN"),
+            "Expected NOT IN condition in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== BETWEEN Tests ==========
+
+    #[test]
+    fn test_between_condition() {
+        let wrapper = Wrapper::new().between("age", 18, 65);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("age BETWEEN"),
+            "Expected BETWEEN in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_not_between_condition() {
+        let wrapper = Wrapper::new().not_between("price", 100, 200);
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("price NOT BETWEEN"),
+            "Expected NOT BETWEEN in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== Logical Combination Tests ==========
+
+    #[test]
+    fn test_and_conditions() {
+        let wrapper = Wrapper::new().eq("status", "active").gt("age", 18);
+        let sql = wrapper.build_select_sql();
+        assert!(sql.contains("AND"), "Expected AND in SQL: {}", sql);
+    }
+
+    #[test]
+    fn test_or_conditions() {
+        let wrapper = Wrapper::new()
+            .eq("status", "active")
+            .or_direct()
+            .eq("status", "pending");
+        let sql = wrapper.build_select_sql();
+        assert!(sql.contains("OR"), "Expected OR in SQL: {}", sql);
+    }
+
+    #[test]
+    fn test_nested_and_or() {
+        let wrapper = Wrapper::new()
+            .eq("type", "user")
+            .and(|w| w.eq("status", "active").or_direct().eq("status", "pending"));
+        let sql = wrapper.build_select_sql();
+        assert!(sql.contains("AND"), "Expected AND in SQL: {}", sql);
+        assert!(
+            sql.contains("OR"),
+            "Expected OR in nested group in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== JOIN Tests ==========
+
+    #[test]
+    fn test_inner_join() {
+        let wrapper = Wrapper::new().inner_join("orders", "users.id = orders.user_id");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("INNER JOIN"),
+            "Expected INNER JOIN in SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_left_join() {
+        let wrapper = Wrapper::new().left_join("profiles", "users.id = profiles.user_id");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("LEFT JOIN"),
+            "Expected LEFT JOIN in SQL: {}",
+            sql
+        );
+    }
+
+    // ========== SELECT Tests ==========
+
+    #[test]
+    fn test_select_columns() {
+        let wrapper = Wrapper::new().select(vec!["id", "name", "email"]);
+        let sql = wrapper.build_select_sql();
+        assert!(sql.contains("id"), "Expected 'id' in SELECT: {}", sql);
+        assert!(sql.contains("name"), "Expected 'name' in SELECT: {}", sql);
+        assert!(sql.contains("email"), "Expected 'email' in SELECT: {}", sql);
+    }
+
+    #[test]
+    fn test_select_distinct() {
+        let wrapper = Wrapper::new().select_distinct(vec!["category"]);
+        let sql = wrapper.build_select_sql();
+        assert!(wrapper.distinct, "Expected distinct flag to be true");
+    }
+
+    // ========== ORDER BY Tests ==========
+
+    #[test]
+    fn test_order_by_asc() {
+        let wrapper = Wrapper::new().order_by_asc(vec!["name"]);
+        assert_eq!(wrapper.get_order_by().len(), 1);
+    }
+
+    #[test]
+    fn test_order_by_desc() {
+        let wrapper = Wrapper::new().order_by_desc(vec!["created_at"]);
+        assert_eq!(wrapper.get_order_by().len(), 1);
+    }
+
+    // ========== GROUP BY Tests ==========
+
+    #[test]
+    fn test_group_by() {
+        let wrapper = Wrapper::new().group_by(vec!["category", "status"]);
+        assert_eq!(wrapper.get_group_by().len(), 2);
+    }
+
+    // ========== LIMIT/OFFSET Tests ==========
+
+    #[test]
+    fn test_limit() {
+        let wrapper = Wrapper::new().limit(10);
+        assert_eq!(wrapper.limit_value, Some(10));
+    }
+
+    #[test]
+    fn test_offset() {
+        let wrapper = Wrapper::new().offset(20);
+        assert_eq!(wrapper.offset_value, Some(20));
+    }
+
+    // ========== SET Operations Tests ==========
+
+    #[test]
+    fn test_set_single() {
+        let wrapper = Wrapper::new().set("name", "Alice");
+        assert_eq!(wrapper.get_set_operations().len(), 1);
+    }
+
+    #[test]
+    fn test_set_multiple() {
+        let wrapper = Wrapper::new().set("name", "Alice").set("age", 30);
+        assert_eq!(wrapper.get_set_operations().len(), 2);
+    }
+
+    // ========== Conditional Control Tests ==========
+
+    #[test]
+    fn test_when_true() {
+        let wrapper = Wrapper::new().when(true).eq("status", "active");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("status ="),
+            "Expected condition to be applied when(true): {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_when_false() {
+        let wrapper = Wrapper::new().when(false).eq("status", "active");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.is_empty() || !sql.contains("status ="),
+            "Expected condition to be skipped when(false): {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_unless_true() {
+        let wrapper = Wrapper::new().unless(true).eq("status", "active");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.is_empty() || !sql.contains("status ="),
+            "Expected condition to be skipped unless(true): {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_unless_false() {
+        let wrapper = Wrapper::new().unless(false).eq("status", "active");
+        let sql = wrapper.build_select_sql();
+        assert!(
+            sql.contains("status ="),
+            "Expected condition to be applied unless(false): {}",
+            sql
+        );
+    }
+
+    // ========== Edge Cases ==========
+
+    #[test]
+    fn test_empty_wrapper() {
+        let wrapper = Wrapper::new();
+        let sql = wrapper.build_select_sql();
+        // Empty wrapper should produce minimal valid SQL
+        assert!(
+            sql.contains("SELECT"),
+            "Expected SELECT in empty wrapper SQL: {}",
+            sql
+        );
+    }
+
+    #[test]
+    fn test_multiple_conditions_same_column() {
+        let wrapper = Wrapper::new().ge("age", 18).le("age", 65);
+        let sql = wrapper.build_select_sql();
+        assert!(sql.contains("age >="), "Expected >= in SQL: {}", sql);
+        assert!(sql.contains("age <="), "Expected <= in SQL: {}", sql);
+    }
+
+    // ========== Parameters Tests ==========
+
+    #[test]
+    fn test_parameters_collected() {
+        let wrapper = Wrapper::new().eq("name", "Alice").gt("age", 18);
+        let params = wrapper.get_parameters();
+        assert!(
+            params.len() >= 2,
+            "Expected at least 2 parameters, got {}",
+            params.len()
+        );
+    }
+
+    // ========== UPDATE SQL Tests ==========
+
+    #[test]
+    fn test_build_update_sql() {
+        let wrapper = Wrapper::new()
+            .table("users")
+            .set("name", "Alice")
+            .eq("id", 1);
+        let sql = wrapper.build_update_sql().expect("Expected Some(sql)");
+        assert!(sql.contains("UPDATE"), "Expected UPDATE in SQL: {}", sql);
+        assert!(sql.contains("SET"), "Expected SET in SQL: {}", sql);
+        assert!(sql.contains("WHERE"), "Expected WHERE in SQL: {}", sql);
+    }
+
+    // ========== DELETE SQL Tests ==========
+
+    #[test]
+    fn test_build_delete_sql() {
+        let wrapper = Wrapper::new().table("users").eq("id", 1);
+        let sql = wrapper.build_delete_sql().expect("Expected Some(sql)");
+        assert!(sql.contains("DELETE"), "Expected DELETE in SQL: {}", sql);
+        assert!(sql.contains("WHERE"), "Expected WHERE in SQL: {}", sql);
+    }
 }

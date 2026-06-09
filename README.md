@@ -1,7 +1,7 @@
 # Akita
 
 <p align="center">
-  <img src="http://img.snackcloud.cn/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
+  <img src="https://img.woofcloud.com/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
 </p>
 
 <p align="center">
@@ -553,6 +553,126 @@ impl AkitaInterceptor for AuditInterceptor {
         Ok(())
     }
 }
+```
+
+### Built-in Interceptors
+
+Akita provides several built-in interceptors for common use cases:
+
+#### Field Fill Interceptor
+Automatically populates fields like `create_time`, `update_time`, `create_by`, etc.
+
+```rust
+use akita::interceptor::field_fill::{FieldFillInterceptor, TimestampFillHandler, UuidFillHandler};
+
+let interceptor = FieldFillInterceptor::new()
+    .with_handler("create_time", Box::new(TimestampFillHandler::new()))
+    .with_handler("update_time", Box::new(TimestampFillHandler::new()))
+    .with_handler("id", Box::new(UuidFillHandler::new()));
+```
+
+#### Soft Delete Interceptor
+Automatically rewrites DELETE statements to UPDATE with a deleted flag.
+
+```rust
+use akita::interceptor::soft_delete::{SoftDeleteInterceptor, SoftDeleteConfig};
+
+let config = SoftDeleteConfig::default()
+    .with_column("deleted")
+    .ignore_table("logs");
+
+let interceptor = SoftDeleteInterceptor::new(config);
+```
+
+#### Pagination Interceptor
+Automatically adds pagination to SELECT queries.
+
+```rust
+use akita::interceptor::pagination::{PaginationInterceptor, PaginationRequest};
+
+let interceptor = PaginationInterceptor::new()
+    .with_default_page_size(20)
+    .with_max_page_size(100);
+
+// In your code:
+ctx.set_metadata("pagination", PaginationRequest::new(1, 10));
+```
+
+#### Optimistic Lock Interceptor
+Automatically adds version checks to UPDATE statements.
+
+```rust
+use akita::interceptor::optimistic_lock::{OptimisticLockerInterceptor, OptimisticLockConfig};
+
+let config = OptimisticLockConfig::default()
+    .with_column("version")
+    .ignore_table("logs");
+
+let interceptor = OptimisticLockerInterceptor::new(config);
+```
+
+#### Tenant Line Interceptor
+Automatically injects tenant ID conditions for multi-tenancy.
+
+```rust
+use akita::interceptor::tenant::{TenantLineInterceptor, TenantConfig};
+use akita::prelude::AkitaValue;
+
+let config = TenantConfig::new("tenant_id", AkitaValue::Text("tenant_001".to_string()))
+    .ignore_table("sys_config")
+    .ignore_table("sys_user");
+
+let interceptor = TenantLineInterceptor::new(config);
+```
+
+### Lambda Wrapper (Compile-time Safe Column References)
+
+Akita provides `LambdaWrapper<T>` for compile-time safe column references:
+
+```rust
+use akita::prelude::*;
+
+#[derive(Entity)]
+#[table(name = "users")]
+struct User {
+    #[id]
+    id: i64,
+    #[field(name = "user_name")]
+    name: String,
+    age: i32,
+}
+
+// Compile-time safe column references
+let wrapper = LambdaWrapper::<User>::new()
+    .eq(User::name, "Alice")
+    .gt(User::age, 18)
+    .order_by_asc(User::name);
+```
+
+### SubQuery Builder
+
+Akita provides `SubQuery` for building subqueries:
+
+```rust
+use akita::prelude::*;
+
+// IN subquery
+let sub = SubQuery::in_query("user_id")
+    .select(vec!["id"])
+    .from("users")
+    .where_eq("status", "active");
+
+let wrapper = Wrapper::new()
+    .in_subquery("id", sub);
+
+// EXISTS subquery
+let sub = SubQuery::exists()
+    .select(vec!["1"])
+    .from("orders")
+    .where_eq("orders.user_id", "users.id");
+
+let wrapper = Wrapper::new()
+    .exists_subquery(sub);
 ```
 
 ### Entity Methods with Database Portability

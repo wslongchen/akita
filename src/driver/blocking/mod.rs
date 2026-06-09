@@ -18,24 +18,29 @@
  *  *
  *
  */
-use std::ops::Deref;
-use akita_core::{cfg_if, AkitaValue, FieldName, FieldType, FromAkitaValue, GetFields, GetTableName, IdentifierType, IntoAkitaValue, Params, Rows, SchemaContent, TableInfo, TableName, Wrapper};
 use crate::comm::ExecuteResult;
 use crate::core::GLOBAL_GENERATOR;
+use akita_core::{
+    cfg_if, AkitaValue, FieldName, FieldType, FromAkitaValue, GetFields, GetTableName,
+    IdentifierType, IntoAkitaValue, Params, Rows, SchemaContent, TableInfo, TableName, Wrapper,
+};
+use std::ops::Deref;
 
-use crate::key::IdentifierGenerator;
 use crate::errors::AkitaError;
+use crate::key::IdentifierGenerator;
 use crate::mapper::blocking::AkitaMapper;
 use crate::mapper::IPage;
 use crate::sql::{BatchInsertData, DatabaseDialect, SqlBuilder, SqlBuilderFactory};
-use crate::{database_err, empty_data_err, invalid_sql_err, missing_ident_err, missing_table_err, unknown_err, unsupported_err};
+use crate::{
+    database_err, empty_data_err, invalid_sql_err, missing_ident_err, missing_table_err,
+    unknown_err, unsupported_err,
+};
 
 cfg_if! {if #[cfg(feature = "auth")]  {
     mod auth;
     pub use auth::*;
     use crate::driver::{DataBaseUser, GrantUserPrivilege, Role, UserInfo};
 }}
-
 
 cfg_if! {
     if #[cfg(feature = "mysql-sync")] {
@@ -72,8 +77,6 @@ cfg_if! {
     }
 }
 
-
-
 pub trait DbExecutor {
     #[track_caller]
     fn start(&self) -> crate::errors::Result<()>;
@@ -90,11 +93,35 @@ pub trait DbExecutor {
     #[track_caller]
     fn execute(&self, sql: &str, param: Params) -> crate::errors::Result<ExecuteResult>;
 
-    fn affected_rows(&self) -> u64 { 0 }
+    fn affected_rows(&self) -> u64 {
+        0
+    }
 
-    fn last_insert_id(&self) -> u64 { 0 }
+    fn last_insert_id(&self) -> u64 {
+        0
+    }
+
+    /// Execute a batch of SQL statements with parameters.
+    ///
+    /// Default implementation executes each statement individually.
+    /// Drivers can override this for more efficient batch execution.
+    #[track_caller]
+    fn execute_batch(
+        &self,
+        sql: &str,
+        params_list: Vec<Params>,
+    ) -> crate::errors::Result<ExecuteResult> {
+        let mut total_affected = 0;
+        for params in params_list {
+            let result = self.execute(sql, params)?;
+            match result {
+                ExecuteResult::AffectedRows(rows) => total_affected += rows,
+                _ => {}
+            }
+        }
+        Ok(ExecuteResult::AffectedRows(total_affected))
+    }
 }
-
 
 pub enum DbDriver {
     #[cfg(feature = "mysql-sync")]
@@ -146,7 +173,7 @@ impl std::ops::DerefMut for DbDriver {
 }
 
 impl DbExecutor for DbDriver {
-     fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
+    fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         match self {
             #[cfg(feature = "mysql-sync")]
             DbDriver::MysqlDriver(driver) => driver.query(sql, params),
@@ -259,9 +286,7 @@ impl DbExecutor for DbDriver {
     }
 }
 
-
-
-#[allow(unreachable_patterns,unused)]
+#[allow(unreachable_patterns, unused)]
 impl AkitaMapper for DbDriver {
     // ========== Query actions ==========
 
@@ -272,7 +297,9 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
 
         let sql_builder = self.sql_builder();
@@ -304,7 +331,8 @@ impl AkitaMapper for DbDriver {
         I: Into<AkitaValue>,
     {
         let sql_builder = self.sql_builder();
-        let id_field = sql_builder.find_id_field(T::fields())
+        let id_field = sql_builder
+            .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
         let wrapper = Wrapper::new()
             .table(&T::table_name().complete_name())
@@ -321,7 +349,9 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
 
         let sql_builder = self.sql_builder();
@@ -335,10 +365,8 @@ impl AkitaMapper for DbDriver {
         let mut page_result = IPage::new(page, size, count, Vec::new());
 
         if page_result.total > 0 {
-            // 构建分页查询
-            let wrapper = wrapper
-                .limit(page_result.size)
-                .offset(page_result.offset());
+            // Build pagination query
+            let wrapper = wrapper.limit(page_result.size).offset(page_result.offset());
 
             let (sql, params) = sql_builder.build_query_sql(&wrapper);
             let rows = self.query(&sql, params.into())?;
@@ -358,7 +386,9 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
 
         let sql_builder = self.sql_builder();
@@ -378,7 +408,9 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
 
         let sql_builder = self.sql_builder();
@@ -398,7 +430,8 @@ impl AkitaMapper for DbDriver {
         T: GetTableName + GetFields,
     {
         let sql_builder = self.sql_builder();
-        let id_field = sql_builder.find_id_field(T::fields())
+        let id_field = sql_builder
+            .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
         let wrapper = Wrapper::new()
             .table(&T::table_name().complete_name())
@@ -417,7 +450,8 @@ impl AkitaMapper for DbDriver {
             return Ok(0);
         }
         let sql_builder = self.sql_builder();
-        let id_field = sql_builder.find_id_field(T::fields())
+        let id_field = sql_builder
+            .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let id_values: Vec<AkitaValue> = ids.into_iter().map(|id| id.into()).collect();
@@ -428,7 +462,6 @@ impl AkitaMapper for DbDriver {
         self.remove::<T>(wrapper)
     }
 
-
     // ========== Update actions ==========
 
     /// Update the records by wrapper.
@@ -438,7 +471,9 @@ impl AkitaMapper for DbDriver {
     {
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
 
         let data = entity.into_value();
@@ -448,7 +483,10 @@ impl AkitaMapper for DbDriver {
         // Construct the SET clause
         let mut set_wrapper = Wrapper::new().table(&table.complete_name());
         if wrapper.get_set_operations().is_empty() {
-            for col in columns.iter().filter(|c| c.exist && matches!(c.field_type, FieldType::TableField)) {
+            for col in columns
+                .iter()
+                .filter(|c| c.exist && matches!(c.field_type, FieldType::TableField))
+            {
                 let col_name = col.alias.as_ref().unwrap_or(&col.name);
                 if let Some(value) = data.get_obj_value(col_name) {
                     set_wrapper = set_wrapper.set(col_name, value.clone());
@@ -459,7 +497,8 @@ impl AkitaMapper for DbDriver {
         }
         let mut final_wrapper = set_wrapper;
         final_wrapper.where_conditions(wrapper.get_where_conditions().clone());
-        let sql = sql_builder.build_update_sql(&table, &final_wrapper)
+        let sql = sql_builder
+            .build_update_sql(&table, &final_wrapper)
             .ok_or_else(|| invalid_sql_err!("Invalid Update SQL.".to_string()))?;
 
         let params = final_wrapper.get_parameters();
@@ -474,11 +513,13 @@ impl AkitaMapper for DbDriver {
         T: GetTableName + GetFields + IntoAkitaValue,
     {
         let sql_builder = self.sql_builder();
-        let id_field = sql_builder.find_id_field(T::fields())
+        let id_field = sql_builder
+            .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let data = entity.into_value();
-        let id_value = data.get_obj_value(&id_field.name)
+        let id_value = data
+            .get_obj_value(&id_field.name)
             .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
         let wrapper = Wrapper::new().eq(id_field.name, id_value.clone());
@@ -496,14 +537,18 @@ impl AkitaMapper for DbDriver {
 
         let table = T::table_name();
         if table.complete_name().is_empty() {
-            return Err(missing_table_err!("Find Error, Missing Table Name !".to_string()));
+            return Err(missing_table_err!(
+                "Find Error, Missing Table Name !".to_string()
+            ));
         }
         let sql_builder = self.sql_builder();
-        let id_field = sql_builder.find_id_field(T::fields())
+        let id_field = sql_builder
+            .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
         let columns = T::fields();
-        let update_fields: Vec<&FieldName> = columns.iter()
+        let update_fields: Vec<&FieldName> = columns
+            .iter()
             .filter(|c| c.exist && matches!(c.field_type, FieldType::TableField))
             .collect();
 
@@ -515,7 +560,8 @@ impl AkitaMapper for DbDriver {
 
             for entity in entities {
                 let data = entity.into_value();
-                let id_value = data.get_obj_value(&id_field.name)
+                let id_value = data
+                    .get_obj_value(&id_field.name)
                     .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
                 let field_value = data.get_obj_value(col_name).unwrap_or(&AkitaValue::Null);
@@ -526,7 +572,10 @@ impl AkitaMapper for DbDriver {
                     v => v.to_string(),
                 };
 
-                case_stmt.push_str(&format!(" WHEN `{}` = {} THEN {}", id_field.name, id_value, value_sql));
+                case_stmt.push_str(&format!(
+                    " WHEN `{}` = {} THEN {}",
+                    id_field.name, id_value, value_sql
+                ));
             }
 
             case_stmt.push_str(&format!(" ELSE `{}` END", col_name));
@@ -534,7 +583,8 @@ impl AkitaMapper for DbDriver {
         }
 
         // Build a list of IDs
-        let ids: Vec<String> = entities.iter()
+        let ids: Vec<String> = entities
+            .iter()
             .map(|e| {
                 let data = e.into_value();
                 data.get_obj_value(&id_field.name).unwrap().to_string()
@@ -597,7 +647,7 @@ impl AkitaMapper for DbDriver {
     fn save_batch<T, E>(&self, entities: E) -> crate::errors::Result<()>
     where
         T: GetTableName + GetFields + IntoAkitaValue,
-        E: IntoIterator<Item = T>
+        E: IntoIterator<Item = T>,
     {
         let entities: Vec<T> = entities.into_iter().collect();
 
@@ -609,7 +659,8 @@ impl AkitaMapper for DbDriver {
         let columns = T::fields();
         let sql_builder = self.sql_builder();
         // Prepare the bulk insert
-        let insert_columns: Vec<FieldName> = columns.iter()
+        let insert_columns: Vec<FieldName> = columns
+            .iter()
             .filter(|field| field.exist)
             .map(Clone::clone)
             .collect();
@@ -618,32 +669,33 @@ impl AkitaMapper for DbDriver {
 
         for entity in &entities {
             let data = entity.into_value();
-            let row: Vec<AkitaValue> = insert_columns.iter()
+            let row: Vec<AkitaValue> = insert_columns
+                .iter()
                 .filter_map(|col| {
                     let col_name = col.alias.as_ref().unwrap_or(&col.name).as_str();
-                    data.get_obj_value(col_name)
-                        .map(|value| {
-                            // Handling field padding
-                            let mut final_value = value.clone();
-                            if let Some(fill) = &col.fill {
-                                match fill.mode.as_str() {
-                                    "insert" | "default" => {
-                                        final_value = fill.value.clone().unwrap_or_default();
-                                    }
-                                    _ => {}
+                    data.get_obj_value(col_name).map(|value| {
+                        // Handling field padding
+                        let mut final_value = value.clone();
+                        if let Some(fill) = &col.fill {
+                            match fill.mode.as_str() {
+                                "insert" | "default" => {
+                                    final_value = fill.value.clone().unwrap_or_default();
                                 }
+                                _ => {}
                             }
-                            // Handle the ID generator
-                            final_value = sql_builder.identifier_generator_value(col, final_value);
-                            final_value
-                        })
+                        }
+                        // Handle the ID generator
+                        final_value = sql_builder.identifier_generator_value(col, final_value);
+                        final_value
+                    })
                 })
                 .collect();
 
             rows.push(row);
         }
 
-        let id_field = insert_columns.iter()
+        let id_field = insert_columns
+            .iter()
             .find(|field| matches!(field.field_type, FieldType::TableId(_)))
             .map(|field| field.clone());
 
@@ -653,7 +705,7 @@ impl AkitaMapper for DbDriver {
             rows,
             id_field,
         };
-        
+
         if self.is_sql_server() {
             // SQL Server: Intelligently handle parameter limits
             let _result = self.save_batch_for_sqlserver(&batch_data)?;
@@ -664,23 +716,24 @@ impl AkitaMapper for DbDriver {
             let (sql, params) = sql_builder.build_batch_insert_sql(&batch_data)?;
             let _result = self.execute(&sql, params.into())?;
         }
-        
+
         Ok(())
-        
     }
 
     // ========== Other methods ==========
 
-    fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> crate::errors::Result<Rows> {
+    fn exec_iter<S: Into<String>, P: Into<Params>>(
+        &self,
+        sql: S,
+        params: P,
+    ) -> crate::errors::Result<Rows> {
         let sql_builder = self.sql_builder();
         let sql = sql_builder.process_placeholders(&sql.into());
         self.query(&sql, params.into())
     }
-
 }
 
 impl DbDriver {
-
     pub fn sql_builder(&self) -> Box<dyn SqlBuilder> {
         SqlBuilderFactory::create(self.dialect())
     }
@@ -720,7 +773,9 @@ impl DbDriver {
     /// Calculate the safe batch size for SQL Server
     fn calculate_sqlserver_chunk_size(&self, data: &BatchInsertData) -> usize {
         // Count the number of nonincrementing fields
-        let column_count = data.columns.iter()
+        let column_count = data
+            .columns
+            .iter()
             .filter(|c| c.exist && !c.is_auto_increment())
             .count();
 
@@ -740,7 +795,9 @@ impl DbDriver {
 
     /// Perform smart bulk inserts for SQL Server
     fn save_batch_for_sqlserver(&self, data: &BatchInsertData) -> crate::errors::Result<()> {
-        let column_count = data.columns.iter()
+        let column_count = data
+            .columns
+            .iter()
             .filter(|c| c.exist && !c.is_auto_increment())
             .count();
 
@@ -759,7 +816,7 @@ impl DbDriver {
             self.execute_chunked_batches(data)
         }
     }
-    
+
     fn save_batch_for_oracle(&self, data: &BatchInsertData) -> crate::errors::Result<()> {
         self.execute_single_batch(data)
     }
@@ -785,7 +842,9 @@ impl DbDriver {
     // Execute chunked batch (parameter exceeds limit)
     fn execute_chunked_batches(&self, data: &BatchInsertData) -> crate::errors::Result<()> {
         let sql_builder = self.sql_builder();
-        let column_count = data.columns.iter()
+        let column_count = data
+            .columns
+            .iter()
             .filter(|c| c.exist && !c.is_auto_increment())
             .count();
 
@@ -828,9 +887,7 @@ impl DbManager for DbDriver {
     fn get_table(&self, table_name: &TableName) -> crate::errors::Result<Option<TableInfo>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_table(table_name)
-            },
+            DbDriver::MysqlDriver(mysql) => mysql.get_table(table_name),
             _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
@@ -838,9 +895,7 @@ impl DbManager for DbDriver {
     fn exist_table(&self, table_name: &TableName) -> crate::errors::Result<bool> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.exist_table(table_name)
-            },
+            DbDriver::MysqlDriver(mysql) => mysql.exist_table(table_name),
             _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
@@ -848,9 +903,7 @@ impl DbManager for DbDriver {
     fn get_grouped_tables(&self) -> crate::errors::Result<Vec<SchemaContent>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_grouped_tables()
-            },
+            DbDriver::MysqlDriver(mysql) => mysql.get_grouped_tables(),
             _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
@@ -858,9 +911,7 @@ impl DbManager for DbDriver {
     fn get_all_tables(&self, schema: &str) -> crate::errors::Result<Vec<TableInfo>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_all_tables(schema)
-            },
+            DbDriver::MysqlDriver(mysql) => mysql.get_all_tables(schema),
             _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
@@ -868,9 +919,7 @@ impl DbManager for DbDriver {
     fn get_table_names(&self, schema: &str) -> crate::errors::Result<Vec<TableName>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_table_names(schema)
-            },
+            DbDriver::MysqlDriver(mysql) => mysql.get_table_names(schema),
             _ => Err(unsupported_err!("The current operation is not supported")),
         }
     }
@@ -878,130 +927,130 @@ impl DbManager for DbDriver {
     fn get_users(&self) -> crate::errors::Result<Vec<DataBaseUser>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_users()
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.get_users(),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn exist_user(&self, user: &UserInfo) -> crate::errors::Result<bool> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.exist_user(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.exist_user(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn get_user_detail(&self, username: &str) -> crate::errors::Result<Vec<DataBaseUser>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_user_detail(username)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.get_user_detail(username),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn get_roles(&self, username: &str) -> crate::errors::Result<Vec<Role>> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.get_roles(username)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.get_roles(username),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn create_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.create_user(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.create_user(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn drop_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.drop_user(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.drop_user(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn update_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.update_user_password(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.update_user_password(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn lock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.lock_user(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.lock_user(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn unlock_user(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.unlock_user(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.unlock_user(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn expire_user_password(&self, user: &UserInfo) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.expire_user_password(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.expire_user_password(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn grant_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.grant_privileges(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.grant_privileges(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn revoke_privileges(&self, user: &GrantUserPrivilege) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.revoke_privileges(user)
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.revoke_privileges(user),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 
     fn flush_privileges(&self) -> crate::errors::Result<()> {
         match self {
             #[cfg(feature = "mysql-sync")]
-            DbDriver::MysqlDriver(mysql) =>  {
-                mysql.flush_privileges()
-            },
-            _ => Err(unsupported_err!("The current operation is not supported".to_string())),
+            DbDriver::MysqlDriver(mysql) => mysql.flush_privileges(),
+            _ => Err(unsupported_err!(
+                "The current operation is not supported".to_string()
+            )),
         }
     }
 }

@@ -18,18 +18,20 @@
  *  *
  *
  */
-use std::collections::HashMap;
 use crate::comm::ExecuteResult;
-use crate::errors::AkitaError;
-use akita_core::{AkitaValue, FromAkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
-use mysql_async::prelude::Queryable;
-use mysql_async::{ Value as MysqlValue, Params as MysqlParams, Row as MysqlRow };
-use std::sync::Arc;
-use deadpool::managed::Manager;
-use serde_json::{Map, Value};
-use tokio::sync::RwLock;
 use crate::driver::non_blocking::mysql::MysqlAsyncConnection;
+use crate::errors::AkitaError;
 use crate::{data_err, mysql_async_err};
+use akita_core::{
+    AkitaValue, FromAkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector,
+};
+use deadpool::managed::Manager;
+use mysql_async::prelude::Queryable;
+use mysql_async::{Params as MysqlParams, Row as MysqlRow, Value as MysqlValue};
+use serde_json::{Map, Value};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// MySQL Asynchronous adapter
 pub struct MysqlAsyncAdapter {
@@ -46,24 +48,21 @@ impl MysqlAsyncAdapter {
     #[track_caller]
     pub async fn start_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        let _ = conn.query_drop("START TRANSACTION")
-            .await?;
+        let _ = conn.query_drop("START TRANSACTION").await?;
         Ok(())
     }
 
     #[track_caller]
     pub async fn commit_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        let _ = conn.query_drop("COMMIT")
-            .await?;
+        let _ = conn.query_drop("COMMIT").await?;
         Ok(())
     }
 
     #[track_caller]
     pub async fn rollback_transaction(&self) -> crate::prelude::Result<()> {
         let mut conn = self.conn.write().await;
-        let _ = conn.query_drop("ROLLBACK")
-            .await?;
+        let _ = conn.query_drop("ROLLBACK").await?;
         Ok(())
     }
 
@@ -75,12 +74,14 @@ impl MysqlAsyncAdapter {
     }
 
     #[track_caller]
-    async fn inner_query(&self, sql:  &str, params: mysql_async::Params) -> crate::prelude::Result<Rows> {
+    async fn inner_query(
+        &self,
+        sql: &str,
+        params: mysql_async::Params,
+    ) -> crate::prelude::Result<Rows> {
         let mut conn = self.conn.write().await;
         // Executing queries
-        let result = conn
-            .exec_iter(sql, params)
-            .await?;
+        let result = conn.exec_iter(sql, params).await?;
 
         let rows_fut = result.map_and_drop(|mysql_row| convert_mysql_row(mysql_row));
         let rows: Vec<Row> = rows_fut
@@ -95,7 +96,11 @@ impl MysqlAsyncAdapter {
     }
 
     #[track_caller]
-    pub async fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
+    pub async fn execute(
+        &self,
+        sql: &str,
+        params: Params,
+    ) -> crate::prelude::Result<ExecuteResult> {
         let mut conn = self.conn.write().await;
         // Conversion parameters
         let mysql_params = convert_to_mysql_params(params)?;
@@ -108,19 +113,18 @@ impl MysqlAsyncAdapter {
                 Ok(ExecuteResult::Rows(rows))
             }
             _ => {
-                conn.exec_drop(sql, mysql_params)
-                    .await?;
+                conn.exec_drop(sql, mysql_params).await?;
 
                 Ok(ExecuteResult::AffectedRows(conn.affected_rows() as u64))
             }
         }
     }
-    
+
     pub async fn affected_rows(&self) -> u64 {
         let conn = self.conn.read().await;
         conn.affected_rows()
     }
-    
+
     pub async fn connection_id(&self) -> u32 {
         let mut conn = self.conn.write().await;
         match conn.query_first::<u32, _>("SELECT CONNECTION_ID()").await {
@@ -152,8 +156,6 @@ impl MysqlAsyncAdapter {
     }
 }
 
-
-
 /// Converted Value To MySQL Value
 pub(crate) fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
     match value {
@@ -169,25 +171,21 @@ pub(crate) fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
         AkitaValue::Blob(vec) => MysqlValue::from(vec),
         AkitaValue::Char(c) => MysqlValue::from(c.to_string()),
         AkitaValue::Text(s) => MysqlValue::from(s),
-        AkitaValue::Json(j) => {
-            match j {
-                Value::Bool(v) => MysqlValue::from(v),
-                Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        MysqlValue::from(n)
-                    } else if let Some(n) = v.as_f64() {
-                        MysqlValue::from(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        MysqlValue::from(n)
-                    } else {
-                        MysqlValue::from(v.to_string())
-                    }
-
-
-                },
-                Value::String(v) => MysqlValue::from(v),
-                _ => MysqlValue::from(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            Value::Bool(v) => MysqlValue::from(v),
+            Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    MysqlValue::from(n)
+                } else if let Some(n) = v.as_f64() {
+                    MysqlValue::from(n)
+                } else if let Some(n) = v.as_i64() {
+                    MysqlValue::from(n)
+                } else {
+                    MysqlValue::from(v.to_string())
+                }
             }
+            Value::String(v) => MysqlValue::from(v),
+            _ => MysqlValue::from(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(uuid) => MysqlValue::from(uuid.to_string()),
         AkitaValue::Date(date) => MysqlValue::from(date),
@@ -206,10 +204,10 @@ pub(crate) fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
             }
             let value = serde_json::to_string(&data).unwrap_or_default();
             value.into()
-        },
+        }
         AkitaValue::Column(v) => MysqlValue::Bytes(v.into_bytes()),
         AkitaValue::RawSql(v) => MysqlValue::Bytes(v.into_bytes()),
-        AkitaValue::List(v) =>  {
+        AkitaValue::List(v) => {
             let value = serde_json::to_string(&v).unwrap_or_default();
             value.into()
         }
@@ -217,9 +215,11 @@ pub(crate) fn convert_value_to_mysql(value: AkitaValue) -> MysqlValue {
     }
 }
 
-
 /// Converted MySQL Value To Value
-fn convert_mysql_value(mysql_value: MysqlValue, column_type: mysql_async::consts::ColumnType) -> crate::prelude::Result<AkitaValue> {
+fn convert_mysql_value(
+    mysql_value: MysqlValue,
+    column_type: mysql_async::consts::ColumnType,
+) -> crate::prelude::Result<AkitaValue> {
     use mysql_async::consts::ColumnType;
 
     if mysql_value == MysqlValue::NULL {
@@ -256,7 +256,9 @@ fn convert_mysql_value(mysql_value: MysqlValue, column_type: mysql_async::consts
         }
         ColumnType::MYSQL_TYPE_TIMESTAMP => {
             let val: chrono::NaiveDateTime = try_convert(mysql_value)?;
-            Ok(AkitaValue::Timestamp(chrono::DateTime::from_naive_utc_and_offset(val, chrono::Utc)))
+            Ok(AkitaValue::Timestamp(
+                chrono::DateTime::from_naive_utc_and_offset(val, chrono::Utc),
+            ))
         }
         ColumnType::MYSQL_TYPE_DATE | ColumnType::MYSQL_TYPE_NEWDATE => {
             let val: chrono::NaiveDate = try_convert(mysql_value)?;
@@ -270,33 +272,32 @@ fn convert_mysql_value(mysql_value: MysqlValue, column_type: mysql_async::consts
             let val: chrono::NaiveDateTime = try_convert(mysql_value)?;
             Ok(AkitaValue::DateTime(val))
         }
-        ColumnType::MYSQL_TYPE_VARCHAR | ColumnType::MYSQL_TYPE_VAR_STRING | ColumnType::MYSQL_TYPE_STRING => {
+        ColumnType::MYSQL_TYPE_VARCHAR
+        | ColumnType::MYSQL_TYPE_VAR_STRING
+        | ColumnType::MYSQL_TYPE_STRING => {
             let val: String = try_convert(mysql_value)?;
             Ok(AkitaValue::Text(val))
         }
         ColumnType::MYSQL_TYPE_JSON => {
             let val: String = try_convert(mysql_value)?;
-            let json_val = serde_json::from_str(&val)
-                .map_err(|e| data_err!(e.to_string()))?;
+            let json_val = serde_json::from_str(&val).map_err(|e| data_err!(e.to_string()))?;
             Ok(AkitaValue::Json(json_val))
         }
-        ColumnType::MYSQL_TYPE_TINY_BLOB | ColumnType::MYSQL_TYPE_MEDIUM_BLOB |
-        ColumnType::MYSQL_TYPE_LONG_BLOB | ColumnType::MYSQL_TYPE_BLOB => {
+        ColumnType::MYSQL_TYPE_TINY_BLOB
+        | ColumnType::MYSQL_TYPE_MEDIUM_BLOB
+        | ColumnType::MYSQL_TYPE_LONG_BLOB
+        | ColumnType::MYSQL_TYPE_BLOB => {
             let val: Vec<u8> = try_convert(mysql_value)?;
             Ok(AkitaValue::Blob(val))
         }
-        ColumnType::MYSQL_TYPE_BIT => {
-            convert_bit_value(mysql_value)
-        }
+        ColumnType::MYSQL_TYPE_BIT => convert_bit_value(mysql_value),
         ColumnType::MYSQL_TYPE_TIMESTAMP2
         | ColumnType::MYSQL_TYPE_DATETIME2
         | ColumnType::MYSQL_TYPE_TIME2 => {
             let val: String = try_convert(mysql_value)?;
             Ok(AkitaValue::Text(val))
         }
-        _ => {
-            try_generic_conversion(mysql_value)
-        }
+        _ => try_generic_conversion(mysql_value),
     }
 }
 
@@ -308,16 +309,20 @@ fn convert_mysql_row(mysql_row: MysqlRow) -> crate::prelude::Result<Row> {
         .map(|col| col.name_str().to_string())
         .collect();
     if mysql_row.is_empty() {
-        return Ok(Row::new(columns, vec![]))
+        return Ok(Row::new(columns, vec![]));
     }
     let column_types = mysql_row.columns();
     let rows = mysql_row.unwrap();
-    let values = rows.into_iter().enumerate().map(|(i, mysql_value)| {
-        let column_type = column_types.get(i)
-            .map(|col| col.column_type())
-            .unwrap_or(mysql_async::consts::ColumnType::MYSQL_TYPE_STRING);
-        convert_mysql_value(mysql_value, column_type)
-    })
+    let values = rows
+        .into_iter()
+        .enumerate()
+        .map(|(i, mysql_value)| {
+            let column_type = column_types
+                .get(i)
+                .map(|col| col.column_type())
+                .unwrap_or(mysql_async::consts::ColumnType::MYSQL_TYPE_STRING);
+            convert_mysql_value(mysql_value, column_type)
+        })
         .collect::<crate::prelude::Result<Vec<AkitaValue>>>()?;
     Ok(Row {
         columns,
@@ -325,15 +330,13 @@ fn convert_mysql_row(mysql_row: MysqlRow) -> crate::prelude::Result<Row> {
     })
 }
 
-
-
 /// Converted decimal
 fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql_value.try_into()
+    let bytes: Vec<u8> = mysql_value
+        .try_into()
         .map_err(|_e| data_err!("convert decimal error...".to_string()))?;
 
-    let decimal_str = String::from_utf8(bytes)
-        .map_err(|e| data_err!(e.to_string()))?;
+    let decimal_str = String::from_utf8(bytes).map_err(|e| data_err!(e.to_string()))?;
 
     let big_decimal = bigdecimal::BigDecimal::parse_bytes(decimal_str.as_bytes(), 10)
         .ok_or_else(|| data_err!("Invalid decimal format".to_string()))?;
@@ -343,7 +346,8 @@ fn convert_decimal_value(mysql_value: MysqlValue) -> crate::prelude::Result<Akit
 
 /// Converted bit
 fn convert_bit_value(mysql_value: MysqlValue) -> crate::prelude::Result<AkitaValue> {
-    let bytes: Vec<u8> = mysql_async::from_value_opt(mysql_value).map_err(|e| data_err!(e.to_string()))?;
+    let bytes: Vec<u8> =
+        mysql_async::from_value_opt(mysql_value).map_err(|e| data_err!(e.to_string()))?;
     if bytes.len() == 1 {
         Ok(AkitaValue::Bool(bytes[0] != 0))
     } else {
@@ -372,34 +376,32 @@ fn try_generic_conversion(mysql_value: MysqlValue) -> crate::prelude::Result<Aki
     Err(data_err!("Unsupported MySQL value type".to_string()))
 }
 
-
 /// Convert parameters to MySQL format
 fn convert_to_mysql_params(params: Params) -> crate::prelude::Result<MysqlParams> {
     if params.is_empty() {
         return Ok(MysqlParams::Empty);
     }
-    
+
     match params {
         Params::None => Ok(MysqlParams::Empty),
-        Params::Positional(param) => { 
-            let mysql_values = param.into_iter()
-                .map(convert_value_to_mysql)
-                .collect();
+        Params::Positional(param) => {
+            let mysql_values = param.into_iter().map(convert_value_to_mysql).collect();
             Ok(MysqlParams::Positional(mysql_values))
-        },
+        }
         Params::Named(named_map) => {
-            let named = named_map.into_iter().map(|(name, v)| (name.into_bytes(), convert_value_to_mysql(v))).collect();
+            let named = named_map
+                .into_iter()
+                .map(|(name, v)| (name.into_bytes(), convert_value_to_mysql(v)))
+                .collect();
             Ok(MysqlParams::Named(named))
         }
     }
 }
-
 
 /// Type-safe conversion
 fn try_convert<T>(value: MysqlValue) -> crate::prelude::Result<T>
 where
     T: mysql_async::prelude::FromValue,
 {
-
     mysql_async::from_value_opt::<T>(value).map_err(|e| data_err!(e.to_string()))
 }

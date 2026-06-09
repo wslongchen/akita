@@ -16,7 +16,7 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 use crate::config::AkitaConfig;
 use crate::database_err;
@@ -24,8 +24,6 @@ use crate::prelude::AkitaError;
 
 pub type PostgresPool = r2d2::Pool<PostgresConnectionManager>;
 pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
-
-
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
@@ -52,13 +50,12 @@ impl From<SslMode> for postgres::config::SslMode {
         match mode {
             SslMode::Disable => postgres::config::SslMode::Disable,
             SslMode::Prefer => postgres::config::SslMode::Prefer,
-            SslMode::Require => postgres::config::SslMode::Require
+            SslMode::Require => postgres::config::SslMode::Require,
         }
     }
 }
 
 impl PostgresConnectionManager {
-
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         let config = cfg.into();
         Ok(Self {
@@ -161,7 +158,10 @@ pub fn init_postgres_pool(cfg: AkitaConfig) -> Result<PostgresPool, AkitaError> 
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
         .map_err(|e| {
-            database_err!(format!("Failed to create PostgreSQL connection pool: {}", e))
+            database_err!(format!(
+                "Failed to create PostgreSQL connection pool: {}",
+                e
+            ))
         })?;
 
     let mut conn = pool.get()?;

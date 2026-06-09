@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
-use std::fmt::Write;
-use std::hash::{DefaultHasher, Hash, Hasher};
-use url::Url;
-use akita_core::SqlSecurityConfig;
 use crate::database_err;
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
+use akita_core::SqlSecurityConfig;
+use std::collections::HashMap;
+use std::fmt::Write;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub struct XmlSqlLoaderConfig {
@@ -170,11 +170,13 @@ impl AkitaConfig {
     }
 
     pub fn get_idle_timeout(&self) -> Duration {
-        self.idle_timeout.unwrap_or_else(|| Duration::from_secs(600))
+        self.idle_timeout
+            .unwrap_or_else(|| Duration::from_secs(600))
     }
 
     pub fn get_max_lifetime(&self) -> Duration {
-        self.max_lifetime.unwrap_or_else(|| Duration::from_secs(1800))
+        self.max_lifetime
+            .unwrap_or_else(|| Duration::from_secs(1800))
     }
 
     pub fn get_min_idle(&self) -> u32 {
@@ -204,7 +206,7 @@ impl AkitaConfig {
     pub fn has_url(&self) -> bool {
         self.url.is_some()
     }
-    
+
     pub fn get_platform(&self) -> Result<DriverType, AkitaError> {
         self.ensure_parsed().map(|info| info.platform.clone())
     }
@@ -366,7 +368,11 @@ impl AkitaConfig {
             // ADO.NET format
             info.platform = DriverType::Mssql;
             self.parse_adonet_url(url, info)
-        } else if url.ends_with(".db") || url.ends_with(".sqlite") || url.contains(".sqlite") || url == ":memory:" {
+        } else if url.ends_with(".db")
+            || url.ends_with(".sqlite")
+            || url.contains(".sqlite")
+            || url == ":memory:"
+        {
             // SQLite file
             info.platform = DriverType::Sqlite;
             info.database = Some(url.to_string());
@@ -381,7 +387,11 @@ impl AkitaConfig {
         }
     }
 
-    fn try_parse_as_generic(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn try_parse_as_generic(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         // Try to resolve as a standard URL
         if let Ok(parsed) = Url::parse(url) {
             // Guess the platform based on the protocol
@@ -401,7 +411,10 @@ impl AkitaConfig {
                 info.database = Some(url.to_string());
                 Ok(())
             } else {
-                Err(database_err!(format!("Unresolvable connection string: {}", url)))
+                Err(database_err!(format!(
+                    "Unresolvable connection string: {}",
+                    url
+                )))
             }
         }
     }
@@ -416,8 +429,10 @@ impl AkitaConfig {
         } else if let Some(url_without_oracle) = url.strip_prefix("oracle:") {
             info.platform = DriverType::Oracle;
             self.parse_oracle_jdbc_url(url_without_oracle, info)
-        } else if let Some(url_without_sqlserver) = url.strip_prefix("sqlserver:")
-            .or_else(|| url.strip_prefix("microsoft:sqlserver:")) {
+        } else if let Some(url_without_sqlserver) = url
+            .strip_prefix("sqlserver:")
+            .or_else(|| url.strip_prefix("microsoft:sqlserver:"))
+        {
             info.platform = DriverType::Mssql;
             self.parse_sqlserver_jdbc_url(url_without_sqlserver, info)
         } else if let Some(url_without_sqlite) = url.strip_prefix("sqlite:") {
@@ -425,13 +440,20 @@ impl AkitaConfig {
             info.database = Some(url_without_sqlite.to_string());
             Ok(())
         } else {
-            Err(database_err!(format!("Unsupported JDBC drivers: jdbc:{}", url)))
+            Err(database_err!(format!(
+                "Unsupported JDBC drivers: jdbc:{}",
+                url
+            )))
         }
     }
 
-    fn parse_standard_url(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
-        let parsed = Url::parse(url)
-            .map_err(|e| database_err!(format!("Failed URL resolution: {}", e)))?;
+    fn parse_standard_url(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
+        let parsed =
+            Url::parse(url).map_err(|e| database_err!(format!("Failed URL resolution: {}", e)))?;
 
         // Only set values that are not specified in separate parameters
         if info.hostname.is_none() {
@@ -472,14 +494,19 @@ impl AkitaConfig {
         // Query parameters (merged, URL parameters have lower priority)
         for (key, value) in parsed.query_pairs() {
             if !info.extra_params.contains_key(&key.to_string()) {
-                info.extra_params.insert(key.into_owned(), value.into_owned());
+                info.extra_params
+                    .insert(key.into_owned(), value.into_owned());
             }
         }
 
         Ok(())
     }
 
-    fn parse_oracle_jdbc_url(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_oracle_jdbc_url(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         let url = if let Some(url_without_thin) = url.strip_prefix("thin:@") {
             url_without_thin
         } else if let Some(url_without_oci) = url.strip_prefix("oci:@") {
@@ -492,7 +519,8 @@ impl AkitaConfig {
 
         // parsing host:port/service or host:port:service
         if url.contains('/') {
-            let (host_port, service) = url.split_once('/')
+            let (host_port, service) = url
+                .split_once('/')
                 .ok_or_else(|| database_err!("Invalid Oracle URL format".to_string()))?;
 
             info.database = Some(service.to_string());
@@ -522,7 +550,11 @@ impl AkitaConfig {
         }
     }
 
-    fn parse_sqlserver_jdbc_url(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_sqlserver_jdbc_url(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         if let Some(rest) = url.strip_prefix("//") {
             let (host_port, params) = rest.split_once(';').unwrap_or((rest, ""));
 
@@ -554,10 +586,15 @@ impl AkitaConfig {
         Ok(())
     }
 
-    fn parse_host_port(&self, host_port: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_host_port(
+        &self,
+        host_port: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         if let Some((host, port)) = host_port.split_once(':') {
             info.hostname = Some(host.to_string());
-            let port = port.parse::<u16>()
+            let port = port
+                .parse::<u16>()
                 .map_err(|_| database_err!(format!("Invalid port number: {}", port)))?;
             info.port = Some(port);
         } else {
@@ -566,7 +603,11 @@ impl AkitaConfig {
         Ok(())
     }
 
-    fn parse_native_url(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_native_url(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         if url.starts_with("mysql://") {
             info.platform = DriverType::MySQL;
         } else if url.starts_with("postgresql://") || url.starts_with("postgres://") {
@@ -582,7 +623,11 @@ impl AkitaConfig {
         self.parse_standard_url(url, info)
     }
 
-    fn parse_adonet_url(&self, conn_str: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_adonet_url(
+        &self,
+        conn_str: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         info.platform = DriverType::Mssql;
 
         for part in conn_str.split(';') {
@@ -626,7 +671,11 @@ impl AkitaConfig {
         Ok(())
     }
 
-    fn parse_oracle_easy_connect(&self, url: &str, info: &mut ParsedConnectionInfo) -> Result<(), AkitaError> {
+    fn parse_oracle_easy_connect(
+        &self,
+        url: &str,
+        info: &mut ParsedConnectionInfo,
+    ) -> Result<(), AkitaError> {
         info.platform = DriverType::Oracle;
 
         let parts: Vec<&str> = url.split('@').collect();
@@ -697,14 +746,19 @@ impl AkitaConfig {
         let mut url = String::from("mysql://");
 
         match (&info.username, &info.password) {
-            (Some(u), Some(p)) => write!(&mut url, "{}:{}@", u, p).map_err(|err| database_err!(err.to_string()))?,
-            (Some(u), None) => write!(&mut url, "{}@", u).map_err(|err| database_err!(err.to_string()))?,
+            (Some(u), Some(p)) => {
+                write!(&mut url, "{}:{}@", u, p).map_err(|err| database_err!(err.to_string()))?
+            }
+            (Some(u), None) => {
+                write!(&mut url, "{}@", u).map_err(|err| database_err!(err.to_string()))?
+            }
             _ => {}
         }
 
         if let Some(host) = &info.hostname {
             if let Some(port) = info.port {
-                write!(&mut url, "{}:{}", host, port).map_err(|err| database_err!(err.to_string()))?;
+                write!(&mut url, "{}:{}", host, port)
+                    .map_err(|err| database_err!(err.to_string()))?;
             } else {
                 url.push_str(host);
             }
@@ -716,7 +770,8 @@ impl AkitaConfig {
 
         if !info.extra_params.is_empty() {
             url.push('?');
-            let params: String = info.extra_params
+            let params: String = info
+                .extra_params
                 .iter()
                 .map(|(k, v)| format!("{}={}", k, v))
                 .collect::<Vec<_>>()
@@ -732,26 +787,31 @@ impl AkitaConfig {
 
         // The username and password section
         match (&info.username, &info.password) {
-            (Some(u), Some(p)) => write!(&mut url, "{}:{}@", u, p).map_err(|err| database_err!(err.to_string()))?,
-            (Some(u), None) => write!(&mut url, "{}@", u).map_err(|err| database_err!(err.to_string()))?,
+            (Some(u), Some(p)) => {
+                write!(&mut url, "{}:{}@", u, p).map_err(|err| database_err!(err.to_string()))?
+            }
+            (Some(u), None) => {
+                write!(&mut url, "{}@", u).map_err(|err| database_err!(err.to_string()))?
+            }
             _ => {}
         }
 
         // Host port section
         if let Some(host) = &info.hostname {
             if let Some(port) = info.port {
-                write!(&mut url, "{}:{}", host, port).map_err(|err| database_err!(err.to_string()))?;
+                write!(&mut url, "{}:{}", host, port)
+                    .map_err(|err| database_err!(err.to_string()))?;
             } else {
                 url.push_str(host);
             }
         }
 
-        // 数据库部分
+        // Database part
         if let Some(db) = &info.database {
             write!(&mut url, "/{}", db).map_err(|err| database_err!(err.to_string()))?;
         }
 
-        // 参数部分
+        // Parameters part
         if !info.extra_params.is_empty() {
             url.push('?');
             for (i, (k, v)) in info.extra_params.iter().enumerate() {

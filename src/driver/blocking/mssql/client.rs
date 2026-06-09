@@ -18,11 +18,11 @@
  *  *
  *
  */
-use tiberius::ToSql;
 use crate::errors::{AkitaError, Result};
+use crate::{database_err, tokio_err};
+use tiberius::ToSql;
 use tokio::runtime::Runtime;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
-use crate::{database_err, tokio_err};
 
 /// Synchronous SQL Server client wrapper
 pub struct SyncMssqlClient {
@@ -46,9 +46,8 @@ impl SyncMssqlClient {
                 .await
                 .map_err(|e| tokio_err!(format!("TCP connection failed: {}", e)))?;
 
-            tcp.set_nodelay(true).map_err(|e| {
-                tokio_err!(format!("Failed to set TCP no delay: {}", e))
-            })?;
+            tcp.set_nodelay(true)
+                .map_err(|e| tokio_err!(format!("Failed to set TCP no delay: {}", e)))?;
 
             // Convert tokio::net::TcpStream to a futures-compatible type
             let compat_tcp = tcp.compat();
@@ -65,51 +64,50 @@ impl SyncMssqlClient {
     }
 
     /// Executing queries
-    pub fn query(&self, sql: &str, params: &[& dyn ToSql]) -> Result<Vec<tiberius::Row>> {
-        let mut client = self.runtime.block_on(async {
-            self.inner.lock().await
-        });
+    pub fn query(&self, sql: &str, params: &[&dyn ToSql]) -> Result<Vec<tiberius::Row>> {
+        let mut client = self.runtime.block_on(async { self.inner.lock().await });
 
         self.runtime.block_on(async {
-            let stream = client.query(sql, params).await.map_err(|e| {
-                database_err!(format!("Query failed: {}", e))
-            })?;
-            let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-                database_err!(format!("Failed to get result: {}", e))
-            })?;
+            let stream = client
+                .query(sql, params)
+                .await
+                .map_err(|e| database_err!(format!("Query failed: {}", e)))?;
+            let rows: Vec<tiberius::Row> = stream
+                .into_first_result()
+                .await
+                .map_err(|e| database_err!(format!("Failed to get result: {}", e)))?;
 
             Ok(rows)
         })
     }
-    
+
     pub fn simple_query(&self, sql: &str) -> Result<Vec<tiberius::Row>> {
-        let mut client = self.runtime.block_on(async {
-            self.inner.lock().await
-        });
+        let mut client = self.runtime.block_on(async { self.inner.lock().await });
 
         self.runtime.block_on(async {
-            let stream = client.simple_query(sql).await.map_err(|e| {
-                database_err!(format!("Simple Query failed: {}", e))
-            })?;
+            let stream = client
+                .simple_query(sql)
+                .await
+                .map_err(|e| database_err!(format!("Simple Query failed: {}", e)))?;
 
-            let rows: Vec<tiberius::Row> = stream.into_first_result().await.map_err(|e| {
-                database_err!(format!("Failed to get result: {}", e))
-            })?;
+            let rows: Vec<tiberius::Row> = stream
+                .into_first_result()
+                .await
+                .map_err(|e| database_err!(format!("Failed to get result: {}", e)))?;
 
             Ok(rows)
         })
     }
 
     /// Perform updates (synchronization)
-    pub fn execute(&self, sql: &str, params: &[& dyn ToSql]) -> Result<u64> {
-        let mut client = self.runtime.block_on(async {
-            self.inner.lock().await
-        });
+    pub fn execute(&self, sql: &str, params: &[&dyn ToSql]) -> Result<u64> {
+        let mut client = self.runtime.block_on(async { self.inner.lock().await });
 
         self.runtime.block_on(async {
-            let result = client.execute(sql, params).await.map_err(|e| {
-                database_err!(format!("Execute failed: {}", e))
-            })?;
+            let result = client
+                .execute(sql, params)
+                .await
+                .map_err(|e| database_err!(format!("Execute failed: {}", e)))?;
 
             Ok(result.total())
         })

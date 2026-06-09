@@ -1,0 +1,90 @@
+use axum::extract::{Path, Query};
+use axum::routing::{delete, get, post, put};
+use axum::{Json, Router};
+use akita::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+///
+/// {{ table.comment }} Controller
+///
+/// @author {{ author }}
+/// @since {{ date }}
+///
+
+/// Query parameters for {{ entity }}
+#[derive(Debug, Deserialize)]
+pub struct {{ entity }}Query {
+    pub page: Option<u64>,
+    pub size: Option<u64>,
+    pub keyword: Option<String>,
+}
+
+/// Request body for creating/updating {{ entity }}
+#[derive(Debug, Deserialize)]
+pub struct {{ entity }}Request {
+    // Add fields here
+}
+
+/// Response body for {{ entity }}
+#[derive(Debug, Serialize)]
+pub struct {{ entity }}Response {
+    // Add fields here
+}
+
+/// Create the router for {{ entity }}
+pub fn {{ entity | snake_case }}_router() -> Router {
+    Router::new()
+        .route("/{{ table.name }}", get(list).post(create))
+        .route("/{{ table.name }}/:id", get(get_by_id).put(update).delete(delete_by_id))
+        .route("/{{ table.name }}/page", get(page))
+}
+
+/// List all {{ entity }}
+async fn list(
+    Query(query): Query<{{ entity }}Query>,
+) -> Json<Vec<{{ entity }}Response>> {
+    // TODO: Implement list
+    Json(vec![])
+}
+
+/// Get {{ entity }} by ID
+async fn get_by_id(
+    Path(id): Path<i64>,
+) -> Json<Option<{{ entity }}Response>> {
+    // TODO: Implement get by id
+    Json(None)
+}
+
+/// Create new {{ entity }}
+async fn create(
+    Json(request): Json<{{ entity }}Request>,
+) -> Json<()> {
+    // TODO: Implement create
+    Json(())
+}
+
+/// Update {{ entity }}
+async fn update(
+    Path(id): Path<i64>,
+    Json(request): Json<{{ entity }}Request>,
+) -> Json<()> {
+    // TODO: Implement update
+    Json(())
+}
+
+/// Delete {{ entity }} by ID
+async fn delete_by_id(
+    Path(id): Path<i64>,
+) -> Json<()> {
+    // TODO: Implement delete
+    Json(())
+}
+
+/// Paginated list of {{ entity }}
+async fn page(
+    Query(query): Query<{{ entity }}Query>,
+) -> Json<IPage<{{ entity }}Response>> {
+    // TODO: Implement pagination
+    Json(IPage::new(1, 10, 0, vec![]))
+}

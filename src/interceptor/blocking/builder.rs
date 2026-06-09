@@ -16,17 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use crate::errors::Result;
+use crate::interceptor::blocking::{AkitaInterceptor, InterceptorChain};
+use crate::interceptor::shared::{builder_helpers, presets, InterceptorEntry};
 use crate::interceptor::{InterceptorConfig, InterceptorConfigItem};
-use akita_core::{OperationType};
+use crate::interceptor_err;
+use akita_core::OperationType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use crate::errors::{AkitaError, Result};
-use crate::interceptor::blocking::{AkitaInterceptor, InterceptorChain};
-use crate::interceptor_err;
 
-/// Interceptor builder
+/// Synchronous interceptor builder
 pub struct InterceptorBuilder {
     interceptors: HashMap<String, (Arc<dyn AkitaInterceptor>, InterceptorConfigItem)>,
     chain_config: InterceptorConfig,
@@ -55,34 +56,30 @@ impl InterceptorBuilder {
     /// Register Interceptor - Accept Arc<dyn AkitaInterceptor> directly
     pub fn register(mut self, interceptor: Arc<dyn AkitaInterceptor>) -> Self {
         let name = interceptor.name().to_string();
-
         let config_item = InterceptorConfigItem {
-            enabled: false, // 默认不启用
+            enabled: false,
             order: interceptor.order(),
             ignored_tables: HashSet::new(),
             supported_operations: HashSet::new(),
         };
-
         self.interceptors.insert(name, (interceptor, config_item));
         self
     }
 
     /// Register an interceptor instance - a convenient way
-    pub fn register_instance<I>(self, interceptor: I) -> Self
-    where
-        I: AkitaInterceptor + 'static,
-    {
+    pub fn register_instance<I: AkitaInterceptor + 'static>(self, interceptor: I) -> Self {
         self.register(Arc::new(interceptor))
     }
 
-    /// Enable the blocker
+    /// Enable the interceptor
     pub fn enable(mut self, name: &str) -> Result<Self> {
         if let Some((_, config)) = self.interceptors.get_mut(name) {
             config.enabled = true;
             Ok(self)
         } else {
             Err(interceptor_err!(format!(
-                "Interceptor '{}' not found", name
+                "Interceptor '{}' not found",
+                name
             )))
         }
     }
@@ -94,7 +91,8 @@ impl InterceptorBuilder {
             Ok(self)
         } else {
             Err(interceptor_err!(format!(
-                "Interceptor '{}' not found", name
+                "Interceptor '{}' not found",
+                name
             )))
         }
     }
@@ -106,7 +104,8 @@ impl InterceptorBuilder {
             Ok(self)
         } else {
             Err(interceptor_err!(format!(
-                "Interceptor '{}' not found", name
+                "Interceptor '{}' not found",
+                name
             )))
         }
     }
@@ -118,7 +117,8 @@ impl InterceptorBuilder {
             Ok(self)
         } else {
             Err(interceptor_err!(format!(
-                "Interceptor '{}' not found", name
+                "Interceptor '{}' not found",
+                name
             )))
         }
     }
@@ -130,7 +130,8 @@ impl InterceptorBuilder {
             Ok(self)
         } else {
             Err(interceptor_err!(format!(
-                "Interceptor '{}' not found", name
+                "Interceptor '{}' not found",
+                name
             )))
         }
     }
@@ -140,7 +141,8 @@ impl InterceptorBuilder {
         let mut chain = InterceptorChain::with_config(self.chain_config);
 
         // Collect the enabled interceptors
-        let mut enabled_interceptors: Vec<(Arc<dyn AkitaInterceptor>, InterceptorConfigItem)> = self.interceptors
+        let mut enabled_interceptors: Vec<_> = self
+            .interceptors
             .into_iter()
             .filter(|(_, (_, config))| config.enabled)
             .map(|(_, (interceptor, config))| (interceptor, config))
@@ -149,25 +151,25 @@ impl InterceptorBuilder {
         // Sort in order
         enabled_interceptors.sort_by(|(_, a), (_, b)| a.order.cmp(&b.order));
 
-        // ADDED TO THE CHAIN
-        for (interceptor, config) in enabled_interceptors {
+        // Add to chain
+        for (interceptor, _config) in enabled_interceptors {
             chain.add_interceptor(interceptor);
         }
 
         Ok(chain)
     }
 
-    /// Get all registered blocker names
+    /// Get all registered interceptor names
     pub fn registered_interceptors(&self) -> Vec<&str> {
         self.interceptors.keys().map(|s| s.as_str()).collect()
     }
 
-    /// Check if the blocker is registered
+    /// Check if the interceptor is registered
     pub fn is_registered(&self, name: &str) -> bool {
         self.interceptors.contains_key(name)
     }
 
-    /// Check if the blocker is enabled
+    /// Check if the interceptor is enabled
     pub fn is_enabled(&self, name: &str) -> bool {
         self.interceptors
             .get(name)
@@ -176,41 +178,19 @@ impl InterceptorBuilder {
     }
 }
 
-
 impl InterceptorBuilder {
     /// Development environment configuration
     pub fn development() -> Self {
-        Self::new()
-            .with_chain_config(InterceptorConfig {
-                enable_async: true,
-                enable_metrics: true,
-                enable_tracing: true,
-                max_interceptor_depth: 20,
-                timeout_ms: 10000,
-            })
+        Self::new().with_chain_config(presets::development())
     }
 
     /// Production environment configuration
     pub fn production() -> Self {
-        Self::new()
-            .with_chain_config(InterceptorConfig {
-                enable_async: true,
-                enable_metrics: true,
-                enable_tracing: false,
-                max_interceptor_depth: 10,
-                timeout_ms: 5000,
-            })
+        Self::new().with_chain_config(presets::production())
     }
 
     /// High security configuration
     pub fn high_security() -> Self {
-        Self::production()
-            .with_chain_config(InterceptorConfig {
-                enable_async: true,
-                enable_metrics: true,
-                enable_tracing: true,
-                max_interceptor_depth: 15,
-                timeout_ms: 8000,
-            })
+        Self::new().with_chain_config(presets::high_security())
     }
 }

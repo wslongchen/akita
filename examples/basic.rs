@@ -71,8 +71,11 @@ fn main() -> Result<(), AkitaError> {
     println!("🚀 Starting Akita basic example...");
 
     // 1. Create Akita configuration
-    let config = AkitaConfig::new().hostname("127.0.0.1").password("password")
-        .username("root").database("test")
+    let config = AkitaConfig::new()
+        .hostname("127.0.0.1")
+        .password("password")
+        .username("root")
+        .database("test")
         .max_size(5)
         .connection_timeout(Duration::from_secs(10));
 
@@ -160,10 +163,8 @@ fn main() -> Result<(), AkitaError> {
 
     // 9. Show raw SQL query example
     println!("\n📊 Raw SQL query example...");
-    let query_result: Result<Vec<User>, AkitaError> = akita.exec_raw(
-        "SELECT * FROM t_system_user WHERE status = ? LIMIT 5",
-        (1,)
-    );
+    let query_result: Result<Vec<User>, AkitaError> =
+        akita.exec_raw("SELECT * FROM t_system_user WHERE status = ? LIMIT 5", (1,));
 
     match query_result {
         Ok(users) => println!("✅ Raw query returned {} users", users.len()),

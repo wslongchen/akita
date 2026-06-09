@@ -16,18 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use crate::config::XmlSqlLoaderConfig;
+use crate::errors::{AkitaError, SqlLoaderError};
+use crate::sql_loader_err;
+use dashmap::DashMap;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
-use dashmap::DashMap;
-use crate::config::XmlSqlLoaderConfig;
-use crate::errors::{AkitaError, SqlLoaderError};
-use crate::sql_loader_err;
 
 // SQL Statements are supported with parameters
 #[derive(Debug, Clone)]
@@ -100,14 +100,20 @@ impl XmlSqlLoader {
 
         // Cache miss, reload file
         let cache = self.load_and_cache(&path)?;
-        cache.sql_map.get(sql_id)
+        cache
+            .sql_map
+            .get(sql_id)
             .cloned()
             .map(|sql| self.format_sql(&sql))
             .ok_or_else(|| sql_loader_err!(SqlLoaderError::SqlNotFound(sql_id.to_string())))
     }
 
     /// Loading SQL statement structs (containing parameter information)
-    pub fn load_sql_statement(&mut self, xml_file: &str, sql_id: &str) -> Result<SqlStatement, AkitaError> {
+    pub fn load_sql_statement(
+        &mut self,
+        xml_file: &str,
+        sql_id: &str,
+    ) -> Result<SqlStatement, AkitaError> {
         let path = PathBuf::from(xml_file);
 
         if self.should_reload(&path) {
@@ -121,13 +127,20 @@ impl XmlSqlLoader {
         }
 
         let cache = self.load_and_cache(&path)?;
-        cache.statements.get(sql_id)
+        cache
+            .statements
+            .get(sql_id)
             .cloned()
             .ok_or_else(|| sql_loader_err!(SqlLoaderError::SqlNotFound(sql_id.to_string())))
     }
 
     /// Load namespace SQL
-    pub fn load_namespaced_sql(&mut self, xml_file: &str, namespace: &str, sql_id: &str) -> Result<String, AkitaError> {
+    pub fn load_namespaced_sql(
+        &mut self,
+        xml_file: &str,
+        namespace: &str,
+        sql_id: &str,
+    ) -> Result<String, AkitaError> {
         let full_id = format!("{}:{}", namespace, sql_id);
         self.load_sql(xml_file, &full_id)
     }
@@ -140,13 +153,21 @@ impl XmlSqlLoader {
     }
 
     /// Get a list of SQL parameters
-    pub fn get_sql_parameters(&mut self, xml_file: &str, sql_id: &str) -> Result<Vec<String>, AkitaError> {
+    pub fn get_sql_parameters(
+        &mut self,
+        xml_file: &str,
+        sql_id: &str,
+    ) -> Result<Vec<String>, AkitaError> {
         let statement = self.load_sql_statement(xml_file, sql_id)?;
         Ok(statement.parameters)
     }
 
     /// Replacing SQL parameters
-    pub fn replace_sql_parameters(&self, sql: &str, params: &HashMap<&str, SqlParameter>) -> Result<String, AkitaError> {
+    pub fn replace_sql_parameters(
+        &self,
+        sql: &str,
+        params: &HashMap<&str, SqlParameter>,
+    ) -> Result<String, AkitaError> {
         let mut result = sql.to_string();
 
         for (key, value) in params {
@@ -171,9 +192,10 @@ impl XmlSqlLoader {
                 .collect();
 
             if !remaining_params.is_empty() {
-                return Err(sql_loader_err!(SqlLoaderError::ParameterError(
-                    format!("Parameters not provided: {:?}", remaining_params)
-                )));
+                return Err(sql_loader_err!(SqlLoaderError::ParameterError(format!(
+                    "Parameters not provided: {:?}",
+                    remaining_params
+                ))));
             }
         }
 
@@ -194,13 +216,15 @@ impl XmlSqlLoader {
     /// Gets when the file was last modified
     pub fn get_file_last_modified(&self, xml_file: &str) -> Result<u64, AkitaError> {
         let path = PathBuf::from(xml_file);
-        let metadata = fs::metadata(&path)
+        let metadata =
+            fs::metadata(&path).map_err(|e| SqlLoaderError::FileReadError(e.to_string()))?;
+
+        let modified = metadata
+            .modified()
             .map_err(|e| SqlLoaderError::FileReadError(e.to_string()))?;
 
-        let modified = metadata.modified()
-            .map_err(|e| SqlLoaderError::FileReadError(e.to_string()))?;
-
-        Ok(modified.duration_since(UNIX_EPOCH)
+        Ok(modified
+            .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs())
     }
@@ -212,7 +236,9 @@ impl XmlSqlLoader {
 
         // Basic XML structure validation
         if !content.contains("<sqls>") && !content.contains("<sql ") {
-            return Err(sql_loader_err!(SqlLoaderError::XmlParseError("缺少根元素或 SQL 元素".to_string())));
+            return Err(sql_loader_err!(SqlLoaderError::XmlParseError(
+                "缺少根元素或 SQL 元素".to_string()
+            )));
         }
 
         // Use quick-xml validation
@@ -228,21 +254,32 @@ impl XmlSqlLoader {
                     }
                 }
                 Ok(Event::Eof) => break,
-                Err(e) => return Err(sql_loader_err!(SqlLoaderError::XmlParseError(e.to_string()))),
+                Err(e) => {
+                    return Err(sql_loader_err!(SqlLoaderError::XmlParseError(
+                        e.to_string()
+                    )))
+                }
                 _ => {}
             }
             buf.clear();
         }
 
         if sql_count == 0 {
-            return Err(sql_loader_err!(SqlLoaderError::XmlParseError("未找到 SQL 语句".to_string())));
+            return Err(sql_loader_err!(SqlLoaderError::XmlParseError(
+                "未找到 SQL 语句".to_string()
+            )));
         }
 
         Ok(())
     }
 
     /// Exporting SQL to a file
-    pub fn export_sql_to_file(&self, xml_file: &str, output_file: &str, format: bool) -> Result<(), AkitaError> {
+    pub fn export_sql_to_file(
+        &self,
+        xml_file: &str,
+        output_file: &str,
+        format: bool,
+    ) -> Result<(), AkitaError> {
         let sql_map = self.parse_xml_file(xml_file)?;
         let mut output = String::from("-- SQL statement export\n-- Source: ");
         output.push_str(xml_file);
@@ -282,15 +319,22 @@ impl XmlSqlLoader {
     }
 
     /// Loading SQL statements from multiple XML files (supports SQL fragment inheritance or override)
-    pub fn load_sql_from_multiple_files(&self, files: &[&str], sql_id: &str) -> Result<String, String> {
+    pub fn load_sql_from_multiple_files(
+        &self,
+        files: &[&str],
+        sql_id: &str,
+    ) -> Result<String, String> {
         for file in files {
             if let Ok(sql) = self.load_sql(file, sql_id) {
                 return Ok(sql);
             }
         }
-        Err(format!("SQL with id '{}' not found in any of the provided files", sql_id))
+        Err(format!(
+            "SQL with id '{}' not found in any of the provided files",
+            sql_id
+        ))
     }
-    
+
     fn reload_file(&self, path: &Path) -> Result<(), AkitaError> {
         self.load_and_cache(path)?;
         Ok(())
@@ -312,9 +356,10 @@ impl XmlSqlLoader {
             let cache = v.value();
             Ok(cache.clone())
         } else {
-            Err(sql_loader_err!(SqlLoaderError::FileReadError("load cache error".to_string())))
+            Err(sql_loader_err!(SqlLoaderError::FileReadError(
+                "load cache error".to_string()
+            )))
         }
-        
     }
 
     fn parse_xml_file(&self, xml_file: &str) -> Result<HashMap<String, String>, AkitaError> {
@@ -324,7 +369,10 @@ impl XmlSqlLoader {
         Self::parse_xml_content(&content)
     }
 
-    fn parse_xml_file_with_statements(&self, xml_file: &str) -> Result<(HashMap<String, String>, HashMap<String, SqlStatement>), AkitaError> {
+    fn parse_xml_file_with_statements(
+        &self,
+        xml_file: &str,
+    ) -> Result<(HashMap<String, String>, HashMap<String, SqlStatement>), AkitaError> {
         let content = fs::read_to_string(xml_file)
             .map_err(|e| SqlLoaderError::FileReadError(e.to_string()))?;
 
@@ -364,10 +412,11 @@ impl XmlSqlLoader {
 
             // Check if you need to reduce the indentation
             let upper_line = line.to_uppercase();
-            if upper_line.starts_with("END") ||
-                upper_line.starts_with("ELSE") ||
-                line.ends_with(')') ||
-                line.contains("};") {
+            if upper_line.starts_with("END")
+                || upper_line.starts_with("ELSE")
+                || line.ends_with(')')
+                || line.contains("};")
+            {
                 if indent > 0 {
                     indent -= 1;
                 }
@@ -379,12 +428,13 @@ impl XmlSqlLoader {
             formatted.push('\n');
 
             // Check if you need to increase the indentation
-            if line.ends_with('(') ||
-                upper_line.starts_with("SELECT") ||
-                upper_line.starts_with("CASE") ||
-                upper_line.starts_with("WHEN") ||
-                upper_line.starts_with("BEGIN") ||
-                upper_line.contains(" THEN") {
+            if line.ends_with('(')
+                || upper_line.starts_with("SELECT")
+                || upper_line.starts_with("CASE")
+                || upper_line.starts_with("WHEN")
+                || upper_line.starts_with("BEGIN")
+                || upper_line.contains(" THEN")
+            {
                 indent += 1;
             }
 
@@ -428,15 +478,19 @@ impl XmlSqlLoader {
                                     b"id" => {
                                         current_id = Some(
                                             std::str::from_utf8(&a.value)
-                                                .map_err(|e| SqlLoaderError::XmlParseError(e.to_string()))?
-                                                .to_string()
+                                                .map_err(|e| {
+                                                    SqlLoaderError::XmlParseError(e.to_string())
+                                                })?
+                                                .to_string(),
                                         );
                                     }
                                     b"desc" | b"description" => {
                                         current_desc = Some(
                                             std::str::from_utf8(&a.value)
-                                                .map_err(|e| SqlLoaderError::XmlParseError(e.to_string()))?
-                                                .to_string()
+                                                .map_err(|e| {
+                                                    SqlLoaderError::XmlParseError(e.to_string())
+                                                })?
+                                                .to_string(),
                                         );
                                     }
                                     _ => {}
@@ -472,8 +526,10 @@ impl XmlSqlLoader {
                             current_sql.clear();
                         } else if depth > 1 {
                             depth -= 1;
-                            current_sql.push_str(&format!("</{}>",
-                                                          String::from_utf8_lossy(e.name().as_ref())));
+                            current_sql.push_str(&format!(
+                                "</{}>",
+                                String::from_utf8_lossy(e.name().as_ref())
+                            ));
                         }
                     }
                 }
@@ -525,7 +581,6 @@ impl XmlSqlLoader {
         params
     }
 }
-
 
 // Test module
 #[cfg(test)]
@@ -603,7 +658,10 @@ mod tests {
         params.insert("name", SqlParameter::Text("John".to_string()));
 
         let replaced = loader.replace_sql_parameters(sql, &params).unwrap();
-        assert_eq!(replaced, "SELECT * FROM users WHERE id = 123 AND name = 'John'");
+        assert_eq!(
+            replaced,
+            "SELECT * FROM users WHERE id = 123 AND name = 'John'"
+        );
 
         // 测试缺失参数
         let mut params2 = HashMap::new();

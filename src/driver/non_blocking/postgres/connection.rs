@@ -16,17 +16,17 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use crate::config::AkitaConfig;
+use crate::database_err;
+use crate::driver::non_blocking::get_tokio_context;
+use crate::errors::AkitaError;
 use async_trait::async_trait;
 use deadpool::managed::{Metrics, Object, Pool, RecycleResult};
 use deadpool::Runtime;
 use tokio::runtime::Handle;
 use tokio_postgres::{Client, Config, NoTls};
-use crate::config::AkitaConfig;
-use crate::database_err;
-use crate::driver::non_blocking::get_tokio_context;
-use crate::errors::AkitaError;
 
 /// PostgreSQL Asynchronous connection type
 pub type PostgresAsyncConnection = Object<PostgresAsyncConnectionManager>;
@@ -42,9 +42,7 @@ pub struct PostgresAsyncConnectionManager {
 impl PostgresAsyncConnectionManager {
     pub fn new(config: &AkitaConfig) -> Result<Self, AkitaError> {
         let pg_config = config.into();
-        Ok(Self {
-            config: pg_config,
-        })
+        Ok(Self { config: pg_config })
     }
 }
 
@@ -66,16 +64,21 @@ impl deadpool::managed::Manager for PostgresAsyncConnectionManager {
         Ok(client)
     }
 
-    async fn recycle(&self, conn: &mut Self::Type, _metrics: &Metrics) -> RecycleResult<Self::Error> {
+    async fn recycle(
+        &self,
+        conn: &mut Self::Type,
+        _metrics: &Metrics,
+    ) -> RecycleResult<Self::Error> {
         // Perform a simple query to check the connection
         conn.simple_query("SELECT 1").await?;
         Ok(())
     }
 }
 
-
 /// Initialize the PostgreSQL asynchronous connection pool
-pub async fn init_postgres_async_pool(config: AkitaConfig) -> Result<PostgresAsyncPool, AkitaError> {
+pub async fn init_postgres_async_pool(
+    config: AkitaConfig,
+) -> Result<PostgresAsyncPool, AkitaError> {
     let manager = PostgresAsyncConnectionManager::new(&config)?;
     // Check the Tokio context
     let _handle = get_tokio_context()?;
@@ -89,19 +92,24 @@ pub async fn init_postgres_async_pool(config: AkitaConfig) -> Result<PostgresAsy
         ..Default::default()
     };
 
-    let pool = Pool::builder(manager).runtime(Runtime::Tokio1).config(pool_config).build()?;
+    let pool = Pool::builder(manager)
+        .runtime(Runtime::Tokio1)
+        .config(pool_config)
+        .build()?;
 
     // Testing connections
-    let conn: PostgresAsyncConnection = pool.get().await
+    let conn: PostgresAsyncConnection = pool
+        .get()
+        .await
         .map_err(|e| database_err!(format!("Failed to get connection from pool: {}", e)))?;
-    conn.simple_query("SELECT 1").await
+    conn.simple_query("SELECT 1")
+        .await
         .map_err(|e| database_err!(format!("PostgreSQL async connection test failed: {}", e)))?;
 
     tracing::info!("PostgreSQL async connection pool initialized successfully");
 
     Ok(pool)
 }
-
 
 impl From<AkitaConfig> for tokio_postgres::Config {
     fn from(v: AkitaConfig) -> Self {

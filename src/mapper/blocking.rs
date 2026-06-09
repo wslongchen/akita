@@ -18,11 +18,14 @@
  *  *
  *
  */
+use crate::data_err;
+use crate::errors::Result;
 use crate::mapper::IPage;
 use crate::prelude::{AkitaError, GetFields, GetTableName, Params};
-use crate::errors::Result;
-use akita_core::{from_akita_value, from_akita_value_opt, AkitaValue, FromAkitaValue, IntoAkitaValue, Rows, Wrapper};
-use crate::data_err;
+use akita_core::{
+    from_akita_value, from_akita_value_opt, AkitaValue, FromAkitaValue, IntoAkitaValue, Rows,
+    Wrapper,
+};
 
 pub trait AkitaMapper {
     /// Get all the table of records
@@ -65,9 +68,9 @@ pub trait AkitaMapper {
     /// Remove the records by wrapper.
     #[track_caller]
     fn remove_by_ids<T, I>(&self, ids: Vec<I>) -> Result<u64>
-        where
-            I: IntoAkitaValue,
-            T: GetTableName + GetFields;
+    where
+        I: IntoAkitaValue,
+        T: GetTableName + GetFields;
 
     /// Remove the records by id.
     #[track_caller]
@@ -75,7 +78,6 @@ pub trait AkitaMapper {
     where
         I: IntoAkitaValue + Into<AkitaValue>,
         T: GetTableName + GetFields;
-    
 
     /// Update the records by wrapper.
     #[track_caller]
@@ -112,55 +114,51 @@ pub trait AkitaMapper {
     /// save or update
     #[track_caller]
     fn save_or_update<T, I>(&self, entity: &T) -> Result<Option<I>>
-        where
-            T: GetTableName + GetFields + IntoAkitaValue,
-            I: FromAkitaValue;
+    where
+        T: GetTableName + GetFields + IntoAkitaValue,
+        I: FromAkitaValue;
 
     #[track_caller]
     fn simple_query<T, Q>(&self, query: Q) -> Result<Vec<T>>
-        where
-            Q: Into<String>,
-            T: FromAkitaValue,
+    where
+        Q: Into<String>,
+        T: FromAkitaValue,
     {
         self.query_map(query, from_akita_value)
     }
 
     #[track_caller]
     fn query_opt<T, Q>(&self, query: Q) -> Result<Vec<Result<T>>>
-        where
-            Q: Into<String>,
-            T: FromAkitaValue,
+    where
+        Q: Into<String>,
+        T: FromAkitaValue,
     {
-        self.query_map(query, from_akita_value_opt).map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
+        self.query_map(query, from_akita_value_opt)
+            .map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
     #[track_caller]
-    fn query_first<S: Into<String>, R>(
-        &self, sql: S
-    ) -> Result<R>
-        where
-            R: FromAkitaValue,
+    fn query_first<S: Into<String>, R>(&self, sql: S) -> Result<R>
+    where
+        R: FromAkitaValue,
     {
         self.exec_first(sql, ())
     }
 
     #[track_caller]
-    fn query_first_opt<R, S: Into<String>>(
-        &self, sql: S,
-    ) -> Result<Option<R>>
-        where
-            R: FromAkitaValue,
+    fn query_first_opt<R, S: Into<String>>(&self, sql: S) -> Result<Option<R>>
+    where
+        R: FromAkitaValue,
     {
         self.exec_first_opt(sql, ())
     }
 
-
     #[track_caller]
     fn query_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>>
-        where
-            Q: Into<String>,
-            T: FromAkitaValue,
-            F: FnMut(T) -> U,
+    where
+        Q: Into<String>,
+        T: FromAkitaValue,
+        F: FnMut(T) -> U,
     {
         self.query_fold(query, Vec::new(), |mut acc, row| {
             acc.push(f(row));
@@ -170,30 +168,32 @@ pub trait AkitaMapper {
 
     #[track_caller]
     fn query_fold<T, F, Q, U>(&self, query: Q, init: U, mut f: F) -> Result<U>
-        where
-            Q: Into<String>,
-            T: FromAkitaValue,
-            F: FnMut(U, T) -> U,
+    where
+        Q: Into<String>,
+        T: FromAkitaValue,
+        F: FnMut(U, T) -> U,
     {
-        self.exec_iter::<_, _>(query, ()).map(|r| r.object_iter().map(|data| from_akita_value(data))
-            .fold(init, |acc, row| f(acc, row)))
+        self.exec_iter::<_, _>(query, ()).map(|r| {
+            r.object_iter()
+                .map(|data| from_akita_value(data))
+                .fold(init, |acc, row| f(acc, row))
+        })
     }
-
 
     #[track_caller]
     fn query_drop<Q>(&self, query: Q) -> Result<()>
-        where
-            Q: Into<String>,
+    where
+        Q: Into<String>,
     {
         self.query_iter(query).map(drop)
     }
 
     #[track_caller]
     fn exec_map<T, F, Q, U>(&self, query: Q, mut f: F) -> Result<Vec<U>>
-        where
-            Q: Into<String>,
-            T: FromAkitaValue,
-            F: FnMut(T) -> U,
+    where
+        Q: Into<String>,
+        T: FromAkitaValue,
+        F: FnMut(T) -> U,
     {
         self.query_fold(query, Vec::new(), |mut acc, row| {
             acc.push(f(row));
@@ -202,43 +202,30 @@ pub trait AkitaMapper {
     }
 
     #[track_caller]
-    fn query_iter<S: Into<String>>(
-        &self,
-        sql: S,
-    ) -> Result<Rows>
-    {
+    fn query_iter<S: Into<String>>(&self, sql: S) -> Result<Rows> {
         self.exec_iter(sql, ())
     }
 
     #[track_caller]
-    fn exec_iter<S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<Rows>;
+    fn exec_iter<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Rows>;
 
     #[allow(clippy::redundant_closure)]
     #[track_caller]
-    fn exec_raw<R, S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<Vec<R>>
-        where
-            R: FromAkitaValue,
+    fn exec_raw<R, S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<Vec<R>>
+    where
+        R: FromAkitaValue,
     {
         let rows = self.exec_iter(&sql.into(), params.into())?;
-        Ok(rows.object_iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
+        Ok(rows
+            .object_iter()
+            .map(|data| R::from_value(&data))
+            .collect::<Vec<R>>())
     }
 
     #[track_caller]
-    fn exec_first<R, S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<R>
-        where
-            R: FromAkitaValue,
+    fn exec_first<R, S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<R>
+    where
+        R: FromAkitaValue,
     {
         let sql: String = sql.into();
         let result: Result<Vec<R>> = self.exec_raw(&sql, params);
@@ -253,12 +240,7 @@ pub trait AkitaMapper {
     }
 
     #[track_caller]
-    fn exec_drop<S: Into<String>, P: Into<Params>>(
-        &self,
-        sql: S,
-        params: P,
-    ) -> Result<()>
-    {
+    fn exec_drop<S: Into<String>, P: Into<Params>>(&self, sql: S, params: P) -> Result<()> {
         let sql: String = sql.into();
         let _result: Vec<()> = self.exec_raw(&sql, params)?;
         Ok(())
@@ -270,8 +252,8 @@ pub trait AkitaMapper {
         sql: S,
         params: P,
     ) -> Result<Option<R>>
-        where
-            R: FromAkitaValue,
+    where
+        R: FromAkitaValue,
     {
         let sql: String = sql.into();
         let result: Result<Vec<R>> = self.exec_raw(&sql, params);

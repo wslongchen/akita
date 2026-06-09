@@ -16,37 +16,17 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use tracing::{debug, enabled, error, info, trace, warn, Level};
 use crate::comm::ExecuteContext;
-use crate::prelude::{ExecuteResult};
 use crate::errors::{AkitaError, Result};
-use crate::interceptor::{InterceptorType, LogLevel, OperationType};
 use crate::interceptor::blocking::AkitaInterceptor;
 use crate::interceptor::logging::LoggingInterceptor;
+use crate::interceptor::{InterceptorType, LogLevel, OperationType};
+use crate::prelude::ExecuteResult;
+use tracing::{debug, enabled, error, info, trace, warn, Level};
 
 impl AkitaInterceptor for LoggingInterceptor {
-    fn name(&self) -> &'static str {
-        "logging"
-    }
-
-    fn interceptor_type(&self) -> InterceptorType {
-        InterceptorType::Logging
-    }
-
-    fn order(&self) -> i32 {
-        90
-    }
-
-    fn supports_operation(&self, _operation: &OperationType) -> bool {
-        true
-    }
-
-    fn will_ignore_table(&self, _table_name: &str) -> bool {
-        false
-    }
-
     fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<()> {
         // Preparation logs are only recorded at DEBUG level and above
         if enabled!(target: "akita::sql", Level::DEBUG) {
@@ -70,7 +50,11 @@ impl AkitaInterceptor for LoggingInterceptor {
         Ok(())
     }
 
-    fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult>) -> Result<()> {
+    fn after_execute(
+        &self,
+        ctx: &mut ExecuteContext,
+        result: &mut Result<ExecuteResult>,
+    ) -> Result<()> {
         let duration_ms = ctx.start_time().elapsed().as_millis();
         // Processing execution results
         match result {

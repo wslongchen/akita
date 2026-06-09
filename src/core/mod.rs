@@ -16,16 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::sync::Arc;
-use once_cell::sync::Lazy;
-use akita_core::cfg_if;
 use crate::key::SnowflakeGenerator;
+use akita_core::cfg_if;
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+
+pub mod shared;
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-sync",
-    feature = "postgres-sync", 
+    feature = "postgres-sync",
     feature = "sqlite-sync",
     feature = "oracle-sync",
     feature = "mssql-sync"
@@ -35,7 +37,7 @@ cfg_if! {if #[cfg(any(
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-async",
-    feature = "postgres-async", 
+    feature = "postgres-async",
     feature = "sqlite-async",
     feature = "oracle-async",
     feature = "mssql-async"
@@ -44,6 +46,5 @@ cfg_if! {if #[cfg(any(
 }}
 
 // Global generator
-pub(crate) static GLOBAL_GENERATOR: Lazy<Arc<SnowflakeGenerator>> = Lazy::new(|| {
-    Arc::new(SnowflakeGenerator::new())
-});
+pub(crate) static GLOBAL_GENERATOR: Lazy<Arc<SnowflakeGenerator>> =
+    Lazy::new(|| Arc::new(SnowflakeGenerator::new()));

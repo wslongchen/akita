@@ -19,10 +19,11 @@
  *
  */
 
+pub mod shared;
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-sync",
-    feature = "postgres-sync", 
+    feature = "postgres-sync",
     feature = "sqlite-sync",
     feature = "oracle-sync",
     feature = "mssql-sync"
@@ -32,7 +33,7 @@ cfg_if! {if #[cfg(any(
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-async",
-    feature = "postgres-async", 
+    feature = "postgres-async",
     feature = "sqlite-async",
     feature = "oracle-async",
     feature = "mssql-async"
@@ -40,8 +41,8 @@ cfg_if! {if #[cfg(any(
     pub mod non_blocking;
 }}
 
-use serde::{Deserialize, Serialize};
 use akita_core::cfg_if;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
@@ -52,16 +53,20 @@ pub struct PaginationOptions {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct IPage <T>
-where T: Sized  {
+pub struct IPage<T>
+where
+    T: Sized,
+{
     pub total: u64,
     pub size: u64,
     pub current: u64,
-    pub records: Vec<T>
+    pub records: Vec<T>,
 }
 
-impl <T> IPage <T>
-where T: Sized {
+impl<T> IPage<T>
+where
+    T: Sized,
+{
     pub fn new(current: u64, size: u64, total: u64, records: Vec<T>) -> Self {
         Self {
             total,
@@ -72,6 +77,10 @@ where T: Sized {
     }
 
     pub fn offset(&self) -> u64 {
-        if self.current > 0 { (self.current - 1) * self.size } else { 0 }
+        if self.current > 0 {
+            (self.current - 1) * self.size
+        } else {
+            0
+        }
     }
 }

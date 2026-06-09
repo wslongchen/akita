@@ -70,8 +70,11 @@ fn main() -> std::result::Result<(), AkitaError> {
     println!("🚀 Starting Akita transaction example...");
 
     // Setup
-    let config = AkitaConfig::new().hostname("127.0.0.1").password("password")
-        .username("root").database("test")
+    let config = AkitaConfig::new()
+        .hostname("127.0.0.1")
+        .password("password")
+        .username("root")
+        .database("test")
         .max_size(5)
         .connection_timeout(Duration::from_secs(10));
 
@@ -119,12 +122,12 @@ fn main() -> std::result::Result<(), AkitaError> {
                             // Update balances within transaction
                             let update_a = tx.exec_drop(
                                 "UPDATE t_system_user SET balance = balance - ? WHERE id = ?",
-                                (transfer_amount, id1)
+                                (transfer_amount, id1),
                             );
 
                             let update_b = tx.exec_drop(
                                 "UPDATE t_system_user SET balance = balance + ? WHERE id = ?",
-                                (transfer_amount, id2)
+                                (transfer_amount, id2),
                             );
 
                             if update_a.is_ok() && update_b.is_ok() {
@@ -261,11 +264,16 @@ fn main() -> std::result::Result<(), AkitaError> {
                             // Query within transaction
                             match tx.list::<User>(Wrapper::new().like("pk", "multi_%")) {
                                 Ok(queried_users) => {
-                                    println!("   Found {} users in transaction", queried_users.len());
+                                    println!(
+                                        "   Found {} users in transaction",
+                                        queried_users.len()
+                                    );
 
                                     // Commit all changes
                                     match tx.commit() {
-                                        Ok(_) => println!("   ✅ All operations committed successfully"),
+                                        Ok(_) => {
+                                            println!("   ✅ All operations committed successfully")
+                                        }
                                         Err(e) => eprintln!("   ❌ Commit failed: {}", e),
                                     }
                                 }

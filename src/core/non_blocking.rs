@@ -27,16 +27,19 @@ use std::borrow::Borrow;
 use std::sync::{Arc, OnceLock};
 
 use crate::driver::non_blocking::{AsyncDbDriver, AsyncDbExecutor};
-use crate::prelude::{AkitaConfig, Result, Wrapper};
-use crate::prelude::{AkitaError};
-use crate::xml::XmlSqlLoader;
-use akita_core::{cfg_if, AkitaValue, FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows, SqlOperator, SqlSecurityConfig};
 use crate::interceptor::non_blocking::{AsyncInterceptorBuilder, AsyncInterceptorChain};
-use crate::{database_err, interceptor_err};
-use crate::mapper::IPage;
 use crate::mapper::non_blocking::AsyncAkitaMapper;
+use crate::mapper::IPage;
 use crate::pool::non_blocking::{AsyncDBPoolWrapper, AsyncPooledConnection};
+use crate::prelude::AkitaError;
+use crate::prelude::{AkitaConfig, Result, Wrapper};
 use crate::transaction::non_blocking::AsyncAkitaTransaction;
+use crate::xml::XmlSqlLoader;
+use crate::{database_err, interceptor_err};
+use akita_core::{
+    cfg_if, AkitaValue, FromAkitaValue, GetFields, GetTableName, IntoAkitaValue, Params, Rows,
+    SqlOperator, SqlSecurityConfig,
+};
 
 cfg_if! {if #[cfg(feature = "mysql-async")]{
     use crate::driver::non_blocking::mysql::{MySQLAsync};
@@ -71,11 +74,14 @@ pub struct AkitaAsync {
 impl std::fmt::Debug for AkitaAsync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AkitaAsync")
-            .field("pool", &"Pool { ... }")  // 简化显示
-            .field("interceptor_chain", &match &self.interceptor_chain {
-                Some(_) => "Some(InterceptorChain)",
-                None => "None",
-            })
+            .field("pool", &"Pool { ... }") // Simplified display
+            .field(
+                "interceptor_chain",
+                &match &self.interceptor_chain {
+                    Some(_) => "Some(InterceptorChain)",
+                    None => "None",
+                },
+            )
             .finish()
     }
 }
@@ -84,7 +90,8 @@ impl std::fmt::Debug for AkitaAsync {
 impl AkitaAsync {
     pub async fn new(cfg: AkitaConfig) -> Result<Self> {
         let sql_security_config = cfg.sql_security().map(Clone::clone);
-        let xml_sql_loader = XmlSqlLoader::new(cfg.xml_sql_loader().map(Clone::clone).unwrap_or_default());
+        let xml_sql_loader =
+            XmlSqlLoader::new(cfg.xml_sql_loader().map(Clone::clone).unwrap_or_default());
         let pool = AsyncDBPoolWrapper::new(cfg).await?;
         Ok(Self {
             pool,
@@ -109,7 +116,8 @@ impl AkitaAsync {
     }
 
     pub fn with_interceptor_builder(mut self, builder: AsyncInterceptorBuilder) -> Result<Self> {
-        let chain = builder.build()
+        let chain = builder
+            .build()
             .map_err(|e| interceptor_err!(&e.to_string()))?;
         self.interceptor_chain = Some(Arc::new(chain));
         Ok(self)
@@ -118,7 +126,7 @@ impl AkitaAsync {
     pub fn xml_sql_loader(&self) -> &XmlSqlLoader {
         &self.xml_sql_loader
     }
-    
+
     pub fn interceptor_chain(&self) -> Option<&Arc<AsyncInterceptorChain>> {
         self.interceptor_chain.as_ref()
     }
@@ -127,53 +135,58 @@ impl AkitaAsync {
     pub async fn acquire(&self) -> Result<AsyncDbDriver> {
         let pool = self.get_pool()?;
         let conn = pool.acquire().await?;
-        
+
         let platform = match conn {
             #[cfg(feature = "mysql-async")]
             AsyncPooledConnection::PooledMysqlAsync(pooled_mysql) => {
-                let mut db = MySQLAsync::new(pooled_mysql).with_sql_security(self.sql_security_config.clone());
+                let mut db = MySQLAsync::new(pooled_mysql)
+                    .with_sql_security(self.sql_security_config.clone());
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
                 AsyncDbDriver::MysqlAsyncDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "sqlite-async")]
             AsyncPooledConnection::PooledSqliteAsync(pooled_sqlite) => {
-                let mut db = SqliteAsync::new(pooled_sqlite).with_sql_security(self.sql_security_config.clone());
+                let mut db = SqliteAsync::new(pooled_sqlite)
+                    .with_sql_security(self.sql_security_config.clone());
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
                 AsyncDbDriver::SqliteAsyncDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "postgres-async")]
             AsyncPooledConnection::PooledPostgresAsync(pooled_postgres) => {
-                let mut db = PostgresAsync::new(pooled_postgres).with_sql_security(self.sql_security_config.clone());
+                let mut db = PostgresAsync::new(pooled_postgres)
+                    .with_sql_security(self.sql_security_config.clone());
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
                 AsyncDbDriver::PostgresAsyncDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "oracle-async")]
             AsyncPooledConnection::PooledOracleAsync(pooled_oracle) => {
-                let mut db = OracleAsync::new(pooled_oracle).with_sql_security(self.sql_security_config.clone());
+                let mut db = OracleAsync::new(pooled_oracle)
+                    .with_sql_security(self.sql_security_config.clone());
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
                 AsyncDbDriver::OracleAsyncDriver(Box::new(db))
-            },
+            }
             #[cfg(feature = "mssql-async")]
             AsyncPooledConnection::PooledMssqlAsync(pooled_mssql) => {
-                let mut db = MssqlAsync::new(pooled_mssql).with_sql_security(self.sql_security_config.clone());
+                let mut db = MssqlAsync::new(pooled_mssql)
+                    .with_sql_security(self.sql_security_config.clone());
                 if let Some(chain) = &self.interceptor_chain {
                     db = db.with_interceptor_chain(Arc::clone(chain));
                 }
                 AsyncDbDriver::MssqlAsyncDriver(Box::new(db))
-            },
-            _ => return Err(database_err!("database must be init."))
+            }
+            _ => return Err(database_err!("database must be init.")),
         };
         Ok(platform)
     }
-    
+
     pub async fn start_transaction(&self) -> Result<AsyncAkitaTransaction> {
         let mut conn = self.acquire().await?;
         conn.start().await?;
@@ -182,6 +195,41 @@ impl AkitaAsync {
             committed: false,
             rolled_back: false,
         })
+    }
+
+    /// Execute a closure within a transaction.
+    ///
+    /// Automatically commits on success and rolls back on error.
+    /// This is the recommended way to use transactions for automatic lifecycle management.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let result = db.transaction(|tx| {
+    ///     Box::pin(async move {
+    ///         tx.save(&user).await?;
+    ///         tx.update(&profile).await?;
+    ///         Ok(())
+    ///     })
+    /// }).await?;
+    /// ```
+    pub async fn transaction<F, R>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(
+            &mut AsyncAkitaTransaction,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<R>> + Send + '_>>,
+    {
+        let mut tx = self.start_transaction().await?;
+        match f(&mut tx).await {
+            Ok(result) => {
+                tx.commit().await?;
+                Ok(result)
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Err(e)
+            }
+        }
     }
 
     /// get conn pool
@@ -341,23 +389,22 @@ impl AsyncAkitaMapper for AkitaAsync {
     }
 }
 
-
 /// Chained calls
 #[allow(mismatched_lifetime_syntaxes)]
 impl AkitaAsync {
-
     /// Add a new chain query method
     pub fn query_builder<T>(&self) -> AsyncQueryBuilder<T> {
         AsyncQueryBuilder::new(self)
     }
 
     /// Or go straight back to the wrapper
-    pub fn update_builder<T>(&self) -> AsyncUpdateBuilder<T> where
-        T: GetTableName  {
+    pub fn update_builder<T>(&self) -> AsyncUpdateBuilder<T>
+    where
+        T: GetTableName,
+    {
         AsyncUpdateBuilder::new(self).table(T::table_name().name)
     }
 }
-
 
 /// Added query builder
 pub struct AsyncQueryBuilder<'a, T> {
@@ -374,7 +421,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
             _phantom: std::marker::PhantomData,
         }
     }
-    
+
     pub fn limit(mut self, limit: u64) -> Self {
         self.wrapper = self.wrapper.limit(limit);
         self
@@ -418,7 +465,6 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-
     pub fn gt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
@@ -437,8 +483,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-
-    pub fn lt<S,V>(mut self, column: S, value: V) -> Self
+    pub fn lt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -447,7 +492,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn le<S,V>(mut self, column: S, value: V) -> Self
+    pub fn le<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -456,7 +501,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -465,7 +510,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn not_like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -484,7 +529,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn r#in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn r#in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -494,7 +539,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn not_in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -504,7 +549,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -513,7 +558,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn not_between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn not_between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -546,8 +591,8 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     }
 
     // ========== JOIN ==========
-    
-    pub fn inner_join<S,C>(mut self, table: S, condition: C) -> Self
+
+    pub fn inner_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -556,7 +601,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn left_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn left_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -565,7 +610,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn right_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn right_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -574,7 +619,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn full_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn full_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -590,7 +635,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
         self
     }
 
-    pub fn having<S,V>(mut self, column: S,operator: SqlOperator, value: V) -> Self
+    pub fn having<S, V>(mut self, column: S, operator: SqlOperator, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -634,7 +679,6 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     pub async fn list(self) -> Result<Vec<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send,
-
     {
         self.akita.list::<T>(self.wrapper).await
     }
@@ -643,7 +687,6 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     pub async fn select_one(self) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send,
-
     {
         self.akita.select_one::<T>(self.wrapper).await
     }
@@ -652,7 +695,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     pub async fn select_by_id<I>(self, id: I) -> Result<Option<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send,
-        I: IntoAkitaValue + Sync + Send
+        I: IntoAkitaValue + Sync + Send,
     {
         self.akita.select_by_id::<T, I>(id).await
     }
@@ -661,7 +704,6 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     pub async fn page(self, page: u64, size: u64) -> Result<IPage<T>>
     where
         T: GetTableName + GetFields + FromAkitaValue + Sync + Send,
-
     {
         self.akita.page::<T>(page, size, self.wrapper).await
     }
@@ -673,9 +715,7 @@ impl<'a, T> AsyncQueryBuilder<'a, T> {
     {
         self.akita.count::<T>(self.wrapper).await
     }
-    
 }
-
 
 /// Added a modified builder
 pub struct AsyncUpdateBuilder<'a, T> {
@@ -731,7 +771,6 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-
     pub fn gt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
@@ -750,8 +789,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-
-    pub fn lt<S,V>(mut self, column: S, value: V) -> Self
+    pub fn lt<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -760,7 +798,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn le<S,V>(mut self, column: S, value: V) -> Self
+    pub fn le<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -769,7 +807,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -778,7 +816,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_like<S,V>(mut self, column: S, value: V) -> Self
+    pub fn not_like<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -797,7 +835,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn r#in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn r#in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -807,7 +845,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_in<S,V, I>(mut self, column: S, values: I) -> Self
+    pub fn not_in<S, V, I>(mut self, column: S, values: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -817,7 +855,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -826,7 +864,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn not_between<S,V>(mut self, column: S, start: V, end: V) -> Self
+    pub fn not_between<S, V>(mut self, column: S, start: V, end: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -860,7 +898,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
 
     // ========== JOIN ==========
 
-    pub fn inner_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn inner_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -869,7 +907,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn left_join<S,C>(mut self, table: S, condition: C) -> Self
+    pub fn left_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -878,7 +916,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn right_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn right_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -887,7 +925,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn full_join<S,C>(mut self, table: S,condition: C) -> Self
+    pub fn full_join<S, C>(mut self, table: S, condition: C) -> Self
     where
         S: Into<String>,
         C: Into<String>,
@@ -910,7 +948,7 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
 
     // ========== SET (UPDATE) ==========
 
-    pub fn set<S,V>(mut self, column: S,value: V) -> Self
+    pub fn set<S, V>(mut self, column: S, value: V) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
@@ -919,11 +957,11 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self
     }
 
-    pub fn set_multiple<S,V, I>(mut self, operations: I) -> Self
+    pub fn set_multiple<S, V, I>(mut self, operations: I) -> Self
     where
         S: Into<String>,
         V: Into<AkitaValue>,
-        I: IntoIterator<Item = (S,V)>,
+        I: IntoIterator<Item = (S, V)>,
     {
         self.wrapper = self.wrapper.set_multiple(operations);
         self
@@ -957,21 +995,28 @@ impl<'a, T> AsyncUpdateBuilder<'a, T> {
         self.akita.remove::<T>(self.wrapper).await
     }
 
-    pub async fn remove_by_ids<I>(self, ids: Vec<I>) -> Result<u64> where I: IntoAkitaValue + Sync + Send, T: GetTableName + GetFields + Sync + Send {
+    pub async fn remove_by_ids<I>(self, ids: Vec<I>) -> Result<u64>
+    where
+        I: IntoAkitaValue + Sync + Send,
+        T: GetTableName + GetFields + Sync + Send,
+    {
         self.akita.remove_by_ids::<T, I>(ids).await
     }
 
     /// Remove the records by id.
     pub async fn remove_by_id<I>(self, id: I) -> Result<u64>
     where
-        I: IntoAkitaValue+ Sync + Send,
-        T: GetTableName + GetFields + Sync + Send {
+        I: IntoAkitaValue + Sync + Send,
+        T: GetTableName + GetFields + Sync + Send,
+    {
         self.akita.remove_by_id::<T, I>(id).await
     }
 
     /// Update the records by wrapper.
-    pub async fn update(self, entity: &T) -> std::result::Result<u64, AkitaError> where T: GetTableName + GetFields + IntoAkitaValue + Send + Sync {
+    pub async fn update(self, entity: &T) -> std::result::Result<u64, AkitaError>
+    where
+        T: GetTableName + GetFields + IntoAkitaValue + Send + Sync,
+    {
         self.akita.update(entity, self.wrapper).await
     }
-
 }

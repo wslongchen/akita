@@ -43,7 +43,6 @@ where
 pub struct UpperCaseConverter;
 
 impl Converter<String> for UpperCaseConverter {
-
     fn convert(data: &String) -> String {
         data.to_uppercase()
     }
@@ -53,14 +52,12 @@ impl Converter<String> for UpperCaseConverter {
     }
 }
 
-
-
 #[cfg(test)]
 #[allow(unused)]
 mod test {
-    use std::borrow::Borrow;
-    use crate::prelude::{Entity, self as akita, IdentifierGenerator};
     use crate::key::SnowflakeGenerator;
+    use crate::prelude::{self as akita, Entity, IdentifierGenerator};
+    use std::borrow::Borrow;
 
     #[test]
     fn test_converter() {
@@ -74,7 +71,7 @@ mod test {
     }
 
     #[test]
-    fn test_id_generater(){
+    fn test_id_generater() {
         let generator = SnowflakeGenerator::new();
 
         let id_as_u64: u64 = generator.next_id();
@@ -86,10 +83,13 @@ mod test {
     #[table(name = "t_system_user")]
     struct SystemUsers {
         id: Option<i32>,
-        #[id(name = "ffff", id_type = "none", converter="akita::UpperCaseConverter")]
+        #[id(
+            name = "ffff",
+            id_type = "none",
+            converter = "akita::UpperCaseConverter"
+        )]
         username: String,
         #[field(name = "ssss")]
         age: i32,
     }
-    
 }

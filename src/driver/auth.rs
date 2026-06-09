@@ -19,10 +19,10 @@
  *
  */
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use akita_core::{FieldName, TableName};
 use akita_derive::FromValue;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, FromValue)]
 pub struct DataBaseUser {
@@ -116,7 +116,6 @@ impl ToString for Privilege {
             Privilege::Shutdown => String::from("Shutdown"),
             Privilege::Super => String::from("Super"),
             Privilege::Trigger => String::from("Trigger"),
-            
         }
     }
 }
@@ -154,7 +153,7 @@ impl From<String> for Privilege {
             "Shutdown" => Self::Shutdown,
             "Super" => Self::Super,
             "Trigger" => Self::Trigger,
-            _=> Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }
@@ -186,7 +185,13 @@ pub struct UserInfo {
 }
 
 impl UserInfo {
-    pub fn new(username: String, password: Option<String>, host: Option<String>, privileges: Option<Vec<Privilege>>, is_lock: Option<bool>) -> Self {
+    pub fn new(
+        username: String,
+        password: Option<String>,
+        host: Option<String>,
+        privileges: Option<Vec<Privilege>>,
+        is_lock: Option<bool>,
+    ) -> Self {
         UserInfo {
             username,
             password,
@@ -206,9 +211,14 @@ pub struct GrantUserPrivilege {
     pub privileges: Vec<Privilege>,
 }
 
-
 impl GrantUserPrivilege {
-    pub fn new(username: String, schema: String, table: String, host: Option<String>, privileges: Vec<Privilege>) -> Self {
+    pub fn new(
+        username: String,
+        schema: String,
+        table: String,
+        host: Option<String>,
+        privileges: Vec<Privilege>,
+    ) -> Self {
         GrantUserPrivilege {
             username,
             schema,

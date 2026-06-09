@@ -16,18 +16,16 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use mysql::{Conn, Error, Opts};
-use mysql::prelude::Queryable;
 use crate::config::AkitaConfig;
 use crate::database_err;
 use crate::errors::AkitaError;
+use mysql::prelude::Queryable;
+use mysql::{Conn, Error, Opts};
 
 pub type MysqlPool = r2d2::Pool<MysqlConnectionManager>;
 pub type MysqlConnection = r2d2::PooledConnection<MysqlConnectionManager>;
-
-
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
@@ -89,9 +87,7 @@ pub fn init_mysql_pool(cfg: AkitaConfig) -> Result<MysqlPool, AkitaError> {
         .max_lifetime(Some(cfg.get_max_lifetime()))
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
-        .map_err(|e| {
-            database_err!(format!("Failed to create MySQL connection pool: {}", e))
-        })?;
+        .map_err(|e| database_err!(format!("Failed to create MySQL connection pool: {}", e)))?;
 
     // Testing connections
     let mut conn = pool.get()?;
@@ -100,8 +96,6 @@ pub fn init_mysql_pool(cfg: AkitaConfig) -> Result<MysqlPool, AkitaError> {
 
     Ok(pool)
 }
-
-
 
 #[cfg(feature = "mysql-sync")]
 impl From<&AkitaConfig> for mysql::OptsBuilder {
@@ -141,7 +135,6 @@ impl From<&AkitaConfig> for mysql::OptsBuilder {
         opts
     }
 }
-
 
 #[cfg(feature = "mysql-sync")]
 impl From<AkitaConfig> for mysql::OptsBuilder {

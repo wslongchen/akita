@@ -16,14 +16,15 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 use crate::comm::ExecuteContext;
-use crate::prelude::{ExecuteResult};
 use crate::errors::{AkitaError, Result};
+use crate::interceptor::shared::InterceptorBase;
 use crate::interceptor::{InterceptorType, LogLevel, OperationType};
+use crate::prelude::ExecuteResult;
 
-/// Simplified log blocker - Focus on SQL execution logs
+/// Simplified log interceptor - Focus on SQL execution logs
 pub struct LoggingInterceptor {
     pub slow_query_threshold_ms: u64,
 }
@@ -41,10 +42,30 @@ impl LoggingInterceptor {
     }
 }
 
-
 impl Default for LoggingInterceptor {
     fn default() -> Self {
         Self::new()
     }
 }
 
+impl InterceptorBase for LoggingInterceptor {
+    fn name(&self) -> &'static str {
+        "logging"
+    }
+
+    fn interceptor_type(&self) -> InterceptorType {
+        InterceptorType::Logging
+    }
+
+    fn order(&self) -> i32 {
+        90
+    }
+
+    fn supports_operation(&self, _operation: &OperationType) -> bool {
+        true
+    }
+
+    fn will_ignore_table(&self, _table_name: &str) -> bool {
+        false
+    }
+}

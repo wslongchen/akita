@@ -16,44 +16,18 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
+use crate::comm::ExecuteContext;
+use crate::errors::{AkitaError, Result};
+use crate::interceptor::logging::LoggingInterceptor;
+use crate::interceptor::non_blocking::AsyncAkitaInterceptor;
+use crate::prelude::ExecuteResult;
 use async_trait::async_trait;
 use tracing::{debug, enabled, error, info, trace, warn, Level};
-use akita_core::{InterceptorType, OperationType};
-use crate::comm::ExecuteContext;
-use crate::prelude::{AsyncAkitaInterceptor, ExecuteResult};
-use crate::errors::{AkitaError, Result};
-use crate::interceptor::{LogLevel, LoggingInterceptor};
-
-/// Simplified log blocker - Focus on SQL execution logs
-pub struct AsyncLoggingInterceptor {
-    log_level: LogLevel,
-    pub slow_query_threshold_ms: u64,
-}
 
 #[async_trait]
 impl AsyncAkitaInterceptor for LoggingInterceptor {
-    fn name(&self) -> &'static str {
-        "logging"
-    }
-
-    fn interceptor_type(&self) -> InterceptorType {
-        InterceptorType::Logging
-    }
-
-    fn order(&self) -> i32 {
-        90
-    }
-
-    fn supports_operation(&self, _operation: &OperationType) -> bool {
-        true
-    }
-
-    fn will_ignore_table(&self, _table_name: &str) -> bool {
-        false
-    }
-
     async fn before_execute(&self, ctx: &mut ExecuteContext) -> Result<()> {
         // Preparation logs are only recorded at DEBUG level and above
         if enabled!(target: "akita::sql", Level::DEBUG) {
@@ -76,7 +50,11 @@ impl AsyncAkitaInterceptor for LoggingInterceptor {
         Ok(())
     }
 
-    async fn after_execute(&self, ctx: &mut ExecuteContext, result: &mut Result<ExecuteResult>) -> Result<()> {
+    async fn after_execute(
+        &self,
+        ctx: &mut ExecuteContext,
+        result: &mut Result<ExecuteResult>,
+    ) -> Result<()> {
         let duration_ms = ctx.start_time().elapsed().as_millis();
 
         match result {
@@ -94,7 +72,7 @@ impl AsyncAkitaInterceptor for LoggingInterceptor {
                 Ok(())
             }
             Ok(exec_result) => {
-                let rows = if *ctx.operation_type() == OperationType::Select {
+                let rows = if *ctx.operation_type() == crate::interceptor::OperationType::Select {
                     exec_result.len()
                 } else {
                     ctx.metrics().rows_affected

@@ -16,19 +16,21 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::collections::HashSet;
-use crate::interceptor::*;
-use crate::prelude::Result;
-use std::sync::Arc;
-use akita_core::InterceptorType;
 use crate::comm::{ExecuteContext, ExecuteResult};
 use crate::interceptor::blocking::AkitaInterceptor;
-use crate::interceptor_err;
+use crate::interceptor::shared::{
+    check_depth_limit, should_skip_interceptor, sort_interceptors_by_order, InterceptorBase,
+};
+use crate::interceptor::*;
 use crate::prelude::AkitaError;
+use crate::prelude::Result;
+use akita_core::InterceptorType;
+use std::collections::HashSet;
+use std::sync::Arc;
 
-/// Interceptor chain manager
+/// Synchronous interceptor chain manager
 #[derive(Clone)]
 pub struct InterceptorChain {
     interceptors: Vec<Arc<dyn AkitaInterceptor>>,
@@ -67,18 +69,19 @@ impl InterceptorChain {
         }
     }
 
-    /// Add interceptor - now accepted Arc<dyn InnerInterceptor>
+    /// Add interceptor - now accepted Arc<dyn AkitaInterceptor>
     pub fn add_interceptor(&mut self, interceptor: Arc<dyn AkitaInterceptor>) -> &mut Self {
         let interceptor_type = interceptor.interceptor_type();
         self.interceptors.push(interceptor);
         self.enabled_types.insert(interceptor_type);
-        self.sort_interceptors();
+        // Sort by order - convert to trait object for sorting
+        let mut base_refs: Vec<Arc<dyn InterceptorBase>> = self
+            .interceptors
+            .iter()
+            .map(|i| i.clone() as Arc<dyn InterceptorBase>)
+            .collect();
+        sort_interceptors_by_order(&mut base_refs);
         self
-    }
-
-    /// Sort the blockers in order
-    fn sort_interceptors(&mut self) {
-        self.interceptors.sort_by(|a, b| a.order().cmp(&b.order()));
     }
 
     /// Perform a pre-interception
@@ -91,23 +94,10 @@ impl InterceptorChain {
             }
 
             // Check the depth limit
-            depth += 1;
-            if depth > self.config.max_interceptor_depth {
-                return Err(interceptor_err!("Interceptor chain too deep".to_string()));
-            }
+            check_depth_limit(&mut depth, &self.config)?;
 
-            // Check if the table is ignored
-            if interceptor.will_ignore_table(&ctx.table_info().name) {
-                continue;
-            }
-
-            // Check if the action is supported
-            if !interceptor.supports_operation(&ctx.operation_type()) {
-                continue;
-            }
-
-            // Check if the interceptor is skipped
-            if ctx.skip_next_interceptors().contains(&interceptor.interceptor_type()) {
+            // Check if the interceptor should be skipped
+            if should_skip_interceptor(interceptor.as_ref() as &dyn InterceptorBase, ctx) {
                 continue;
             }
 
@@ -115,26 +105,21 @@ impl InterceptorChain {
             interceptor.before_execute(ctx)?;
 
             // Record the executed interceptors
-            ctx.executed_interceptors_mut().push(interceptor.interceptor_type());
+            ctx.executed_interceptors_mut()
+                .push(interceptor.interceptor_type());
         }
         Ok(())
     }
 
     /// Perform post-interception
-    pub fn after_query(&self, ctx: &mut ExecuteContext, result: &mut std::result::Result<ExecuteResult, AkitaError>) -> Result<()> {
+    pub fn after_query(
+        &self,
+        ctx: &mut ExecuteContext,
+        result: &mut std::result::Result<ExecuteResult, AkitaError>,
+    ) -> Result<()> {
         for interceptor in self.interceptors.iter().rev() {
-            // Check if the table is ignored
-            if interceptor.will_ignore_table(&ctx.table_info().name) {
-                continue;
-            }
-
-            // Check if the action is supported
-            if !interceptor.supports_operation(&ctx.operation_type()) {
-                continue;
-            }
-
-            // Check if the interceptor is skipped
-            if ctx.skip_next_interceptors().contains(&interceptor.interceptor_type()) {
+            // Check if the interceptor should be skipped
+            if should_skip_interceptor(interceptor.as_ref() as &dyn InterceptorBase, ctx) {
                 continue;
             }
 
@@ -146,18 +131,8 @@ impl InterceptorChain {
     /// Perform error interception
     pub fn on_error(&self, ctx: &ExecuteContext, error: &mut AkitaError) -> Result<()> {
         for interceptor in self.interceptors.iter().rev() {
-            // Check if the table is ignored
-            if interceptor.will_ignore_table(&ctx.table_info().name) {
-                continue;
-            }
-
-            // Check if the action is supported
-            if !interceptor.supports_operation(&ctx.operation_type()) {
-                continue;
-            }
-
-            // Check if the interceptor is skipped
-            if ctx.skip_next_interceptors().contains(&interceptor.interceptor_type()) {
+            // Check if the interceptor should be skipped
+            if should_skip_interceptor(interceptor.as_ref() as &dyn InterceptorBase, ctx) {
                 continue;
             }
 
@@ -166,7 +141,7 @@ impl InterceptorChain {
         Ok(())
     }
 
-    /// Check if a certain type of blocker is enabled
+    /// Check if a certain type of interceptor is enabled
     pub fn is_interceptor_enabled(&self, interceptor_type: &InterceptorType) -> bool {
         self.enabled_types.contains(interceptor_type)
     }
@@ -180,5 +155,4 @@ impl InterceptorChain {
     pub fn is_empty(&self) -> bool {
         self.interceptors.is_empty()
     }
-
 }

@@ -16,22 +16,21 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-mod connection;
 mod adapter;
 mod client;
+mod connection;
 
-pub use connection::*;
 pub use adapter::*;
 pub use client::*;
+pub use connection::*;
 
-
-use std::sync::Arc;
-use akita_core::{OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName};
 use crate::comm::{ExecuteContext, ExecuteResult};
 use crate::driver::blocking::DbExecutor;
 use crate::interceptor::blocking::InterceptorChain;
+use akita_core::{OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName};
+use std::sync::Arc;
 
 /// Mssql Database driver
 pub struct Mssql {
@@ -57,15 +56,16 @@ impl Mssql {
         self.interceptor_chain = Some(interceptor_chain);
         self
     }
-    
+
     /// Set up SQL security configuration
     pub fn with_sql_security(mut self, sql_security_config: Option<SqlSecurityConfig>) -> Self {
         if let Some(sql_security_config) = sql_security_config {
-            self.sql_injection_detector = Some(SqlInjectionDetector::with_config(sql_security_config));
+            self.sql_injection_detector =
+                Some(SqlInjectionDetector::with_config(sql_security_config));
         }
         self
     }
-    
+
     /// Get the clone of the interceptor chain
     pub fn interceptor_chain(&self) -> Option<Arc<InterceptorChain>> {
         self.interceptor_chain.clone()
@@ -80,7 +80,6 @@ impl Mssql {
         self.database.as_ref()
     }
 
-
     /// Execute queries with interceptors
     fn execute_with_interceptors(
         &self,
@@ -88,7 +87,12 @@ impl Mssql {
         params: Params,
     ) -> crate::prelude::Result<ExecuteResult> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -107,13 +111,16 @@ impl Mssql {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
         // Execute the query
-        let mut result = self.adapter.execute(ctx.final_sql(), ctx.final_params().clone());
+        let mut result = self
+            .adapter
+            .execute(ctx.final_sql(), ctx.final_params().clone());
 
         // Record the number of affected rows
         if let Ok(_rows) = &result {
@@ -133,14 +140,14 @@ impl Mssql {
         result
     }
 
-
-    fn query_with_interceptors(
-        &self,
-        sql: &str,
-        params: Params,
-    ) -> crate::prelude::Result<Rows> {
+    fn query_with_interceptors(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -159,13 +166,17 @@ impl Mssql {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
         // Execute the query
-        let mut result = self.adapter.query(ctx.final_sql(), ctx.final_params().clone()).map(ExecuteResult::Rows);
+        let mut result = self
+            .adapter
+            .query(ctx.final_sql(), ctx.final_params().clone())
+            .map(ExecuteResult::Rows);
 
         // Record the number of affected rows
         if let Ok(_rows) = &result {
@@ -185,7 +196,6 @@ impl Mssql {
         result.map(|v| v.rows())
     }
 }
-
 
 impl DbExecutor for Mssql {
     fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
@@ -207,5 +217,4 @@ impl DbExecutor for Mssql {
     fn rollback(&self) -> crate::prelude::Result<()> {
         self.adapter.rollback_transaction()
     }
-
 }

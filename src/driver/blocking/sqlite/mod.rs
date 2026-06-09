@@ -27,16 +27,18 @@ mod connection;
 
 pub use connection::*;
 
-use bigdecimal::ToPrimitive;
-use std::sync::Arc;
-use chrono::{Datelike, Timelike};
-use rusqlite::{params_from_iter, ToSql};
-use rusqlite::types::{Value};
-use akita_core::{AkitaValue, OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName};
 use crate::comm::{ExecuteContext, ExecuteResult};
 use crate::driver::blocking::DbExecutor;
 use crate::errors::{AkitaError, Result};
 use crate::interceptor::blocking::InterceptorChain;
+use akita_core::{
+    AkitaValue, OperationType, Params, Rows, SqlInjectionDetector, SqlSecurityConfig, TableName,
+};
+use bigdecimal::ToPrimitive;
+use chrono::{Datelike, Timelike};
+use rusqlite::types::Value;
+use rusqlite::{params_from_iter, ToSql};
+use std::sync::Arc;
 
 pub struct Sqlite {
     conn: SqliteConnection,
@@ -64,7 +66,8 @@ impl Sqlite {
     /// Set up SQL security configuration
     pub fn with_sql_security(mut self, sql_security_config: Option<SqlSecurityConfig>) -> Self {
         if let Some(sql_security_config) = sql_security_config {
-            self.sql_injection_detector = Some(SqlInjectionDetector::with_config(sql_security_config));
+            self.sql_injection_detector =
+                Some(SqlInjectionDetector::with_config(sql_security_config));
         }
         self
     }
@@ -83,16 +86,16 @@ impl Sqlite {
         self.database.as_ref()
     }
 
-
     /// Execute queries with interceptors
     #[track_caller]
-    fn _execute(
-        &self,
-        sql: &str,
-        params: Params,
-    ) -> Result<ExecuteResult> {
+    fn _execute(&self, sql: &str, params: Params) -> Result<ExecuteResult> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -111,7 +114,8 @@ impl Sqlite {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
@@ -138,15 +142,15 @@ impl Sqlite {
         result
     }
 
-
     #[track_caller]
-    fn _query(
-        &self,
-        sql: &str,
-        params: Params,
-    ) -> Result<Rows> {
+    fn _query(&self, sql: &str, params: Params) -> Result<Rows> {
         // Create a query context
-        let mut ctx = ExecuteContext::new(sql.to_string(), params, TableName::parse_table_name(sql), OperationType::detect_operation_type(sql));
+        let mut ctx = ExecuteContext::new(
+            sql.to_string(),
+            params,
+            TableName::parse_table_name(sql),
+            OperationType::detect_operation_type(sql),
+        );
         // Record parsing begins
         ctx.record_parse_complete();
 
@@ -165,13 +169,16 @@ impl Sqlite {
 
             if let Some(sql_injection_detector) = self.sql_injection_detector.as_ref() {
                 // Blocker modified SQL security checks
-                let detection_result = sql_injection_detector.contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
+                let detection_result = sql_injection_detector
+                    .contains_dangerous_operations(ctx.final_sql(), ctx.final_params())?;
                 ctx.set_detection_result(detection_result);
             }
         }
 
         // Execute the query
-        let mut result = self.inner_query(ctx.final_sql(), ctx.final_params().clone()).map(ExecuteResult::Rows);
+        let mut result = self
+            .inner_query(ctx.final_sql(), ctx.final_params().clone())
+            .map(ExecuteResult::Rows);
 
         // Record the number of affected rows
         if let Ok(_rows) = &result {
@@ -189,7 +196,7 @@ impl Sqlite {
         // Record query metrics
         ctx.record_query_metrics();
 
-        result.map(|v|v.rows())
+        result.map(|v| v.rows())
     }
 
     #[track_caller]
@@ -206,14 +213,14 @@ impl Sqlite {
                 match stmt {
                     Ok(mut stmt) => {
                         let sqlite_params = convert_to_sqlite_params(params);
-                        let affected_rows = stmt.execute(params_from_iter(sqlite_params.into_iter()))?;
+                        let affected_rows =
+                            stmt.execute(params_from_iter(sqlite_params.into_iter()))?;
                         Ok(ExecuteResult::AffectedRows(affected_rows as u64))
                     }
                     Err(e) => Err(AkitaError::from(e)),
                 }
             }
         }
-
     }
 
     #[track_caller]
@@ -240,9 +247,9 @@ impl Sqlite {
                                 record.push(v);
                             }
                         }
-                        records.push(crate::prelude::Row{
+                        records.push(crate::prelude::Row {
                             columns: column_names.clone(),
-                            data: record
+                            data: record,
                         });
                     }
                 }
@@ -261,13 +268,15 @@ impl DbExecutor for Sqlite {
     }
 
     fn commit(&self) -> Result<()> {
-        self._execute("COMMIT TRANSACTION", Params::None).map(|_| ())
+        self._execute("COMMIT TRANSACTION", Params::None)
+            .map(|_| ())
     }
 
     fn rollback(&self) -> Result<()> {
-        self._execute("ROLLBACK TRANSACTION", Params::None).map(|_| ())
+        self._execute("ROLLBACK TRANSACTION", Params::None)
+            .map(|_| ())
     }
-    
+
     fn query(&self, sql: &str, params: Params) -> Result<Rows> {
         self._query(sql, params)
     }
@@ -275,33 +284,29 @@ impl DbExecutor for Sqlite {
     fn execute(&self, sql: &str, params: Params) -> Result<ExecuteResult> {
         self._execute(sql, params)
     }
-    
+
     fn last_insert_id(&self) -> u64 {
         self.conn.last_insert_rowid() as u64
     }
 }
 
-
 fn convert_to_sqlite_params(params: Params) -> Vec<Box<dyn ToSql + Sync + Send>> {
     match params {
         Params::None => {
             vec![]
-        },
-        Params::Positional(param) => param.into_iter()
-            .map(|val| {
-                convert_value_to_to_sql(val)
-            })
+        }
+        Params::Positional(param) => param
+            .into_iter()
+            .map(|val| convert_value_to_to_sql(val))
             .collect(),
-        Params::Named(param) => {
-            param.values().cloned().into_iter()
-                .map(|val| {
-                    convert_value_to_to_sql(val)
-                })
-                .collect()
-        },
+        Params::Named(param) => param
+            .values()
+            .cloned()
+            .into_iter()
+            .map(|val| convert_value_to_to_sql(val))
+            .collect(),
     }
 }
-
 
 fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
     match value {
@@ -319,31 +324,27 @@ fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
         },
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(v.to_string()),
-        AkitaValue::Json(j) => {
-            match j {
-                serde_json::Value::Bool(v) => Box::new(v),
-                serde_json::Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        Box::new(n as i64)
-                    } else if let Some(n) = v.as_f64() {
-                        Box::new(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        Box::new(n)
-                    } else {
-                        Box::new(v.to_string())
-                    }
-
-
-                },
-                serde_json::Value::String(v) => Box::new(v),
-                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            serde_json::Value::Bool(v) => Box::new(v),
+            serde_json::Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    Box::new(n as i64)
+                } else if let Some(n) = v.as_f64() {
+                    Box::new(n)
+                } else if let Some(n) = v.as_i64() {
+                    Box::new(n)
+                } else {
+                    Box::new(v.to_string())
+                }
             }
+            serde_json::Value::String(v) => Box::new(v),
+            _ => Box::new(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(v) => Box::new(v.to_string()),
         AkitaValue::Date(v) => {
             let formatted = format!("{:04}-{:02}-{:02}", v.year(), v.month(), v.day());
             Box::new(formatted)
-        },
+        }
         AkitaValue::DateTime(v) => {
             let formatted = format!(
                 "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
@@ -355,29 +356,24 @@ fn convert_value_to_to_sql(value: AkitaValue) -> Box<dyn ToSql + Sync + Send> {
                 v.second()
             );
             Box::new(formatted)
-        },
+        }
         AkitaValue::Time(v) => {
             let formatted = format!("{:02}:{:02}:{:02}", v.hour(), v.minute(), v.second());
             Box::new(formatted)
-        },
+        }
         AkitaValue::Timestamp(v) => Box::new(v),
         AkitaValue::Null => Box::new(rusqlite::types::Null),
 
-        _ => Box::new(value.to_string())
+        _ => Box::new(value.to_string()),
     }
 }
-
 
 fn convert_sqlite_value(value: rusqlite::types::Value) -> crate::prelude::Result<AkitaValue> {
     match value {
         rusqlite::types::Value::Null => Ok(AkitaValue::Null),
         rusqlite::types::Value::Integer(i) => Ok(AkitaValue::Bigint(i)),
         rusqlite::types::Value::Real(f) => Ok(AkitaValue::Double(f)),
-        rusqlite::types::Value::Text(text) => {
-            Ok(AkitaValue::Text(text))
-        }
-        rusqlite::types::Value::Blob(bytes) => {
-            Ok(AkitaValue::Blob(bytes.to_vec()))
-        }
+        rusqlite::types::Value::Text(text) => Ok(AkitaValue::Text(text)),
+        rusqlite::types::Value::Blob(bytes) => Ok(AkitaValue::Blob(bytes.to_vec())),
     }
 }

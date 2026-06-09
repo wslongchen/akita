@@ -19,8 +19,8 @@
  *
  */
 
-use akita::*;
 use akita::prelude::*;
+use akita::*;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
 use uuid::Uuid;
@@ -63,7 +63,8 @@ pub fn bench_connection_operations(c: &mut Criterion) {
     group.bench_function("count_query", |b| {
         let akita = create_bench_akita();
         b.iter(|| {
-            let result: Result<i64, AkitaError> = akita.exec_first("SELECT COUNT(*) FROM t_system_user", ());
+            let result: Result<i64, AkitaError> =
+                akita.exec_first("SELECT COUNT(*) FROM t_system_user", ());
             black_box(result).unwrap();
         });
     });
@@ -96,7 +97,8 @@ pub fn bench_connection_pool(c: &mut Criterion) {
                     let config = create_test_akita_cfg().max_size(size);
                     let akita = Akita::new(config).unwrap();
 
-                    let result: Result<Option<i64>, AkitaError> = akita.exec_first("SELECT ?", (size,));
+                    let result: Result<Option<i64>, AkitaError> =
+                        akita.exec_first("SELECT ?", (size,));
                     black_box(result).unwrap();
                 });
             },
@@ -217,7 +219,7 @@ criterion_group!(
         .significance_level(0.05)
         .noise_threshold(0.02)
         .warm_up_time(Duration::from_secs(2));
-    targets = 
+    targets =
         bench_connection_operations,
         bench_connection_pool,
         bench_concurrent_connections,

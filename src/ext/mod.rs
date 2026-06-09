@@ -16,13 +16,13 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 use akita_core::{cfg_if, Wrapper};
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-sync",
-    feature = "postgres-sync", 
+    feature = "postgres-sync",
     feature = "sqlite-sync",
     feature = "oracle-sync",
     feature = "mssql-sync"
@@ -32,7 +32,7 @@ cfg_if! {if #[cfg(any(
 
 cfg_if! {if #[cfg(any(
     feature = "mysql-async",
-    feature = "postgres-async", 
+    feature = "postgres-async",
     feature = "sqlite-async",
     feature = "oracle-async",
     feature = "mssql-async"
@@ -40,9 +40,7 @@ cfg_if! {if #[cfg(any(
     pub mod non_blocking;
 }}
 
-
-pub trait Request:  Sync + Send {
-
+pub trait Request: Sync + Send {
     /// Get the page number
     fn get_page_no(&self) -> u64 {
         1
@@ -67,5 +65,4 @@ pub trait Request:  Sync + Send {
         let wrapper = Wrapper::new();
         wrapper
     }
-
 }

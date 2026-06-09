@@ -18,21 +18,21 @@
  *  *
  *
  */
-use std::fmt::format;
-use std::io::Write;
-use std::str::FromStr;
-use std::sync::{RwLock};
+use crate::comm::ExecuteResult;
+use crate::database_err;
+use crate::driver::blocking::postgres::PostgresConnection;
+use crate::errors::AkitaError;
+use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
 use bigdecimal::BigDecimal;
 use chrono::{NaiveDate, NaiveDateTime};
 use indexmap::IndexMap;
 use postgres::types::{ToSql, Type};
 use serde_json::Value;
+use std::fmt::format;
+use std::io::Write;
+use std::str::FromStr;
+use std::sync::RwLock;
 use uuid::Uuid;
-use crate::errors::AkitaError;
-use akita_core::{AkitaValue, OperationType, Params, Row, Rows, SqlInjectionDetector};
-use crate::comm::ExecuteResult;
-use crate::database_err;
-use crate::driver::blocking::postgres::PostgresConnection;
 
 pub struct PostgresAdapter {
     conn: RwLock<PostgresConnection>,
@@ -70,7 +70,6 @@ impl PostgresAdapter {
     pub fn execute(&self, sql: &str, params: Params) -> crate::prelude::Result<ExecuteResult> {
         match self.conn.write() {
             Ok(mut conn) => {
-
                 // Get the statement type (query, update, etc.)
                 let stmt_type = OperationType::detect_operation_type(sql);
 
@@ -93,7 +92,7 @@ impl PostgresAdapter {
                 match stmt_type {
                     OperationType::Select => {
                         let mut records = Rows::new();
-                        let rows = conn.query(&statement ,&pg_params_ref)?;
+                        let rows = conn.query(&statement, &pg_params_ref)?;
                         for row in rows {
                             let mut record = Vec::new();
                             for (i, column) in statement.columns().iter().enumerate() {
@@ -115,12 +114,9 @@ impl PostgresAdapter {
                     }
                 }
             }
-            Err(_) => {
-                Err(database_err!("error to get connection.".to_string()))
-            }
+            Err(_) => Err(database_err!("error to get connection.".to_string())),
         }
     }
-
 
     #[track_caller]
     pub fn query(&self, sql: &str, params: Params) -> crate::prelude::Result<Rows> {
@@ -143,8 +139,7 @@ impl PostgresAdapter {
                     .collect::<Vec<_>>()[..];
                 let mut records = Rows::new();
                 // Executing queries
-                let rows = conn.
-                    query(&statement ,&pg_params_ref)?;
+                let rows = conn.query(&statement, &pg_params_ref)?;
                 // Conversion result
                 for row in rows {
                     let mut record = Vec::new();
@@ -160,16 +155,17 @@ impl PostgresAdapter {
                 }
                 Ok(records)
             }
-            Err(_) => {
-                Err(database_err!("error to get connection.".to_string()))
-            }
+            Err(_) => Err(database_err!("error to get connection.".to_string())),
         }
-        
     }
 
     /// Specific to PostgreSQL: Perform bulk inserts
     #[track_caller]
-    pub fn execute_batch(&self, sql: &str, params_list: Vec<Params>) -> Result<Vec<ExecuteResult>, AkitaError> {
+    pub fn execute_batch(
+        &self,
+        sql: &str,
+        params_list: Vec<Params>,
+    ) -> Result<Vec<ExecuteResult>, AkitaError> {
         if params_list.is_empty() {
             return Ok(vec![]);
         }
@@ -190,20 +186,25 @@ impl PostgresAdapter {
                 let _ = conn.batch_execute(sql)?;
                 Ok(())
             }
-            Err(_) => {
-                Err(database_err!("error to get connection.".to_string()))
-            }
+            Err(_) => Err(database_err!("error to get connection.".to_string())),
         }
-        
     }
 
     /// Postgresql-specific: COPY (high-performance bulk import)
     #[track_caller]
-    pub fn copy_in(&mut self, table: &str, columns: &[&str], data: &[Vec<AkitaValue>]) -> Result<u64, AkitaError> {
+    pub fn copy_in(
+        &mut self,
+        table: &str,
+        columns: &[&str],
+        data: &[Vec<AkitaValue>],
+    ) -> Result<u64, AkitaError> {
         match self.conn.write() {
             Ok(mut conn) => {
                 let columns_str = columns.join(", ");
-                let sql = format!("COPY {} ({}) FROM STDIN WITH (FORMAT CSV)", table, columns_str);
+                let sql = format!(
+                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV)",
+                    table, columns_str
+                );
 
                 // Start COPY
                 let sink = conn.copy_in(&sql)?;
@@ -217,24 +218,23 @@ impl PostgresAdapter {
                         .collect::<Vec<_>>()
                         .join(",");
 
-                    writer.write_all(line.as_bytes()).map_err(|e| {
-                        database_err!(format!("Failed to write COPY data: {}", e))
-                    })?;
-                    writer.write_all(b"\n").map_err(|e| {
-                        database_err!(format!("Failed to write newline: {}", e))
-                    })?;
+                    writer
+                        .write_all(line.as_bytes())
+                        .map_err(|e| database_err!(format!("Failed to write COPY data: {}", e)))?;
+                    writer
+                        .write_all(b"\n")
+                        .map_err(|e| database_err!(format!("Failed to write newline: {}", e)))?;
                 }
 
                 // Complete COPY
-                writer.finish().map_err(|e| {
-                    database_err!(format!("Failed to finish COPY: {}", e))
-                })?;
+                writer
+                    .finish()
+                    .map_err(|e| database_err!(format!("Failed to finish COPY: {}", e)))?;
 
                 // Get the number of affected rows (PostgreSQL COPY does not return the number of rows directly)
-                let count_result = self.execute(
-                    &format!("SELECT COUNT(*) FROM {}", table),
-                    Params::None,
-                )?.rows();
+                let count_result = self
+                    .execute(&format!("SELECT COUNT(*) FROM {}", table), Params::None)?
+                    .rows();
 
                 if let Some(row) = count_result.get(0) {
                     if let Some(AkitaValue::Bigint(count)) = row.get(0) {
@@ -244,18 +244,15 @@ impl PostgresAdapter {
 
                 Ok(0)
             }
-            Err(_) => {
-                Err(database_err!("error to get connection.".to_string()))
-            }
+            Err(_) => Err(database_err!("error to get connection.".to_string())),
         }
-        
     }
 
     /// Get the number of affected rows
     pub fn affected_rows(&self) -> u64 {
         0
     }
-    
+
     pub fn connection_id(&self) -> u32 {
         0
     }
@@ -289,7 +286,11 @@ impl PostgresAdapter {
 
     /// Escaping CSV fields
     fn escape_csv(value: &str) -> String {
-        if value.contains('"') || value.contains(',') || value.contains('\n') || value.contains('\r') {
+        if value.contains('"')
+            || value.contains(',')
+            || value.contains('\n')
+            || value.contains('\r')
+        {
             format!("\"{}\"", value.replace("\"", "\"\""))
         } else {
             value.to_string()
@@ -309,9 +310,10 @@ impl PostgresAdapter {
 //     }
 // }
 
-fn convert_named_params(sql: &str, named_params: &IndexMap<String, AkitaValue>)
-                        -> crate::prelude::Result<(String, Vec<AkitaValue>)>
-{
+fn convert_named_params(
+    sql: &str,
+    named_params: &IndexMap<String, AkitaValue>,
+) -> crate::prelude::Result<(String, Vec<AkitaValue>)> {
     let mut converted_sql = String::with_capacity(sql.len() + named_params.len() * 3);
     let mut postgres_params = Vec::with_capacity(named_params.len());
     let mut param_counter = 1;
@@ -333,12 +335,11 @@ fn convert_named_params(sql: &str, named_params: &IndexMap<String, AkitaValue>)
 
             if !param_name.is_empty() {
                 if let Some(value) = named_params.get(&param_name) {
-                    let index = *param_indices.entry(param_name.clone())
-                        .or_insert_with(|| {
-                            let idx = param_counter;
-                            param_counter += 1;
-                            idx
-                        });
+                    let index = *param_indices.entry(param_name.clone()).or_insert_with(|| {
+                        let idx = param_counter;
+                        param_counter += 1;
+                        idx
+                    });
 
                     converted_sql.push_str(&format!("${}", index));
                     // Add the parameter name to the parameter list only the first time it is encountered
@@ -347,7 +348,8 @@ fn convert_named_params(sql: &str, named_params: &IndexMap<String, AkitaValue>)
                     }
                 } else {
                     return Err(database_err!(format!(
-                        "Undefined named parameters: :{}", param_name
+                        "Undefined named parameters: :{}",
+                        param_name
                     )));
                 }
             } else {
@@ -367,9 +369,10 @@ fn convert_named_params(sql: &str, named_params: &IndexMap<String, AkitaValue>)
     Ok((converted_sql, postgres_params))
 }
 
-fn convert_positional_params(sql: &str, param_values: &[AkitaValue])
-                             -> crate::prelude::Result<(String, Vec<AkitaValue>)>
-{
+fn convert_positional_params(
+    sql: &str,
+    param_values: &[AkitaValue],
+) -> crate::prelude::Result<(String, Vec<AkitaValue>)> {
     let mut converted_sql = String::with_capacity(sql.len() + 20);
     let mut param_counter = 1;
 
@@ -395,7 +398,8 @@ fn convert_positional_params(sql: &str, param_values: &[AkitaValue])
     if expected_params != param_values.len() {
         return Err(database_err!(format!(
             "Mismatched number of arguments: SQL requires {} arguments, but provides {}",
-            expected_params, param_values.len()
+            expected_params,
+            param_values.len()
         )));
     }
 
@@ -416,16 +420,18 @@ fn convert_positional_params(sql: &str, param_values: &[AkitaValue])
 // }
 
 /// Optimize positional parameter conversions for multiline insertions
-fn convert_batch_positional_params(sql: &str, param_values: &[AkitaValue])
-                                   -> crate::prelude::Result<(String, Vec<AkitaValue>)>
-{
+fn convert_batch_positional_params(
+    sql: &str,
+    param_values: &[AkitaValue],
+) -> crate::prelude::Result<(String, Vec<AkitaValue>)> {
     // Pre-allocate sufficient capacity
     let placeholder_count = sql.chars().filter(|&c| c == '?').count();
 
     if placeholder_count != param_values.len() {
         return Err(database_err!(format!(
             "Bulk operate parameter mismatch: SQL has {} placeholders, providing {} parameters",
-            placeholder_count, param_values.len()
+            placeholder_count,
+            param_values.len()
         )));
     }
 
@@ -445,8 +451,6 @@ fn convert_batch_positional_params(sql: &str, param_values: &[AkitaValue])
 
     Ok((converted_sql, param_values.to_vec()))
 }
-
-
 
 fn get_value_from_row(row: &postgres::Row, index: usize, pg_type: &Type) -> AkitaValue {
     if row.is_empty() {
@@ -610,25 +614,25 @@ fn get_value_from_row(row: &postgres::Row, index: usize, pg_type: &Type) -> Akit
 }
 
 /// Convert AkitaValue to PostgreSQL parameters
-fn convert_to_pg_params(param_types: &[Type],params: Params) -> Vec<Box<dyn postgres::types::ToSql + Sync + Send>> {
+fn convert_to_pg_params(
+    param_types: &[Type],
+    params: Params,
+) -> Vec<Box<dyn postgres::types::ToSql + Sync + Send>> {
     match params {
         Params::None => vec![],
-        Params::Positional(param) => {
-            param.into_iter()
-                .zip(param_types.iter())
-                .map(|(val, pg_type)| {
-                    convert_pg_value_with_type(val, pg_type)
-                })
-                .collect()
-        }
-        Params::Named(named_params) => {
-            named_params.values().cloned().into_iter()
-                .zip(param_types.iter())
-                .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
-                .collect::<Vec<_>>()
-        }
+        Params::Positional(param) => param
+            .into_iter()
+            .zip(param_types.iter())
+            .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
+            .collect(),
+        Params::Named(named_params) => named_params
+            .values()
+            .cloned()
+            .into_iter()
+            .zip(param_types.iter())
+            .map(|(val, pg_type)| convert_pg_value_with_type(val, pg_type))
+            .collect::<Vec<_>>(),
     }
-    
 }
 
 fn convert_pg_value_with_type(val: AkitaValue, pg_type: &Type) -> Box<dyn ToSql + Sync + Send> {
@@ -650,7 +654,7 @@ fn convert_pg_value_with_type(val: AkitaValue, pg_type: &Type) -> Box<dyn ToSql 
         AkitaValue::Int(i) => match pg_type {
             &Type::INT2 => Box::new(i as i16),
             &Type::INT8 => Box::new(i as i64),
-            _ => Box::new(i), 
+            _ => Box::new(i),
         },
 
         AkitaValue::Bigint(i) => convert_integer_to_pg(i, pg_type),
@@ -659,35 +663,31 @@ fn convert_pg_value_with_type(val: AkitaValue, pg_type: &Type) -> Box<dyn ToSql 
         AkitaValue::BigDecimal(v) => Box::new(v.to_string()),
         AkitaValue::Blob(v) => Box::new(v),
         AkitaValue::Char(v) => Box::new(format!("{}", v)),
-        AkitaValue::Json(j) => {
-            match j {
-                Value::Bool(v) => Box::new(v),
-                Value::Number(v) => {
-                    if let Some(n) = v.as_u64() {
-                        Box::new(n as i64)
-                    } else if let Some(n) = v.as_f64() {
-                        Box::new(n)
-                    } else if let Some(n) =  v.as_i64() {
-                        Box::new(n)
-                    } else {
-                        Box::new(v.to_string())
-                    }
-
-
-                },
-                Value::String(v) => Box::new(v),
-                _ => Box::new(serde_json::to_string(&j).unwrap_or_default())
+        AkitaValue::Json(j) => match j {
+            Value::Bool(v) => Box::new(v),
+            Value::Number(v) => {
+                if let Some(n) = v.as_u64() {
+                    Box::new(n as i64)
+                } else if let Some(n) = v.as_f64() {
+                    Box::new(n)
+                } else if let Some(n) = v.as_i64() {
+                    Box::new(n)
+                } else {
+                    Box::new(v.to_string())
+                }
             }
+            Value::String(v) => Box::new(v),
+            _ => Box::new(serde_json::to_string(&j).unwrap_or_default()),
         },
         AkitaValue::Uuid(v) => Box::new(v.simple().to_string()),
         AkitaValue::Date(v) => Box::new(v.clone()),
         AkitaValue::DateTime(v) => Box::new(v.clone()),
         AkitaValue::Null => match pg_type {
             &Type::INT2 => Box::new(Option::<i16>::None),
-            &Type::INT4 => Box::new(Option::<i32>::None), 
+            &Type::INT4 => Box::new(Option::<i32>::None),
             &Type::INT8 => Box::new(Option::<i64>::None),
             &Type::TEXT => Box::new(Option::<String>::None),
-            _ => Box::new(Option::<i32>::None), 
+            _ => Box::new(Option::<i32>::None),
         },
 
         _ => Box::new(val.to_string()),
@@ -698,7 +698,7 @@ fn convert_integer_to_pg(value: i64, target_type: &Type) -> Box<dyn ToSql + Sync
     match target_type {
         // If there is explicit type information, match exactly
         &Type::INT2 => Box::new(value as i16),
-        &Type::INT4 => Box::new(value as i32),  // This is required for the seventh parameter
+        &Type::INT4 => Box::new(value as i32), // This is required for the seventh parameter
         &Type::INT8 => Box::new(value),
 
         // If no type information is available, it is inferred from the value size
@@ -713,8 +713,6 @@ fn convert_integer_to_pg(value: i64, target_type: &Type) -> Box<dyn ToSql + Sync
                 Box::new(value)
             }
         }
-        _ => {
-            Box::new(value)
-        }
+        _ => Box::new(value),
     }
 }

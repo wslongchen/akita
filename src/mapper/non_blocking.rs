@@ -16,15 +16,14 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
 
-use async_trait::async_trait;
-use crate::prelude::*;
-use std::marker::Sync;
 use crate::data_err;
 use crate::mapper::IPage;
-
+use crate::prelude::*;
+use async_trait::async_trait;
+use std::marker::Sync;
 
 #[async_trait]
 pub trait AsyncAkitaMapper {
@@ -116,7 +115,11 @@ pub trait AsyncAkitaMapper {
         I: FromAkitaValue + Sync + Send;
 
     #[track_caller]
-    async fn exec_iter<S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(&self, sql: S, params: P) -> Result<Rows>;
+    async fn exec_iter<S: Into<String> + Send + Sync, P: Into<Params> + Send + Sync>(
+        &self,
+        sql: S,
+        params: P,
+    ) -> Result<Rows>;
 
     #[track_caller]
     async fn simple_query<T, Q>(&self, query: Q) -> crate::errors::Result<Vec<T>>
@@ -128,17 +131,23 @@ pub trait AsyncAkitaMapper {
     }
 
     #[track_caller]
-    async fn query_opt<T, Q>(&self, query: Q) -> crate::errors::Result<Vec<crate::errors::Result<T>>>
+    async fn query_opt<T, Q>(
+        &self,
+        query: Q,
+    ) -> crate::errors::Result<Vec<crate::errors::Result<T>>>
     where
         Q: Into<String> + Send + Sync,
         T: FromAkitaValue + Send + Sync,
     {
-        self.query_map(query, from_akita_value_opt).await.map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
+        self.query_map(query, from_akita_value_opt)
+            .await
+            .map(|v| v.into_iter().map(|v| v.map_err(AkitaError::from)).collect())
     }
 
     #[track_caller]
     async fn query_first<S: Into<String> + Send + Sync, R: Sync + Send>(
-        &self, sql: S
+        &self,
+        sql: S,
     ) -> crate::errors::Result<R>
     where
         R: FromAkitaValue + Send + Sync,
@@ -148,7 +157,8 @@ pub trait AsyncAkitaMapper {
 
     #[track_caller]
     async fn query_first_opt<R, S: Into<String> + Send + Sync>(
-        &self, sql: S,
+        &self,
+        sql: S,
     ) -> crate::errors::Result<Option<R>>
     where
         R: FromAkitaValue + Send + Sync,
@@ -161,13 +171,14 @@ pub trait AsyncAkitaMapper {
     where
         Q: Into<String> + Send + Sync,
         T: FromAkitaValue + Send + Sync,
-        U: Send + Sync,  
+        U: Send + Sync,
         F: FnMut(T) -> U + Send + Sync,
     {
         self.query_fold(query, Vec::new(), |mut acc, row| {
             acc.push(f(row));
             acc
-        }).await
+        })
+        .await
     }
 
     #[track_caller]
@@ -175,11 +186,14 @@ pub trait AsyncAkitaMapper {
     where
         Q: Into<String> + Send + Sync,
         T: FromAkitaValue + Send + Sync,
-        U: Send + Sync, 
+        U: Send + Sync,
         F: FnMut(U, T) -> U + Send + Sync,
     {
-        self.exec_iter::<_, _>(query, ()).await.map(|r| r.object_iter().map(|data| from_akita_value(data))
-            .fold(init, |acc, row| f(acc, row)))
+        self.exec_iter::<_, _>(query, ()).await.map(|r| {
+            r.object_iter()
+                .map(|data| from_akita_value(data))
+                .fold(init, |acc, row| f(acc, row))
+        })
     }
 
     #[track_caller]
@@ -201,15 +215,15 @@ pub trait AsyncAkitaMapper {
         self.query_fold(query, Vec::new(), |mut acc, row| {
             acc.push(f(row));
             acc
-        }).await
+        })
+        .await
     }
 
     #[track_caller]
     async fn query_iter<S: Into<String> + Send + Sync>(
         &self,
         sql: S,
-    ) -> crate::errors::Result<Rows>
-    {
+    ) -> crate::errors::Result<Rows> {
         self.exec_iter(sql, ()).await
     }
 
@@ -224,7 +238,10 @@ pub trait AsyncAkitaMapper {
         R: FromAkitaValue + Send + Sync,
     {
         let rows = self.exec_iter(&sql.into(), params.into()).await?;
-        Ok(rows.object_iter().map(|data| R::from_value(&data)).collect::<Vec<R>>())
+        Ok(rows
+            .object_iter()
+            .map(|data| R::from_value(&data))
+            .collect::<Vec<R>>())
     }
 
     #[track_caller]
@@ -253,8 +270,7 @@ pub trait AsyncAkitaMapper {
         &self,
         sql: S,
         params: P,
-    ) -> crate::errors::Result<()>
-    {
+    ) -> crate::errors::Result<()> {
         let sql: String = sql.into();
         let _result: crate::errors::Result<Vec<()>> = self.exec_raw(&sql, params).await;
         Ok(())

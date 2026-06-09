@@ -16,20 +16,19 @@
  *  *   this software without specific prior written permission.
  *  *   Author: SnackCloud
  *  *
- *  
+ *
  */
-use std::fmt;
-use std::path::{Path, PathBuf};
-use r2d2::{Pool};
-use rusqlite::{Connection, Error, OpenFlags};
 use crate::config::AkitaConfig;
 use crate::database_err;
 use crate::driver::DriverType;
 use crate::errors::AkitaError;
+use r2d2::Pool;
+use rusqlite::{Connection, Error, OpenFlags};
+use std::fmt;
+use std::path::{Path, PathBuf};
 
 pub type SqlitePool = Pool<SqliteConnectionManager>;
 pub type SqliteConnection = r2d2::PooledConnection<SqliteConnectionManager>;
-
 
 #[derive(Debug)]
 enum Source {
@@ -37,7 +36,8 @@ enum Source {
     Memory,
 }
 
-type InitFn = dyn Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static;
+type InitFn =
+    dyn Fn(&mut Connection) -> std::result::Result<(), rusqlite::Error> + Send + Sync + 'static;
 
 pub struct SqliteConnectionManager {
     source: Source,
@@ -56,7 +56,6 @@ impl fmt::Debug for SqliteConnectionManager {
 }
 
 impl SqliteConnectionManager {
-    
     pub fn new(cfg: &AkitaConfig) -> Result<Self, AkitaError> {
         if cfg.get_platform()? != DriverType::Sqlite {
             return Err(database_err!(
@@ -73,7 +72,7 @@ impl SqliteConnectionManager {
             Ok(Self::file(file_path))
         }
     }
-    
+
     /// Creates a new `SqliteConnectionManager` from file.
     ///
     /// See `rusqlite::Connection::open`
@@ -131,11 +130,11 @@ impl r2d2::ManageConnection for SqliteConnectionManager {
             Source::File(ref path) => Connection::open_with_flags(path, self.flags),
             Source::Memory => Connection::open_in_memory_with_flags(self.flags),
         }
-            .map_err(Into::into)
-            .and_then(|mut c| match self.init {
-                None => Ok(c),
-                Some(ref init) => init(&mut c).map(|_| c),
-            })
+        .map_err(Into::into)
+        .and_then(|mut c| match self.init {
+            None => Ok(c),
+            Some(ref init) => init(&mut c).map(|_| c),
+        })
     }
 
     fn is_valid(&self, conn: &mut Connection) -> std::result::Result<(), Error> {
@@ -162,9 +161,7 @@ pub fn init_sqlite_pool(cfg: AkitaConfig) -> Result<SqlitePool, AkitaError> {
         .max_lifetime(Some(cfg.get_max_lifetime()))
         .test_on_check_out(cfg.get_test_on_check_out())
         .build(manager)
-        .map_err(|e| {
-            database_err!(format!("Failed to create SQLite connection pool: {}", e))
-        })?;
+        .map_err(|e| database_err!(format!("Failed to create SQLite connection pool: {}", e)))?;
 
     // Testing connections
     let conn = pool.get()?;
