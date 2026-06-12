@@ -1,11 +1,11 @@
 # Akita
 
 <p align="center">
-  <img src="https://img.woofcloud.com/snackcloud/shop/snack_logo.png" alt="Akita Logo" width="200" height="200">
+  <img src="akita.jpg" alt="Akita Logo" width="280">
 </p>
 
 <p align="center">
-  <strong>A lightweight, fast and easy-to-use ORM framework for Rust</strong>
+  <strong>A lightweight, fast and easy-to-use ORM framework for Rust — part of the <a href="https://github.com/woofcloud">WoofCloud</a> ecosystem</strong>
 </p>
 
 <p align="center">
@@ -998,7 +998,7 @@ at your option.
 
 + Inspired by great ORMs like Diesel, SQLx, and MyBatis
 
-+ Built with ❤️ by the Cat&Dog Lab team
++ Built with ❤️ by the WoofCloud team
 
 ## 📞 Contact
 
@@ -1008,6 +1008,12 @@ at your option.
 
 + GitHub: @wslongchen
 
-+ Project: Akita on GitHub
++ Project: Akita on GitHub — part of the [WoofCloud](https://github.com/woofcloud) organization
 
-<p align="center"> Made with ❤️ by <a href="https://github.com/wslongchen">Mr.Pan</a> and the Cat&Dog Lab Team </p>
+<p align="center">
+  <a href="https://github.com/woofcloud">
+    <img src="woofcloud_logo.png" alt="WoofCloud" height="60">
+  </a>
+</p>
+
+<p align="center"> Made with ❤️ by <a href="https://github.com/wslongchen">Mr.Pan</a> and the <a href="https://github.com/woofcloud">WoofCloud</a> Team </p>
