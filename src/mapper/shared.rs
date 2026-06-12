@@ -25,8 +25,8 @@
 //! `AkitaMapper` (blocking) and `AsyncAkitaMapper` (non-blocking) traits.
 
 use crate::data_err;
-use crate::errors::{AkitaError, Result};
-use akita_core::{AkitaValue, FromAkitaValue, IntoAkitaValue, Rows};
+use crate::errors::Result;
+use akita_core::{FromAkitaValue, Rows};
 
 /// Process raw rows into a vector of deserialized objects.
 ///

@@ -19,16 +19,12 @@
  *
  */
 use crate::core::GLOBAL_GENERATOR;
-use crate::driver::DriverType;
-use crate::errors::{AkitaError, Result};
 use crate::key::IdentifierGenerator;
-use crate::mapper::PaginationOptions;
 use crate::{empty_data_err, invalid_sql_err};
 use akita_core::{
-    cfg_if, AkitaValue, FieldName, FieldType, GetFields, GetTableName, IdentifierType,
-    IntoAkitaValue, QueryData, TableName, Wrapper,
+    cfg_if, AkitaValue, FieldName, FieldType, IdentifierType,
+    QueryData, TableName, Wrapper,
 };
-use std::fmt;
 
 cfg_if! {
     if #[cfg(any(feature = "mysql-async", feature = "mysql-sync"))] {
