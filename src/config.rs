@@ -566,7 +566,7 @@ impl AkitaConfig {
                 if let Some((key, value)) = param.split_once('=') {
                     let key_lower = key.to_lowercase();
                     match key_lower.as_str() {
-                        "databasename" | "databasename" | "database" => {
+                        "databasename" | "database" => {
                             info.database = Some(value.to_string());
                         }
                         "user" | "username" => {

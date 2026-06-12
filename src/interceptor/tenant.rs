@@ -41,7 +41,7 @@
 use crate::comm::ExecuteContext;
 use crate::errors::Result;
 use crate::interceptor::shared::InterceptorBase;
-use crate::interceptor::{InterceptorType, OperationType};
+use crate::interceptor::InterceptorType;
 use akita_core::AkitaValue;
 use std::collections::HashSet;
 

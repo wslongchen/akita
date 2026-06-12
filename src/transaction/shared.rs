@@ -25,8 +25,7 @@
 //! that are common to both `AkitaTransaction` (blocking) and
 //! `AsyncAkitaTransaction` (non-blocking).
 
-use crate::errors::{AkitaError, Result};
-use akita_core::Params;
+use crate::errors::{Result};
 
 /// RAII guard for savepoints that automatically rolls back on drop if not released.
 ///
