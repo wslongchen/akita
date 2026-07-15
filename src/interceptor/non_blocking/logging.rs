@@ -24,7 +24,7 @@ use crate::interceptor::logging::LoggingInterceptor;
 use crate::interceptor::non_blocking::AsyncAkitaInterceptor;
 use crate::prelude::ExecuteResult;
 use async_trait::async_trait;
-use tracing::{debug, enabled, error, info, trace, warn, Level};
+use tracing::{debug, enabled, error, trace, warn, Level};
 
 #[async_trait]
 impl AsyncAkitaInterceptor for LoggingInterceptor {
@@ -91,10 +91,14 @@ impl AsyncAkitaInterceptor for LoggingInterceptor {
                     );
                 }
 
-                // Regular success log
-                if enabled!(target: "akita::sql", Level::INFO) {
-                    info!(
+                // SQL execution details (DEBUG level): full SQL + cost + rows + operation.
+                // INFO no longer logs per-SQL events - SQL text belongs at DEBUG, timing
+                // stats belong to the performance interceptor. Keeps `RUST_LOG=info` quiet
+                // (only slow-query WARN + failure ERROR).
+                if enabled!(target: "akita::sql", Level::DEBUG) {
+                    debug!(
                         target: "akita::sql",
+                        sql = %ctx.final_sql(),
                         cost_ms = duration_ms as u64,
                         rows = rows,
                         operation = ?ctx.operation_type(),
