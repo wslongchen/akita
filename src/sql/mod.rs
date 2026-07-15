@@ -22,8 +22,7 @@ use crate::core::GLOBAL_GENERATOR;
 use crate::key::IdentifierGenerator;
 use crate::{empty_data_err, invalid_sql_err};
 use akita_core::{
-    cfg_if, AkitaValue, FieldName, FieldType, IdentifierType,
-    QueryData, TableName, Wrapper,
+    cfg_if, AkitaValue, FieldName, FieldType, IdentifierType, QueryData, TableName, Wrapper,
 };
 
 cfg_if! {
