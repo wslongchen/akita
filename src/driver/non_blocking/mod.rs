@@ -328,6 +328,12 @@ impl AsyncAkitaMapper for AsyncDbDriver {
         T: GetTableName + GetFields + FromAkitaValue + Send + Sync,
         I: IntoAkitaValue + Send + Sync,
     {
+        let id_val: AkitaValue = id.into();
+        // 主键为 NULL 时按主键查询无意义：akita 的 Wrapper::eq 对 Null 会跳过条件，
+        // 退化成 SELECT ... LIMIT 1 命中首条记录，是高危陷阱，直接返回 None。
+        if matches!(id_val, AkitaValue::Null) {
+            return Ok(None);
+        }
         let sql_builder = self.sql_builder();
         let id_field = sql_builder
             .find_id_field(T::fields())
@@ -335,7 +341,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
 
         let wrapper = Wrapper::new()
             .table(T::table_name().complete_name())
-            .eq(id_field.name, id)
+            .eq(id_field.name, id_val)
             .limit(1);
 
         self.select_one::<T>(wrapper).await
@@ -427,6 +433,13 @@ impl AsyncAkitaMapper for AsyncDbDriver {
         I: IntoAkitaValue + Send + Sync,
         T: GetTableName + GetFields + Send + Sync,
     {
+        let id_val: AkitaValue = id.into();
+        // 主键为 NULL 时拒绝删除：否则 eq 会跳过 WHERE，退化成全表 DELETE。
+        if matches!(id_val, AkitaValue::Null) {
+            return Err(missing_ident_err!(
+                "Missing id value for remove_by_id".to_string()
+            ));
+        }
         let sql_builder = self.sql_builder();
         let id_field = sql_builder
             .find_id_field(T::fields())
@@ -434,7 +447,7 @@ impl AsyncAkitaMapper for AsyncDbDriver {
 
         let wrapper = Wrapper::new()
             .table(T::table_name().complete_name())
-            .eq(id_field.name, id);
+            .eq(id_field.name, id_val);
 
         self.remove::<T>(wrapper).await
     }
@@ -454,7 +467,15 @@ impl AsyncAkitaMapper for AsyncDbDriver {
             .find_id_field(T::fields())
             .ok_or_else(|| missing_ident_err!("Missing primary key field".to_string()))?;
 
-        let id_values: Vec<AkitaValue> = ids.into_iter().map(|id| id.into()).collect();
+        // 过滤掉 NULL 主键，避免 IN (NULL,...) 语义错乱或条件被跳过
+        let id_values: Vec<AkitaValue> = ids
+            .into_iter()
+            .map(|id| id.into())
+            .filter(|v| !matches!(v, AkitaValue::Null))
+            .collect();
+        if id_values.is_empty() {
+            return Ok(0);
+        }
         let wrapper = Wrapper::new()
             .table(T::table_name().complete_name())
             .r#in(id_field.name, id_values);
@@ -520,6 +541,12 @@ impl AsyncAkitaMapper for AsyncDbDriver {
             .get_obj_value(&id_field.name)
             .ok_or_else(|| missing_ident_err!("Missing id value".to_string()))?;
 
+        // 主键值为 NULL 时拒绝更新：否则 eq 会跳过 WHERE，退化成全表 UPDATE。
+        if matches!(id_value, AkitaValue::Null) {
+            return Err(missing_ident_err!(
+                "Missing id value for update_by_id".to_string()
+            ));
+        }
         let wrapper = Wrapper::new().eq(id_field.name, id_value.clone());
         self.update(entity, wrapper).await
     }
