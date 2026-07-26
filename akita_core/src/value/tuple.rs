@@ -96,8 +96,13 @@ impl <A> FromAkitaValue for (A,) where A: FromAkitaValue {
                     from_akita_value_opt(elements[0].clone())?,
                 ))
             }
+            // exec_raw 把单列结果行包成 Object(IndexMap)，此前未处理导致 from_value panic。
+            AkitaValue::Object(obj) if !obj.is_empty() => {
+                let v = obj.values().next().expect("checked non-empty");
+                Ok((from_akita_value_opt(v.clone())?,))
+            }
             _ => Err(AkitaDataError::ConversionError(ConversionError::ConversionError {
-                message: format!("Cannot convert {:?} to 3-tuple", value)
+                message: format!("Cannot convert {:?} to 1-tuple", value)
             })),
         }
     }
