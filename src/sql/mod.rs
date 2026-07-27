@@ -138,6 +138,13 @@ pub trait SqlBuilder: Send + Sync {
             sql_parts.push(pagination);
         }
 
+        // Trailing raw SQL appended via Wrapper::last(...)
+        if let Some(last) = &data.last_sql {
+            if !last.is_empty() {
+                sql_parts.push(last.clone());
+            }
+        }
+
         // Building a Complete SQL
         let sql = sql_parts.join(" ");
         let final_sql = self.process_placeholders(&sql);
